@@ -1,0 +1,41 @@
+name: hanzimind
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DATABASE: postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  s3:
+    image: adobe/s3mock:latest
+    ports:
+      - "${S3_PORT:-9090}:9090"
+    environment:
+      - retainFilesOnExit=true
+      - initialBuckets=default-bucket
+      - root=data
+    volumes:
+      - s3_data:/data
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    volumes:
+      - mailpit_data:/data
+    ports:
+      - "${MAILPIT_PORT_WEB_UI_PORT:-8025}:8025"
+      - "${MAILPIT_PORT_SMTP_PORT:-1025}:1025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  postgres_data:
+  s3_data:
+  mailpit_data:
