@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="29" failures="0" errors="0" time="0.003593458">
+    <testsuite name="src/server/services/__tests__/TranslationChecker.test.ts" timestamp="2025-12-24T09:31:31.309Z" hostname="MacBook-Pro-4.local" tests="29" failures="0" errors="0" skipped="0" time="0.003593458">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings" time="0.00082225">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings with different casing" time="0.000105958">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 0.0 for completely different strings" time="0.000081">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return partial similarity for overlapping words" time="0.000136166">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle semicolon-separated definitions" time="0.000125625">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should find best match among multiple semicolon parts" time="0.000083708">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle partial matches in semicolon parts" time="0.000073666">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should ignore extra whitespace" time="0.000069166">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for two empty strings" time="0.000066833">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true when similarity exceeds threshold" time="0.000101875">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return false when similarity is below threshold" time="0.000061416">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should use default threshold of 0.2" time="0.000070416">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true for close matches with default threshold" time="0.000064042">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should handle semicolon-separated definitions correctly" time="0.000056167">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept close translations" time="0.00005125">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept synonym variations" time="0.0000455">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should reject very different meanings" time="0.000045833">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle multi-word phrases" time="0.000047333">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle partial phrase matches" time="0.000044416">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should NOT filter filler words by default" time="0.000051375">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should filter filler words when enabled" time="0.0000535">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle when all words are filler words" time="0.000052958">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should improve similarity for translations with articles" time="0.000043375">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle mixed articles" time="0.000062542">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should preserve important words like prepositions" time="0.000046417">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should still differentiate completely different content words" time="0.000043083">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should work with semicolon-separated definitions" time="0.000042875">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should help with infinitive verb forms" time="0.000053083">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle multiple articles in phrase" time="0.000038292">
+        </testcase>
+    </testsuite>
+</testsuites>

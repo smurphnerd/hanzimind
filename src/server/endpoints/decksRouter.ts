@@ -1,14 +1,10 @@
-import { and, count, eq, ilike, inArray, sql } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { z } from "zod";
+import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
 import { schema } from "@/server/database/schema";
-
-const createDeckSchema = z.object({
-  deckName: z.string().min(1),
-  description: z.string().min(1),
-  vocabList: z.array(z.string()).optional().default([]),
-});
+import { DeckDto, DeckDetailedDto } from "@/definitions/definitions";
 
 const browseDecksSchema = z.object({
   search: z.string().optional(),
@@ -21,18 +17,13 @@ const getUserDecksSchema = z.object({
   perPage: z.number().int().positive().max(100).optional().default(50),
 });
 
-const deckResponseSchema = z.object({
-  id: z.string(),
-  deckName: z.string(),
-  description: z.string(),
-  createdById: z.string(),
-  createdByUsername: z.string(),
-  createdDate: z.date(),
-  numLearners: z.number(),
-});
-
-const userDeckResponseSchema = deckResponseSchema.extend({
+const userDeckResponseSchema = DeckDto.extend({
   lastStudied: z.date(),
+  includeConstituents: z.boolean(),
+  readingEnabled: z.boolean(),
+  listeningEnabled: z.boolean(),
+  understandingEnabled: z.boolean(),
+  writingEnabled: z.boolean(),
 });
 
 const pagingInfoSchema = z.object({
@@ -66,12 +57,23 @@ export const decksRouter = {
 
       // Create missing vocab items with their components
       for (const vocabItem of missingVocabItems) {
-        const result =
+        try {
           await context.cradle.vocabService.addVocabItem(vocabItem);
-
-        if (result.isErr()) {
-          throw result.error;
+        } catch (error) {
+          throw new ORPCError("INTERNAL_SERVER_ERROR", {
+            message: `Failed to create vocab item: ${vocabItem}`,
+            cause: error,
+          });
         }
+      }
+
+      const vocabSet = new Set(vocabList);
+      for (const vocabItem of vocabList) {
+        const components =
+          await context.cradle.vocabService.getVocabItemPartsDeep(vocabItem);
+        components.forEach((component) => {
+          vocabSet.add(component);
+        });
       }
 
       // Create the deck
@@ -86,21 +88,33 @@ export const decksRouter = {
           .returning({ id: schema.decks.id });
 
         if (!deck) {
-          throw new Error("Failed to create deck");
+          throw new ORPCError("INTERNAL_SERVER_ERROR", {
+            message: "Failed to create deck",
+          });
         }
 
-        if (vocabList.length > 0) {
+        const originalVocabSet = new Set(vocabList);
+
+        if (vocabSet.size > 0) {
           const vocabItems = await tx
-            .select({ id: schema.vocabItems.id })
+            .select({
+              id: schema.vocabItems.id,
+              vocabItem: schema.vocabItems.vocabItem,
+            })
             .from(schema.vocabItems)
-            .where(inArray(schema.vocabItems.vocabItem, vocabList));
+            .where(inArray(schema.vocabItems.vocabItem, Array.from(vocabSet)));
 
           if (vocabItems.length > 0) {
             await tx.insert(schema.deckVocabItems).values(
-              vocabItems.map((item) => ({
-                deckId: deck.id,
-                vocabItemId: item.id,
-              })),
+              vocabItems.map((item) => {
+                const isConstituent = !originalVocabSet.has(item.vocabItem);
+
+                return {
+                  deckId: deck.id,
+                  vocabItemId: item.id,
+                  isConstituent,
+                };
+              }),
             );
           }
         }
@@ -115,52 +129,47 @@ export const decksRouter = {
     .input(browseDecksSchema)
     .output(
       z.object({
-        decks: z.array(deckResponseSchema),
+        decks: z.array(DeckDto),
         pagingInfo: pagingInfoSchema,
       }),
     )
     .handler(async ({ input, context }) => {
       const { search, page, perPage } = input;
-      const userId = context.user.id;
-      const offset = (page - 1) * perPage;
 
-      const searchCondition = search
-        ? ilike(schema.decks.deckName, `%${search}%`)
-        : undefined;
-
-      const conditions = searchCondition ? and(searchCondition) : undefined;
-
-      const [totalResult] = await context.cradle.database
-        .select({ count: count() })
-        .from(schema.decks)
-        .where(conditions);
-
-      const total = totalResult?.count ?? 0;
-
-      const results = await context.cradle.database
-        .select({
-          id: schema.decks.id,
-          deckName: schema.decks.deckName,
-          description: schema.decks.description,
-          createdById: schema.decks.createdById,
-          createdByUsername: schema.users.name,
-          createdDate: schema.decks.createdAt,
-          numLearners: sql<number>`(
-            SELECT COUNT(*)
-            FROM ${schema.userDecks}
-            WHERE ${schema.userDecks.deckId} = ${schema.decks.id}
-          )`,
-        })
-        .from(schema.decks)
-        .innerJoin(schema.users, eq(schema.decks.createdById, schema.users.id))
-        .where(conditions)
-        .limit(perPage)
-        .offset(offset);
+      const { decks, total } = await context.cradle.deckService.browseDeck({
+        search,
+        page,
+        perPage,
+      });
 
       return {
-        decks: results,
+        decks,
         pagingInfo: { page, perPage, total },
       };
+    }),
+
+  getById: authProcedure
+    .input(
+      z.object({
+        deckId: z.string(),
+        includeConstituents: z.boolean().optional().default(false),
+      }),
+    )
+    .output(DeckDetailedDto)
+    .handler(async ({ input, context }) => {
+      const { deckId, includeConstituents } = input;
+
+      try {
+        return await context.cradle.deckService.getDeckById({
+          deckId,
+          includeConstituents,
+        });
+      } catch (error) {
+        throw new ORPCError("NOT_FOUND", {
+          message: "Deck not found",
+          cause: error,
+        });
+      }
     }),
 
   getUserDecks: authProcedure
@@ -174,39 +183,15 @@ export const decksRouter = {
     .handler(async ({ input, context }) => {
       const { page, perPage } = input;
       const userId = context.user.id;
-      const offset = (page - 1) * perPage;
 
-      const [totalResult] = await context.cradle.database
-        .select({ count: count() })
-        .from(schema.userDecks)
-        .where(eq(schema.userDecks.userId, userId));
-
-      const total = totalResult?.count ?? 0;
-
-      const results = await context.cradle.database
-        .select({
-          id: schema.decks.id,
-          deckName: schema.decks.deckName,
-          description: schema.decks.description,
-          createdById: schema.decks.createdById,
-          createdByUsername: schema.users.name,
-          createdDate: schema.decks.createdAt,
-          lastStudied: schema.userDecks.updatedAt,
-          numLearners: sql<number>`(
-            SELECT COUNT(*)
-            FROM ${schema.userDecks}
-            WHERE ${schema.userDecks.deckId} = ${schema.decks.id}
-          )`,
-        })
-        .from(schema.userDecks)
-        .innerJoin(schema.decks, eq(schema.userDecks.deckId, schema.decks.id))
-        .innerJoin(schema.users, eq(schema.decks.createdById, schema.users.id))
-        .where(eq(schema.userDecks.userId, userId))
-        .limit(perPage)
-        .offset(offset);
+      const { decks, total } = await context.cradle.deckService.getUserDecks({
+        userId,
+        page,
+        perPage,
+      });
 
       return {
-        decks: results,
+        decks,
         pagingInfo: { page, perPage, total },
       };
     }),

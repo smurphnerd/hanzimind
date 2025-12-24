@@ -16,7 +16,6 @@ export class TranslatorService {
   }
 
   async translateSentence(sentence: string): Promise<string> {
-    console.log("translating", sentence);
     if (!this.deepl) {
       this.deps.logger.error(
         "DeepL translator not initialized - cannot translate",
@@ -34,7 +33,9 @@ export class TranslatorService {
       return result.text;
     } catch (error) {
       this.deps.logger.error({ error, sentence }, "Error translating sentence");
-      throw new Error("Failed to translate sentence");
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to translate sentence");
     }
   }
 

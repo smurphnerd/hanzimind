@@ -20,14 +20,25 @@ export function Header() {
               <Button asChild variant="ghost">
                 <Link href="/decks">Decks</Link>
               </Button>
-              <Button asChild>
-                <Link href="/decks/new">Create Deck</Link>
+              <Button asChild variant="ghost">
+                <Link href="/study">Study</Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/dictionary">Dictionary</Link>
+              </Button>
+              <Button asChild variant="ghost" size="icon">
+                <Link href="/profile">Profile</Link>
               </Button>
             </>
           ) : (
-            <Button asChild>
-              <Link href="/signin">Sign In</Link>
-            </Button>
+            <>
+              <Button asChild variant="ghost">
+                <Link href="/signin">Sign In</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/signup">Get Started</Link>
+              </Button>
+            </>
           )}
         </nav>
       </div>

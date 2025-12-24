@@ -33,21 +33,29 @@ export class S3StorageAdapter {
     });
   }
 
-  public async getMetadata(filePath: string) {
-    const command = new HeadObjectCommand({
-      Bucket: this.opts.bucketName,
-      Key: filePath,
-    });
-    const response = await this.s3.send(command);
-    if (!response.ContentType || !response.ContentLength || !response.ETag) {
-      throw new Error("Failed to get metadata");
-    }
+  public async getMetadata(filePath: string): Promise<{
+    contentType: string;
+    contentLength: number;
+    eTag: string;
+  }> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: this.opts.bucketName,
+        Key: filePath,
+      });
+      const response = await this.s3.send(command);
+      if (!response.ContentType || !response.ContentLength || !response.ETag) {
+        throw new Error("Failed to get metadata");
+      }
 
-    return {
-      contentType: response.ContentType,
-      contentLength: response.ContentLength,
-      eTag: response.ETag,
-    };
+      return {
+        contentType: response.ContentType,
+        contentLength: response.ContentLength,
+        eTag: response.ETag,
+      };
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("Failed to get metadata");
+    }
   }
 
   public async getSignedDownloadUrl(args: {
@@ -98,35 +106,43 @@ export class S3StorageAdapter {
   }
 
   public async uploadFile(key: string, buffer: Buffer): Promise<string> {
-    const command = new PutObjectCommand({
-      Bucket: this.opts.bucketName,
-      Key: key,
-      Body: buffer,
-    });
-    const response = await this.s3.send(command);
-    const etag = response.ETag;
-    if (!etag) {
-      throw new Error("Failed to retrieve ETag");
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.opts.bucketName,
+        Key: key,
+        Body: buffer,
+      });
+      const response = await this.s3.send(command);
+      const etag = response.ETag;
+      if (!etag) {
+        throw new Error("Failed to retrieve ETag");
+      }
+      return etag;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("Failed to upload file");
     }
-    return etag;
   }
 
   public async downloadFile(
     key: string,
     range?: { start: number; end?: number | undefined },
   ): Promise<Buffer> {
-    const command = new GetObjectCommand({
-      Bucket: this.opts.bucketName,
-      Key: key,
-      Range: range
-        ? `bytes=${range.start.toString()}-${range.end?.toString() ?? ""}`
-        : undefined,
-    });
-    const response = await this.s3.send(command);
-    if (!response.Body) {
-      throw new Error("Failed to download file");
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.opts.bucketName,
+        Key: key,
+        Range: range
+          ? `bytes=${range.start.toString()}-${range.end?.toString() ?? ""}`
+          : undefined,
+      });
+      const response = await this.s3.send(command);
+      if (!response.Body) {
+        throw new Error("Failed to download file");
+      }
+      return Buffer.from(await response.Body.transformToByteArray());
+    } catch (error) {
+      throw error instanceof Error ? error : new Error("Failed to download file");
     }
-    return Buffer.from(await response.Body.transformToByteArray());
   }
 
   public async listObjects(

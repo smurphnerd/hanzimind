@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
 
@@ -15,7 +15,7 @@ export function CharacterStrokes({
   strokeMedians,
   className = "",
 }: CharacterStrokesProps) {
-  const [animationKey, setAnimationKey] = useState(0);
+  const [animationKey, setAnimationKey] = useState(1);
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Calculate approximate path length for stroke animation
@@ -69,11 +69,6 @@ export function CharacterStrokes({
   const replay = () => {
     setAnimationKey((prev) => prev + 1);
   };
-
-  useEffect(() => {
-    // Auto-play on mount
-    setAnimationKey(1);
-  }, []);
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>

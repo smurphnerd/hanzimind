@@ -19,9 +19,9 @@ export function DeckCreationForm() {
 
   const createDeckMutation = useMutation(
     orpc.decks.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast.success("Deck created!");
-        router.refresh();
+        router.push(`/decks/${data.id}`);
       },
       onError: (error) => {
         toast.error(

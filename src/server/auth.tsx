@@ -63,7 +63,7 @@ function getLogger(pino: Logger): BetterAuthLogger {
   };
   return {
     log: (level, message, ...args) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+       
       methodMap[level].bind(childLogger)(message, ...args);
     },
   };

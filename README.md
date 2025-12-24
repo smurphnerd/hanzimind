@@ -1,26 +1,109 @@
-@xenova/transformers for checking definition
+# HanziMind
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+A Chinese language learning application built with Next.js that uses @xenova/transformers for checking definitions.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **[pnpm](https://pnpm.io/)** - Fast, disk space efficient package manager
+- **[Docker](https://www.docker.com/)** - For running development containers (PostgreSQL, etc.)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Start Development Containers
+
+First, start the required services (PostgreSQL, MinIO, MailHog) using Docker Compose:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm dev-containers
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This will start all the necessary containers defined in `development/docker-compose.yaml`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**📧 Mail Server**: A local SMTP server (MailHog) will be available at [http://localhost:8025](http://localhost:8025) for viewing emails sent during development.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Install Dependencies
+
+```bash
+pnpm install
+```
+
+### 3. Seed the Database
+
+Populate the database with the initial vocabulary list:
+
+```bash
+pnpm db:seed
+```
+
+This will import Chinese characters, compounds, and example sentences into the database.
+
+### 4. Run the Development Server
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```bash
+# Environment
+NODE_ENV=development
+LOG_LEVEL=info                          # Optional: trace, debug, info, warn, error, fatal
+GIT_SHA=dev                             # Git commit SHA (use "dev" for local development)
+
+# Application
+BASE_URL=http://localhost:3000          # Base URL of the application
+
+# Database
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+
+# S3/MinIO Storage (for audio files)
+S3_OPTIONS={"credentials":{"accessKeyId":"arbitrary-key","secretAccessKey":"arbitrary-secret"},"endpoint":"http://localhost:9090","region":"local","bucketName":"default-bucket","forcePathStyle":true}
+
+# Email
+EMAIL_CONNECTION_URL=smtp://admin:admin@localhost:1025  # Or "ses" for production
+SYSTEM_EMAIL_FROM="HanziMind <no-reply@hanzimind.app>"
+
+# Authentication
+AUTH_SECRET=your-secret-key-here        # Generate with: openssl rand -hex 32
+
+# DeepL Translation API
+DEEPL_API_KEY=your-deepl-api-key-here   # Get from https://www.deepl.com/pro-api
+```
+
+### Required API Keys
+
+- **DeepL API Key**: Sign up for a free DeepL API account at https://www.deepl.com/pro-api to get your API key for translation services.
+
+### Development Defaults
+
+The default values above work with the Docker development containers. For production deployment, you'll need to:
+
+1. Set `NODE_ENV=production`
+2. Configure production database URL
+3. Set up AWS S3 or compatible object storage
+4. Use `EMAIL_CONNECTION_URL=ses` for AWS SES
+5. Generate a secure `AUTH_SECRET`
+6. Obtain a DeepL API key
+
+## Available Scripts
+
+- `pnpm dev` - Start the Next.js development server
+- `pnpm dev-containers` - Start development containers (Docker)
+- `pnpm db:seed` - Seed the database with vocabulary
+- `pnpm db:push` - Push database schema changes
+- `pnpm email` - Start the email development server
+- `pnpm build` - Build the application for production
+- `pnpm start` - Start the production server
+- `pnpm typecheck` - Run TypeScript type checking
+- `pnpm test` - Run unit tests
+- `pnpm test-e2e` - Run end-to-end tests
 
 ## Learn More
 

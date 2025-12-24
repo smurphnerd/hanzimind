@@ -44,8 +44,12 @@ async function main() {
     );
 
     logger.info("Creating TTS service...");
+    const { GoogleTTSAPIProvider } = await import(
+      "@/server/services/tts/GoogleTTSAPIProvider"
+    );
+    const ttsProvider = new GoogleTTSAPIProvider(logger);
     const tts = new TTSService(
-      { logger, storage },
+      { logger, storage, ttsProvider },
       {
         publicUrl: `${env.S3_OPTIONS.endpoint}/${env.S3_OPTIONS.bucketName}`,
       },

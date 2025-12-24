@@ -9,9 +9,8 @@ import {
 } from "@orpc/tanstack-query";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { createContext, type ReactNode, use, useEffect, useState } from "react";
+import { createContext, type ReactNode, use, useState } from "react";
 
-import { authClient } from "@/lib/authClient";
 import { makeQueryClient } from "@/lib/queryClient";
 import type { appRouter } from "@/server/endpoints/router";
 
@@ -51,13 +50,7 @@ export function ApiClientProvider(props: {
     ),
   );
   const [orpc] = useState(() => createTanstackQueryUtils(client));
-  const { data: authState } = authClient.useSession();
-  const isSignedIn = authState?.user !== undefined;
-  useEffect(() => {
-    if (!isSignedIn) {
-      queryClient.clear(); // clearing for security reasons
-    }
-  }, [isSignedIn, queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ReactQueryDevtools />
@@ -65,4 +58,3 @@ export function ApiClientProvider(props: {
     </QueryClientProvider>
   );
 }
-

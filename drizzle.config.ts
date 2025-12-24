@@ -6,7 +6,7 @@ import { defineConfig } from "drizzle-kit";
 const projectDir = process.cwd();
 loadEnvConfig(
   projectDir,
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+   
   process.env.NODE_ENV === "development" || process.env.NODE_ENV === undefined,
 );
 

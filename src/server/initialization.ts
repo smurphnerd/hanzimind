@@ -21,6 +21,14 @@ import { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import { TranslatorService } from "@/server/services/TranslatorService";
 import { VocabService } from "@/server/services/VocabService";
 import { TTSService } from "@/server/services/TTSService";
+import { DeckService } from "@/server/services/DeckService";
+import { StudyService } from "@/server/services/StudyService";
+import type { ITTSProvider } from "@/server/services/tts/ITTSProvider";
+import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
+import {
+  type ITranslationChecker,
+  JaccardTranslationChecker,
+} from "@/server/services/TranslationChecker";
 
 export type Cradle = {
   logger: Logger;
@@ -29,8 +37,12 @@ export type Cradle = {
   email: EmailAdapter;
   auth: Auth;
   translator: TranslatorService;
+  ttsProvider: ITTSProvider;
   tts: TTSService;
+  translationChecker: ITranslationChecker;
   vocabService: VocabService;
+  deckService: DeckService;
+  studyService: StudyService;
 };
 
 export const container = createContainer<Cradle>({
@@ -62,7 +74,7 @@ if (process.env.NODE_ENV !== "test") {
       }),
     ),
     storage: asFunction(
-      (deps: Cradle) => new S3StorageAdapter(env.S3_OPTIONS),
+      () => new S3StorageAdapter(env.S3_OPTIONS),
     ).singleton(),
     email:
       env.EMAIL_CONNECTION_URL === "ses"
@@ -79,18 +91,27 @@ if (process.env.NODE_ENV !== "test") {
           deeplApiKey: env.DEEPL_API_KEY,
         }),
     ).singleton(),
+    ttsProvider: asFunction(
+      (deps: Cradle) => new GoogleTTSAPIProvider(deps.logger),
+    ).singleton(),
     tts: asFunction(
       (deps: Cradle) =>
         new TTSService(
           {
             logger: deps.logger,
             storage: deps.storage,
+            ttsProvider: deps.ttsProvider,
           },
           {
             publicUrl: `${env.S3_OPTIONS.endpoint}/${env.S3_OPTIONS.bucketName}`,
           },
         ),
     ).singleton(),
+    translationChecker: asFunction(
+      () => new JaccardTranslationChecker(),
+    ).singleton(),
     vocabService: asClass(VocabService).singleton(),
+    deckService: asClass(DeckService).singleton(),
+    studyService: asClass(StudyService).singleton(),
   });
 }

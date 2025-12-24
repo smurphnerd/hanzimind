@@ -1,14 +1,15 @@
-import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import type { Logger } from "pino";
 import { createHash } from "crypto";
 
 import type { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
+import type { ITTSProvider } from "@/server/services/tts/ITTSProvider";
 
 export class TTSService {
   constructor(
     private deps: {
       logger: Logger;
       storage: S3StorageAdapter;
+      ttsProvider: ITTSProvider;
     },
     private config: {
       publicUrl: string;
@@ -16,52 +17,38 @@ export class TTSService {
   ) {}
 
   /**
-   * Generates audio for the given text using MS Edge TTS and uploads to S3.
+   * Generates audio for the given text using the configured TTS provider and uploads to S3.
    * @param text - The Chinese text to convert to speech
    * @returns The full public URL to access the audio file
    */
   async getVocabAudio(text: string): Promise<string> {
     try {
-      this.deps.logger.info({ text }, "Generating audio with MS Edge TTS");
-
-      const tts = new MsEdgeTTS();
-      await tts.setMetadata(
-        "zh-CN-XiaoxiaoNeural", // Chinese (Simplified, PRC) - Female voice
-        OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3,
+      this.deps.logger.info(
+        { text, provider: this.deps.ttsProvider.name },
+        "Generating audio with TTS provider",
       );
 
-      const { audioStream } = tts.toStream(text);
-      const chunks: Buffer[] = [];
-
-      for await (const chunk of audioStream) {
-        if (chunk instanceof Buffer) {
-          chunks.push(chunk);
-        }
-      }
-
-      const fullBuffer = Buffer.concat(chunks);
+      // Generate audio using the provider
+      const audioBuffer = await this.deps.ttsProvider.generateAudio(text);
 
       // Upload to S3
       const s3Key = this.getVocabAudioFP(text);
-      await this.deps.storage.uploadFile(s3Key, fullBuffer);
+      await this.deps.storage.uploadFile(s3Key, audioBuffer);
 
       this.deps.logger.info(
-        { text, s3Key },
+        { text, s3Key, provider: this.deps.ttsProvider.name },
         "Audio generated and uploaded to S3",
       );
 
       return `${this.config.publicUrl}/${s3Key}`;
     } catch (error) {
       this.deps.logger.error(
-        {
-          error,
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          text,
-        },
-        "Error generating audio with MS Edge TTS",
+        { error, text, provider: this.deps.ttsProvider.name },
+        "Error generating audio with TTS provider",
       );
-      throw error;
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to generate audio");
     }
   }
 

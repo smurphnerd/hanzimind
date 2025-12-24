@@ -4,13 +4,13 @@ import {
   text,
   primaryKey,
   boolean,
-  pgEnum,
   jsonb,
   timestamp,
-    bigint,
+  bigint,
 } from "drizzle-orm/pg-core";
 import { timestampFields } from "./databaseUtils";
-import { etymologyTypeValues, vocabTypeValues } from "@/lib/enums";
+import { EtymologyType, VocabType } from "@/definitions/definitions";
+import { relations } from "drizzle-orm";
 
 // Users table
 export const users = pgTable("users", {
@@ -79,7 +79,7 @@ export const decks = pgTable("decks", {
   id: text()
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
-  deckName: text().notNull().unique(),
+  deckName: text().notNull(),
   description: text().notNull(),
   createdById: text()
     .notNull()
@@ -88,24 +88,22 @@ export const decks = pgTable("decks", {
 });
 
 // Vocabulary items table
-export const vocabType = pgEnum("vocab_type", vocabTypeValues);
-export const etymologyType = pgEnum("etymology_type", etymologyTypeValues);
 export const vocabItems = pgTable("vocab_items", {
   id: text()
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   vocabItem: text().notNull().unique(),
-  translation: text().notNull(),
+  translation: text(),
   pinyin: text().notNull(),
-  vocabType: vocabType("vocab_type").notNull(),
+  vocabType: text().notNull().$type<VocabType>(),
   audioUrl: text().notNull(),
   decomposition: text(), // Used for characters
   etymologyHint: text(), // Used for characters
-  etymologyType: etymologyType("etymology_type"), // Used for characters
+  etymologyType: text().$type<EtymologyType>(), // Used for characters
   radical: text(), // Used for characters
-  strokes: jsonb(), // Used for characters - SVG path data for each stroke
-  strokeMedians: jsonb(), // Used for characters - Median coordinates for animating strokes
-  strokeMatches: jsonb(), // Used for characters
+  strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
+  strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes
+  strokeMatches: jsonb().$type<(number[] | null)[] | null>(), // Used for characters
   ...timestampFields,
 });
 
@@ -119,47 +117,139 @@ export const userVocabItems = pgTable(
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
-    level: integer().notNull().default(0),
-    visualization: text(),
+    seen: boolean().notNull().default(false),
+    readingLevel: integer().notNull().default(0),
+    listeningLevel: integer().notNull().default(0),
+    understandingLevel: integer().notNull().default(0),
+    writingLevel: integer().notNull().default(0),
+    memoryAidId: text().references(() => memoryAids.id),
+    readingNextAt: timestamp(),
+    listeningNextAt: timestamp(),
+    understandingNextAt: timestamp(),
+    writingNextAt: timestamp(),
     ...timestampFields,
   },
   (table) => [primaryKey({ columns: [table.userId, table.vocabItemId] })],
 );
 
-// Vocab translations table
-export const vocabTranslations = pgTable(
-  "vocab_translations",
+// Deck vocabulary items table (vocab items in a deck)
+export const deckVocabItems = pgTable(
+  "deck_vocab_items",
   {
+    deckId: text()
+      .notNull()
+      .references(() => decks.id),
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
-    translation: text().notNull(),
+    isConstituent: boolean().notNull().default(false),
     ...timestampFields,
   },
-  (table) => [primaryKey({ columns: [table.vocabItemId, table.translation] })],
+  (table) => [primaryKey({ columns: [table.deckId, table.vocabItemId] })],
 );
 
-// Deck vocabulary items table (vocab items in a deck)
-export const deckVocabItems = pgTable("deck_vocab_items", {
-  deckId: text()
-    .notNull()
-    .references(() => decks.id),
+// User decks table (decks a user is studying)
+export const userDecks = pgTable(
+  "user_decks",
+  {
+    userId: text()
+      .notNull()
+      .references(() => users.id),
+    deckId: text()
+      .notNull()
+      .references(() => decks.id),
+    includeConstituents: boolean().notNull().default(false),
+    readingEnabled: boolean().notNull().default(true),
+    listeningEnabled: boolean().notNull().default(true),
+    understandingEnabled: boolean().notNull().default(true),
+    writingEnabled: boolean().notNull().default(true),
+    ...timestampFields,
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.deckId] })],
+);
+
+export const memoryAids = pgTable("memory_aids", {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  memoryAid: text().notNull(),
   vocabItemId: text()
     .notNull()
     .references(() => vocabItems.id),
+  createdById: text()
+    .notNull()
+    .references(() => users.id),
+  public: boolean().notNull().default(false),
   ...timestampFields,
 });
 
-// User decks table (decks a user is studying)
-export const userDecks = pgTable("user_decks", {
-  userId: text()
-    .notNull()
-    .references(() => users.id),
-  deckId: text()
-    .notNull()
-    .references(() => decks.id),
-  ...timestampFields,
-});
+export const vocabItemRelations = relations(vocabItems, ({ many }) => ({
+  memoryAids: many(memoryAids),
+  decks: many(deckVocabItems),
+  users: many(userVocabItems),
+}));
+
+export const memoryAidRelations = relations(memoryAids, ({ one }) => ({
+  vocabItem: one(vocabItems, {
+    fields: [memoryAids.vocabItemId],
+    references: [vocabItems.id],
+  }),
+  user: one(users, {
+    fields: [memoryAids.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const deckRelations = relations(decks, ({ many, one }) => ({
+  vocabItems: many(deckVocabItems),
+  user: one(users, {
+    fields: [decks.createdById],
+    references: [users.id],
+  }),
+}));
+
+export const userRelations = relations(users, ({ many }) => ({
+  decks: many(userDecks),
+  vocabItems: many(userVocabItems),
+  memoryAids: many(memoryAids),
+}));
+
+export const vocabItemDeckRelations = relations(deckVocabItems, ({ one }) => ({
+  deck: one(decks, {
+    fields: [deckVocabItems.deckId],
+    references: [decks.id],
+  }),
+  vocabItem: one(vocabItems, {
+    fields: [deckVocabItems.vocabItemId],
+    references: [vocabItems.id],
+  }),
+}));
+
+export const userVocabItemRelations = relations(userVocabItems, ({ one }) => ({
+  vocabItem: one(vocabItems, {
+    fields: [userVocabItems.vocabItemId],
+    references: [vocabItems.id],
+  }),
+  user: one(users, {
+    fields: [userVocabItems.userId],
+    references: [users.id],
+  }),
+  memoryAid: one(memoryAids, {
+    fields: [userVocabItems.memoryAidId],
+    references: [memoryAids.id],
+  }),
+}));
+
+export const userDeckRelations = relations(userDecks, ({ one }) => ({
+  deck: one(decks, {
+    fields: [userDecks.deckId],
+    references: [decks.id],
+  }),
+  user: one(users, {
+    fields: [userDecks.userId],
+    references: [users.id],
+  }),
+}));
 
 export const schema = {
   users,
@@ -170,7 +260,14 @@ export const schema = {
   decks,
   vocabItems,
   userVocabItems,
-  vocabTranslations,
   deckVocabItems,
   userDecks,
+  memoryAids,
+  vocabItemRelations,
+  memoryAidRelations,
+  deckRelations,
+  userRelations,
+  vocabItemDeckRelations,
+  userVocabItemRelations,
+  userDeckRelations,
 };

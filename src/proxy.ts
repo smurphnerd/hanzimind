@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { env } from "@/env";
 
-export default function middleware(request: NextRequest) {
+export default function proxy(request: NextRequest) {
   const response = NextResponse.next();
   const pathname = request.nextUrl.pathname;
   if (!pathname.startsWith("/_next/") && !pathname.startsWith("/api/")) {
@@ -15,6 +15,7 @@ export default function middleware(request: NextRequest) {
     default-src 'self';
     script-src 'self' 'unsafe-inline' 'unsafe-eval';
     style-src 'self' 'unsafe-inline';
+    font-src 'self' data:;
     img-src 'self' blob: data:;
     media-src 'self' ${s3Endpoint.toString()};
     object-src 'none';

@@ -5,7 +5,7 @@ import type { Drizzle } from "@/server/database/database";
 import type { TranslatorService } from "@/server/services/TranslatorService";
 import type { TTSService } from "@/server/services/TTSService";
 import { schema } from "@/server/database/schema";
-import { VocabTypeEnum } from "@/lib/enums";
+import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
 
 interface SeedCradle {
   logger: Logger;
@@ -55,7 +55,9 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
     "src/server/database/seed/graphics.txt",
   );
   const graphicsContent = readFileSync(graphicsPath, "utf-8");
-  const graphicsLines = graphicsContent.split("\n").filter((line) => line.trim());
+  const graphicsLines = graphicsContent
+    .split("\n")
+    .filter((line) => line.trim());
 
   logger.info(`Found ${graphicsLines.length} graphics entries`);
 
@@ -79,15 +81,10 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
     try {
       const entry = JSON.parse(line) as DictionaryEntry;
 
-      // Skip if no definition (optional characters)
-      if (!entry.definition) {
-        skippedCount++;
-        continue;
-      }
-
       // Check if entry already exists in database
       const existingEntry = await cradle.database.query.vocabItems.findFirst({
-        where: (vocabItems, { eq }) => eq(vocabItems.vocabItem, entry.character),
+        where: (vocabItems, { eq }) =>
+          eq(vocabItems.vocabItem, entry.character),
       });
 
       if (existingEntry) {
@@ -124,24 +121,22 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       }
 
       // Insert vocab item into database
-      await cradle.database
-        .insert(schema.vocabItems)
-        .values({
-          vocabItem: entry.character,
-          translation: entry.definition,
-          pinyin: pinyin || "",
-          vocabType: VocabTypeEnum.enum.character,
-          audioUrl: audioUrl || "",
-          decomposition: entry.decomposition || null,
-          etymologyHint: entry.etymology?.hint || null,
-          etymologyType: entry.etymology?.type
-            ? (entry.etymology.type as any)
-            : null,
-          radical: entry.radical || null,
-          strokes: graphics?.strokes ? (graphics.strokes as any) : null,
-          strokeMedians: graphics?.medians ? (graphics.medians as any) : null,
-          strokeMatches: entry.matches ? (entry.matches as any) : null,
-        });
+      await cradle.database.insert(schema.vocabItems).values({
+        vocabItem: entry.character,
+        translation: entry.definition,
+        pinyin: pinyin || "",
+        vocabType: VocabTypeEnum.enum.character,
+        audioUrl: audioUrl || "",
+        decomposition: entry.decomposition || null,
+        etymologyHint: entry.etymology?.hint || null,
+        etymologyType: entry.etymology?.type
+          ? (entry.etymology.type as EtymologyType)
+          : null,
+        radical: entry.radical || null,
+        strokes: graphics?.strokes ?? null,
+        strokeMedians: graphics?.medians as [number, number][][] | null ?? null,
+        strokeMatches: entry.matches ?? null,
+      });
 
       processedCount++;
 
@@ -157,10 +152,13 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
     }
   }
 
-  logger.info({
-    processed: processedCount,
-    skipped: skippedCount,
-    errors: errorCount,
-    total: dictionaryLines.length,
-  }, "Dictionary seeding completed");
+  logger.info(
+    {
+      processed: processedCount,
+      skipped: skippedCount,
+      errors: errorCount,
+      total: dictionaryLines.length,
+    },
+    "Dictionary seeding completed",
+  );
 }
