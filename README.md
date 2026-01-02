@@ -29,9 +29,15 @@ This will start all the necessary containers defined in `development/docker-comp
 pnpm install
 ```
 
-### 3. Seed the Database
+### 3. Set Up the Database
 
-Populate the database with the initial vocabulary list:
+First, push the database schema to create the tables:
+
+```bash
+pnpm db:push
+```
+
+Then, populate the database with the initial vocabulary list:
 
 ```bash
 pnpm db:seed
