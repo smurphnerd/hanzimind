@@ -2,7 +2,7 @@ name: hanzimind
 
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

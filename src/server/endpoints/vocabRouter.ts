@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { ORPCError } from "@orpc/client";
 
-import { commonProcedure } from "@/server/endpoints/procedure";
+import { authProcedure, commonProcedure } from "@/server/endpoints/procedure";
 import {
+  MemoryAidDto,
   SearchLanguageEnum,
   VocabItemDetailedDto,
 } from "@/definitions/definitions";
@@ -46,5 +47,31 @@ export const vocabRouter = {
     .input(searchVocabItemsSchema)
     .handler(async ({ input, context }) => {
       return await context.cradle.vocabService.searchVocabItems(input);
+    }),
+
+  createMemoryAid: authProcedure
+    .input(
+      z.object({
+        vocabItemId: z.string(),
+        memoryAid: z.string().min(1),
+      }),
+    )
+    .output(MemoryAidDto)
+    .handler(async ({ input, context }) => {
+      try {
+        return await context.cradle.vocabService.createMemoryAid({
+          vocabItemId: input.vocabItemId,
+          userId: context.user.id,
+          memoryAid: input.memoryAid,
+        });
+      } catch (error) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to create memory aid",
+          cause: error,
+        });
+      }
     }),
 };

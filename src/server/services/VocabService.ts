@@ -121,6 +121,38 @@ export class VocabService {
     }));
   }
 
+  async createMemoryAid(args: {
+    vocabItemId: string;
+    userId: string;
+    memoryAid: string;
+  }): Promise<MemoryAidDto> {
+    const [memoryAidRow] = await this.deps.database
+      .insert(memoryAids)
+      .values({
+        vocabItemId: args.vocabItemId,
+        createdById: args.userId,
+        memoryAid: args.memoryAid,
+        public: false,
+      })
+      .returning();
+
+    if (!memoryAidRow) {
+      throw new Error("Failed to create memory aid");
+    }
+
+    const user = await this.deps.database.query.users.findFirst({
+      where: (users, { eq }) => eq(users.id, args.userId),
+    });
+
+    return {
+      id: memoryAidRow.id,
+      memoryAid: memoryAidRow.memoryAid,
+      createdById: memoryAidRow.createdById,
+      createdByUsername: user?.name ?? "Anonymous",
+      usageCount: 0,
+    };
+  }
+
   async getExistingVocabItems(vocabList: string[]): Promise<string[]> {
     if (vocabList.length === 0) {
       return [];

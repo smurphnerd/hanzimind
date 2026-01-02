@@ -30,7 +30,7 @@ export const MemoryAidDto = z.object({
   memoryAid: z.string(),
   createdById: z.string(),
   createdByUsername: z.string(),
-  usageCount: z.number().int().positive(),
+  usageCount: z.number().int().nonnegative(),
 });
 export type MemoryAidDto = z.infer<typeof MemoryAidDto>;
 

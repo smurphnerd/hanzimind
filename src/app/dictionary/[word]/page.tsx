@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Volume2, Flag } from "lucide-react";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -10,11 +10,15 @@ import { useORPC } from "@/lib/orpc.client";
 import { useParams } from "next/navigation";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DictionaryWordLoading } from "@/components/dictionary-word-loading";
+import { CreateMemoryAidDialog } from "@/components/create-memory-aid-dialog";
+import { ViewAllMemoryAidsDialog } from "@/components/view-all-memory-aids-dialog";
 
 function DictionaryWordContent() {
   const orpc = useORPC();
   const params = useParams();
   const word = decodeURIComponent(params.word as string);
+  const [isMemoryAidDialogOpen, setIsMemoryAidDialogOpen] = useState(false);
+  const [isViewAllDialogOpen, setIsViewAllDialogOpen] = useState(false);
 
   const { data: vocabData } = useSuspenseQuery(
     orpc.vocab.get.queryOptions({
@@ -142,10 +146,15 @@ function DictionaryWordContent() {
               ))}
             </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="outline">
+              <Button
+                variant="outline"
+                onClick={() => setIsViewAllDialogOpen(true)}
+              >
                 View All ({vocabData.memoryAids.length})
               </Button>
-              <Button>+ Create My Own</Button>
+              <Button onClick={() => setIsMemoryAidDialogOpen(true)}>
+                + Create My Own
+              </Button>
             </div>
           </>
         ) : (
@@ -153,10 +162,25 @@ function DictionaryWordContent() {
             <p className="mb-4 text-muted-foreground">
               No memory aids yet for this word
             </p>
-            <Button>+ Create the First One</Button>
+            <Button onClick={() => setIsMemoryAidDialogOpen(true)}>
+              + Create the First One
+            </Button>
           </div>
         )}
       </Card>
+
+      <CreateMemoryAidDialog
+        vocabItemId={vocabData.id}
+        vocabItem={vocabData.vocabItem}
+        open={isMemoryAidDialogOpen}
+        onOpenChange={setIsMemoryAidDialogOpen}
+      />
+
+      <ViewAllMemoryAidsDialog
+        vocabItem={vocabData.vocabItem}
+        open={isViewAllDialogOpen}
+        onOpenChange={setIsViewAllDialogOpen}
+      />
     </div>
   );
 }
