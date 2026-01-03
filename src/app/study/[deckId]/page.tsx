@@ -497,6 +497,8 @@ function StudyPageContent() {
     null,
   );
   const [isCompleted, setIsCompleted] = useState(false);
+  const [pendingNextVocabItem, setPendingNextVocabItem] =
+    useState<VocabItemStudyDto | null>(null);
 
   const markAsSeenMutation = useMutation(
     orpc.study.markAsSeenAndGetNext.mutationOptions({
@@ -515,26 +517,11 @@ function StudyPageContent() {
     orpc.study.submitAnswer.mutationOptions({
       onSuccess: (data) => {
         setIsCorrect(data.correct);
-
-        // Get previous level based on study type
-        const studyType = currentVocabItem?.studyType as StudyType;
-        const levelKey = `${studyType}Level` as
-          | "readingLevel"
-          | "listeningLevel"
-          | "understandingLevel"
-          | "writingLevel";
-
-        setPreviousLevel(data.userVocabItem[levelKey]);
-        setNewLevel(data.userVocabItem[levelKey]);
+        setPreviousLevel(data.previousLevel);
+        setNewLevel(data.newLevel);
         setUserVocabItem(data.userVocabItem);
         setShowingResult(true);
-
-        // Check if session is complete
-        if (!data.nextVocabItem) {
-          setIsCompleted(true);
-        } else {
-          setCurrentVocabItem(data.nextVocabItem);
-        }
+        setPendingNextVocabItem(data.nextVocabItem);
       },
     }),
   );
@@ -566,6 +553,14 @@ function StudyPageContent() {
 
   const handleNext = () => {
     setShowingResult(false);
+
+    // Check if there's a next vocab item
+    if (!pendingNextVocabItem) {
+      setIsCompleted(true);
+    } else {
+      setCurrentVocabItem(pendingNextVocabItem);
+      setPendingNextVocabItem(null);
+    }
   };
 
   if (isCompleted) {

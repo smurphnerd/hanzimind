@@ -191,7 +191,7 @@ export class StudyService {
   async processAnswer(
     answer: StudyAnswerDto,
     userId: string,
-  ): Promise<boolean> {
+  ): Promise<{ correct: boolean; previousLevel: number; newLevel: number }> {
     try {
       // Fetch both vocab item and user progress in parallel
       const [vocabItem, userVocabItem] = await Promise.all([
@@ -229,7 +229,7 @@ export class StudyService {
               eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
             ),
           );
-        return true;
+        return { correct: true, previousLevel: 0, newLevel: 0 };
       }
 
       let answerCorrect = false;
@@ -266,11 +266,11 @@ export class StudyService {
         | "listeningLevel"
         | "understandingLevel"
         | "writingLevel";
-      const currentLevel = userVocabItem[levelField] ?? 0;
+      const previousLevel = userVocabItem[levelField] ?? 0;
 
       // Calculate next level and review time
       const { nextLevel, nextAt } = this.getNextReviewTime(
-        currentLevel,
+        previousLevel,
         answerCorrect,
       );
 
@@ -297,7 +297,7 @@ export class StudyService {
           ),
         );
 
-      return answerCorrect;
+      return { correct: answerCorrect, previousLevel, newLevel: nextLevel };
     } catch (error) {
       this.deps.logger.error({ error, answer }, "Error processing answer");
       throw error instanceof Error
@@ -334,7 +334,7 @@ export class StudyService {
   async getNextVocabItem(
     userId: string,
     deckId: string,
-  ): Promise<VocabItemStudyDto> {
+  ): Promise<VocabItemStudyDto | null> {
     try {
       const userDeck = await this.deps.database.query.userDecks.findFirst({
         where: (userDecks, { eq, and }) =>
@@ -474,7 +474,7 @@ export class StudyService {
         .filter((item): item is NonNullable<typeof item> => item !== null);
 
       if (candidates.length === 0) {
-        throw new Error("No vocab items are due for study");
+        return null;
       }
 
       // Sort by:

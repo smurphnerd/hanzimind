@@ -86,18 +86,18 @@ export const studyRouter = {
     .output(
       z.object({
         correct: z.boolean(),
+        previousLevel: z.number(),
+        newLevel: z.number(),
         userVocabItem: UserVocabItemDto,
-        nextVocabItem: VocabItemStudyDto,
+        nextVocabItem: VocabItemStudyDto.nullable(),
       }),
     )
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
       const { deckId, answer } = input;
 
-      const correct = await context.cradle.studyService.processAnswer(
-        answer,
-        userId,
-      );
+      const { correct, previousLevel, newLevel } =
+        await context.cradle.studyService.processAnswer(answer, userId);
       const userVocabItem = await context.cradle.studyService.getUserVocabItem(
         userId,
         answer.vocabItemId,
@@ -108,12 +108,12 @@ export const studyRouter = {
       );
       console.log(nextVocabItem);
 
-      return { correct, userVocabItem, nextVocabItem };
+      return { correct, previousLevel, newLevel, userVocabItem, nextVocabItem };
     }),
 
   nextVocabItem: authProcedure
     .input(z.object({ deckId: z.string() }))
-    .output(VocabItemStudyDto)
+    .output(VocabItemStudyDto.nullable())
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
       const { deckId } = input;
