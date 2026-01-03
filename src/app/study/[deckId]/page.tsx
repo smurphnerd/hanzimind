@@ -18,32 +18,41 @@ import type {
 } from "@/definitions/definitions";
 import Link from "next/link";
 import pinyinTone from "pinyin-tone";
+import { playAudio } from "@/lib/audio";
 
 function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
   if (vocabItem.studyType !== "new") return null;
+
+  // Split characters and pinyin
+  const characters = vocabItem.vocabItem.split("");
+  const pinyinParts = vocabItem.pinyin.split(" ");
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <Card className="p-6">
-        <div className="flex items-center gap-4">
-          <div className="text-6xl font-bold">{vocabItem.vocabItem}</div>
-          <div className="flex flex-col gap-2">
-            <div className="text-2xl text-muted-foreground">
-              {vocabItem.pinyin}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const audio = new Audio(vocabItem.audioUrl);
-                audio.play();
-              }}
-            >
-              <Volume2 className="mr-2 h-4 w-4" />
-              Play
-            </Button>
+        <div className="flex items-center gap-6">
+          {/* Characters and Pinyin aligned vertically */}
+          <div className="flex gap-2">
+            {characters.map((char, index) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <div className="text-6xl font-bold">{char}</div>
+                <div className="text-xl text-muted-foreground">
+                  {pinyinParts[index] || ""}
+                </div>
+              </div>
+            ))}
           </div>
+
+          {/* Play Button */}
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => playAudio(vocabItem.audioUrl)}
+          >
+            <Volume2 className="mr-2 h-5 w-5" />
+            Play
+          </Button>
         </div>
       </Card>
 
@@ -140,8 +149,7 @@ function StudyCard({
   // Auto-play audio for listening type
   useEffect(() => {
     if (vocabItem.studyType === "listening" && !hasAutoPlayed.current) {
-      const audio = new Audio(vocabItem.audioUrl);
-      audio.play();
+      playAudio(vocabItem.audioUrl);
       hasAutoPlayed.current = true;
     }
   }, [vocabItem]);
@@ -223,10 +231,7 @@ function StudyCard({
                 size="lg"
                 variant="outline"
                 className="h-32 w-32 rounded-full"
-                onClick={() => {
-                  const audio = new Audio(vocabItem.audioUrl);
-                  audio.play();
-                }}
+                onClick={() => playAudio(vocabItem.audioUrl)}
               >
                 <Volume2 className="h-16 w-16" />
               </Button>
@@ -241,10 +246,7 @@ function StudyCard({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const audio = new Audio(vocabItem.audioUrl);
-                  audio.play();
-                }}
+                onClick={() => playAudio(vocabItem.audioUrl)}
               >
                 <Volume2 className="mr-2 h-4 w-4" />
                 Play
@@ -385,10 +387,7 @@ function ResultCard({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const audio = new Audio(userVocabItem.audioUrl);
-                      audio.play();
-                    }}
+                    onClick={() => playAudio(userVocabItem.audioUrl)}
                   >
                     <Volume2 className="mr-2 h-4 w-4" />
                     Play
@@ -499,6 +498,19 @@ function StudyPageContent() {
   );
   const [isCompleted, setIsCompleted] = useState(false);
 
+  const markAsSeenMutation = useMutation(
+    orpc.study.markAsSeenAndGetNext.mutationOptions({
+      onSuccess: (nextVocabItem) => {
+        // Check if session is complete
+        if (!nextVocabItem) {
+          setIsCompleted(true);
+        } else {
+          setCurrentVocabItem(nextVocabItem);
+        }
+      },
+    }),
+  );
+
   const submitAnswerMutation = useMutation(
     orpc.study.submitAnswer.mutationOptions({
       onSuccess: (data) => {
@@ -530,6 +542,16 @@ function StudyPageContent() {
   const handleSubmit = (answer: string) => {
     if (!currentVocabItem) return;
 
+    // If this is a new vocab item, just mark it as seen and get next
+    if (currentVocabItem.studyType === "new") {
+      markAsSeenMutation.mutate({
+        deckId,
+        vocabItemId: currentVocabItem.id,
+      });
+      return;
+    }
+
+    // For other study types, submit the answer normally
     submitAnswerMutation.mutate({
       deckId,
       answer: {

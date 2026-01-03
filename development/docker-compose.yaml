@@ -7,6 +7,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DATABASE: postgres
+    command: postgres -c max_connections=200
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

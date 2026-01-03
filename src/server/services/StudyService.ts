@@ -236,7 +236,10 @@ export class StudyService {
 
       // Check if the answer is correct based on study type
       if (answer.studyType === "reading") {
-        answerCorrect = answer.answer === vocabItem.pinyin;
+        // Normalize by removing all spaces for comparison
+        const normalizeAnswer = (str: string) => str.replace(/\s+/g, "");
+        answerCorrect =
+          normalizeAnswer(answer.answer) === normalizeAnswer(vocabItem.pinyin);
       } else if (answer.studyType === "listening") {
         answerCorrect =
           answer.answer === vocabItem.pinyin ||
@@ -303,6 +306,31 @@ export class StudyService {
     }
   }
 
+  async markVocabItemAsSeen(
+    userId: string,
+    vocabItemId: string,
+  ): Promise<void> {
+    try {
+      await this.deps.database
+        .update(schema.userVocabItems)
+        .set({ seen: true })
+        .where(
+          and(
+            eq(schema.userVocabItems.userId, userId),
+            eq(schema.userVocabItems.vocabItemId, vocabItemId),
+          ),
+        );
+    } catch (error) {
+      this.deps.logger.error(
+        { error, userId, vocabItemId },
+        "Error marking vocab item as seen",
+      );
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to mark vocab item as seen");
+    }
+  }
+
   async getNextVocabItem(
     userId: string,
     deckId: string,
@@ -349,6 +377,7 @@ export class StudyService {
           etymologyHint: schema.vocabItems.etymologyHint,
           etymologyType: schema.vocabItems.etymologyType,
           radical: schema.vocabItems.radical,
+          isRadical: schema.vocabItems.isRadical,
           strokes: schema.vocabItems.strokes,
           strokeMedians: schema.vocabItems.strokeMedians,
           strokeMatches: schema.vocabItems.strokeMatches,
@@ -477,6 +506,7 @@ export class StudyService {
           etymologyHint: selectedItem.etymologyHint,
           etymologyType: selectedItem.etymologyType,
           radical: selectedItem.radical,
+          isRadical: selectedItem.isRadical,
           strokes: selectedItem.strokes,
           strokeMedians: selectedItem.strokeMedians,
           strokeMatches: selectedItem.strokeMatches,
@@ -546,6 +576,7 @@ export class StudyService {
           etymologyHint: schema.vocabItems.etymologyHint,
           etymologyType: schema.vocabItems.etymologyType,
           radical: schema.vocabItems.radical,
+          isRadical: schema.vocabItems.isRadical,
           strokes: schema.vocabItems.strokes,
           strokeMedians: schema.vocabItems.strokeMedians,
           strokeMatches: schema.vocabItems.strokeMatches,
@@ -602,6 +633,7 @@ export class StudyService {
         etymologyHint: item.etymologyHint,
         etymologyType: item.etymologyType,
         radical: item.radical,
+        isRadical: item.isRadical,
         strokes: item.strokes,
         strokeMedians: item.strokeMedians,
         strokeMatches: item.strokeMatches,

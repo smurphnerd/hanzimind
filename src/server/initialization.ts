@@ -65,7 +65,7 @@ if (process.env.NODE_ENV !== "test") {
     logger: asValue(logger),
     database: asFunction((deps: Cradle) =>
       getDatabase(deps.logger, env.DATABASE_URL),
-    ),
+    ).singleton(),
     auth: asFunction((deps: Cradle) =>
       getAuth(deps, {
         authSecret: env.AUTH_SECRET,

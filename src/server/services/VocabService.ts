@@ -71,6 +71,7 @@ export class VocabService {
       etymologyHint: vocabItem.etymologyHint,
       etymologyType: vocabItem.etymologyType,
       radical: vocabItem.radical,
+      isRadical: vocabItem.isRadical,
       strokes: vocabItem.strokes,
       strokeMedians: vocabItem.strokeMedians,
       strokeMatches: vocabItem.strokeMatches,
@@ -81,6 +82,7 @@ export class VocabService {
         vocabItem: vocabItem.vocabItem,
         vocabType: vocabItem.vocabType,
         decomposition: vocabItem.decomposition,
+        isRadical: vocabItem.isRadical,
       }),
     };
 
@@ -310,6 +312,7 @@ export class VocabService {
       vocabItem: vocabItem.vocabItem,
       vocabType: vocabItem.vocabType,
       decomposition: vocabItem.decomposition,
+      isRadical: vocabItem.isRadical,
     });
 
     if (parts.length === 0) {
@@ -325,15 +328,18 @@ export class VocabService {
     vocabItem,
     vocabType,
     decomposition,
+    isRadical,
   }: {
     vocabItem: string;
     vocabType?: VocabType;
     decomposition?: string | null;
+    isRadical?: boolean;
   }): Promise<string[]> {
     if (!vocabType) {
       const fullVocabItem = await this.getVocabItem(vocabItem);
       vocabType = fullVocabItem.vocabType;
       decomposition = fullVocabItem.decomposition;
+      isRadical = fullVocabItem.isRadical;
     }
 
     switch (vocabType) {
@@ -342,6 +348,11 @@ export class VocabService {
       case "compound":
         return vocabItem.split("");
       case "character":
+        // Stop decomposition if this is a radical
+        if (isRadical) {
+          return [];
+        }
+
         if (!decomposition) {
           this.deps.logger.warn(
             { vocabItem },

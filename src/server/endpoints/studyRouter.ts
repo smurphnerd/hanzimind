@@ -125,4 +125,26 @@ export const studyRouter = {
 
       return nextVocabItem;
     }),
+
+  markAsSeenAndGetNext: authProcedure
+    .input(z.object({ deckId: z.string(), vocabItemId: z.string() }))
+    .output(VocabItemStudyDto.nullable())
+    .handler(async ({ input, context }) => {
+      const userId = context.user.id;
+      const { deckId, vocabItemId } = input;
+
+      // Mark vocab item as seen
+      await context.cradle.studyService.markVocabItemAsSeen(
+        userId,
+        vocabItemId,
+      );
+
+      // Get next vocab item
+      const nextVocabItem = await context.cradle.studyService.getNextVocabItem(
+        userId,
+        deckId,
+      );
+
+      return nextVocabItem;
+    }),
 };

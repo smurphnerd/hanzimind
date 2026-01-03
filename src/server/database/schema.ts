@@ -101,6 +101,7 @@ export const vocabItems = pgTable("vocab_items", {
   etymologyHint: text(), // Used for characters
   etymologyType: text().$type<EtymologyType>(), // Used for characters
   radical: text(), // Used for characters
+  isRadical: boolean().notNull().default(false), // True if this character is itself a radical
   strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
   strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes
   strokeMatches: jsonb().$type<(number[] | null)[] | null>(), // Used for characters

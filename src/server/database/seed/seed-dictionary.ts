@@ -6,6 +6,7 @@ import type { TranslatorService } from "@/server/services/TranslatorService";
 import type { TTSService } from "@/server/services/TTSService";
 import { schema } from "@/server/database/schema";
 import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
+import { ALL_RADICALS } from "@/server/services/AllRadicals";
 
 interface SeedCradle {
   logger: Logger;
@@ -120,6 +121,9 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
         }
       }
 
+      // Check if this character is a radical
+      const isRadical = ALL_RADICALS.has(entry.character);
+
       // Insert vocab item into database
       await cradle.database.insert(schema.vocabItems).values({
         vocabItem: entry.character,
@@ -133,6 +137,7 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
           ? (entry.etymology.type as EtymologyType)
           : null,
         radical: entry.radical || null,
+        isRadical,
         strokes: graphics?.strokes ?? null,
         strokeMedians: graphics?.medians as [number, number][][] | null ?? null,
         strokeMatches: entry.matches ?? null,

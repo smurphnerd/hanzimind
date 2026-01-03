@@ -32,6 +32,7 @@ import {
 } from "@/components/deck-settings-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
+import { playAudio } from "@/lib/audio";
 
 function DeckOverviewContent() {
   const params = useParams();
@@ -164,8 +165,7 @@ function DeckOverviewContent() {
                         className="size-8"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // TODO: Implement audio playback
-                          console.log("Play audio for:", item.vocabItem);
+                          playAudio(item.audioUrl);
                         }}
                       >
                         <Play className="size-4" />

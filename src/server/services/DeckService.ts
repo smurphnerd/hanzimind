@@ -107,6 +107,7 @@ export class DeckService {
         vocabItem: schema.vocabItems.vocabItem,
         translation: schema.vocabItems.translation,
         vocabType: schema.vocabItems.vocabType,
+        audioUrl: schema.vocabItems.audioUrl,
       })
       .from(schema.deckVocabItems)
       .innerJoin(

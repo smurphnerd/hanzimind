@@ -16,6 +16,7 @@ import {
 import { useORPC } from "@/lib/orpc.client";
 import type { SearchLanguage } from "@/definitions/definitions";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { playAudio } from "@/lib/audio";
 
 function DictionaryContent() {
   const orpc = useORPC();
@@ -55,8 +56,7 @@ function DictionaryContent() {
   const handlePlayAudio = (audioUrl: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Placeholder for audio playback
-    console.log("Playing audio:", audioUrl);
+    playAudio(audioUrl);
   };
 
   const formatType = (type: string) => {

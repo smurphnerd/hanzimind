@@ -7,15 +7,17 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useORPC } from "@/lib/orpc.client";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DictionaryWordLoading } from "@/components/dictionary-word-loading";
 import { CreateMemoryAidDialog } from "@/components/create-memory-aid-dialog";
 import { ViewAllMemoryAidsDialog } from "@/components/view-all-memory-aids-dialog";
+import { playAudio } from "@/lib/audio";
 
 function DictionaryWordContent() {
   const orpc = useORPC();
   const params = useParams();
+  const router = useRouter();
   const word = decodeURIComponent(params.word as string);
   const [isMemoryAidDialogOpen, setIsMemoryAidDialogOpen] = useState(false);
   const [isViewAllDialogOpen, setIsViewAllDialogOpen] = useState(false);
@@ -33,34 +35,38 @@ function DictionaryWordContent() {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       {/* Back Link */}
-      <Link
-        href="/dictionary"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      <button
+        onClick={() => router.back()}
+        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground cursor-pointer"
       >
         <ChevronLeft className="h-4 w-4" />
         Back
-      </Link>
+      </button>
 
       {/* Header */}
       <Card className="mb-6 p-6">
-        <div className="flex items-center gap-4">
-          <div className="text-6xl font-bold">{vocabData.vocabItem}</div>
-          <div className="flex flex-col gap-2">
-            <div className="text-2xl text-muted-foreground">
-              {vocabData.pinyin}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const audio = new Audio(vocabData.audioUrl);
-                audio.play();
-              }}
-            >
-              <Volume2 className="mr-2 h-4 w-4" />
-              Play
-            </Button>
+        <div className="flex items-center gap-6">
+          {/* Characters and Pinyin aligned vertically */}
+          <div className="flex gap-2">
+            {vocabData.vocabItem.split("").map((char, index) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <div className="text-6xl font-bold">{char}</div>
+                <div className="text-xl text-muted-foreground">
+                  {vocabData.pinyin.split(" ")[index] || ""}
+                </div>
+              </div>
+            ))}
           </div>
+
+          {/* Play Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => playAudio(vocabData.audioUrl)}
+          >
+            <Volume2 className="mr-2 h-4 w-4" />
+            Play
+          </Button>
         </div>
       </Card>
 

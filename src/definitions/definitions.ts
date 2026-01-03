@@ -45,6 +45,7 @@ export const VocabItemDto = z.object({
   etymologyHint: z.string().nullable(),
   etymologyType: z.string().nullable(),
   radical: z.string().nullable(),
+  isRadical: z.boolean(),
   strokes: z.array(z.string()).nullable(), // Array of SVG path strings
   strokeMedians: z.array(z.array(z.tuple([z.number(), z.number()]))).nullable(), // Array of coordinate pairs for each stroke
   strokeMatches: z.array(z.array(z.number()).nullable()).nullable(), // Array mapping each stroke to decomposition component indices
@@ -128,6 +129,7 @@ export const DeckVocabItemSummaryDto = VocabItemDto.pick({
   vocabItem: true,
   vocabType: true,
   translation: true,
+  audioUrl: true,
 });
 export type DeckVocabItemSummaryDto = z.infer<typeof DeckVocabItemSummaryDto>;
 
