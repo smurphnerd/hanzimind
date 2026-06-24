@@ -51,7 +51,9 @@ async function main() {
     const tts = new TTSService(
       { logger, storage, ttsProvider },
       {
-        publicUrl: `${env.S3_OPTIONS.endpoint}/${env.S3_OPTIONS.bucketName}`,
+        publicUrl:
+          env.S3_OPTIONS.cloudfrontDistributionUrl ??
+          `${env.S3_OPTIONS.endpoint}/${env.S3_OPTIONS.bucketName}`,
       },
     );
 

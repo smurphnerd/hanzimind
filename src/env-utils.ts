@@ -29,6 +29,7 @@ export const envSchema = z.object({
       region: z.string(),
       bucketName: z.string(),
       forcePathStyle: z.boolean().optional(),
+      cloudfrontDistributionUrl: z.string().url().optional(),
     }),
   ),
   EMAIL_CONNECTION_URL: z.union([

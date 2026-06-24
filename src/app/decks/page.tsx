@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { useSuspenseQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -71,37 +71,54 @@ function DecksContent() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       {/* Page Heading */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Decks</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="font-brush text-4xl text-primary brush-underline">
+          Vocabulary Decks
+        </h1>
         <Link href="/decks/new">
-          <Button>Create Deck</Button>
+          <Button size="lg">
+            <Plus className="size-5 mr-1" />
+            Create Deck
+          </Button>
         </Link>
       </div>
 
       {/* Search Input */}
-      <div className="relative mb-8">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+      <div className="relative mb-10">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-gold" />
         <Input
           type="text"
           placeholder="Search Decks..."
-          className="pl-10"
+          className="pl-12 h-12 text-base"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
         />
       </div>
 
+      {/* Section Divider */}
+      <div className="divider-ornamental mb-8">
+        <span className="medallion">牌</span>
+      </div>
+
       {/* Most Popular Section */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Most Popular</h2>
+        <h2 className="font-brush text-2xl text-primary mb-6">Most Popular</h2>
 
         {/* Grid of Deck Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {data.decks.map((deck) => (
             <Link key={deck.id} href={`/decks/${deck.id}`}>
-              <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
-                <CardHeader>
-                  <CardTitle>{deck.deckName}</CardTitle>
+              <Card className="h-full cursor-pointer group relative overflow-hidden">
+                {/* Lantern top decoration */}
+                <div className="absolute inset-x-0 top-0 flex justify-center">
+                  <div className="h-2 w-12 rounded-b-full bg-gradient-to-b from-gold to-gold-bright opacity-60 group-hover:opacity-100 transition-opacity" />
+                </div>
+
+                <CardHeader className="pt-6">
+                  <CardTitle className="font-brush text-xl group-hover:text-vermillion transition-colors">
+                    {deck.deckName}
+                  </CardTitle>
                   <CardDescription>
                     By: @{deck.createdByUsername}
                   </CardDescription>
@@ -125,7 +142,8 @@ function DecksContent() {
                       });
                     }}
                   >
-                    + Save/Add
+                    <Plus className="size-4 mr-1" />
+                    Save to Study List
                   </Button>
                 </CardFooter>
               </Card>

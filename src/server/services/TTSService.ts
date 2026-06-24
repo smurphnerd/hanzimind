@@ -33,7 +33,7 @@ export class TTSService {
 
       // Upload to S3
       const s3Key = this.getVocabAudioFP(text);
-      await this.deps.storage.uploadFile(s3Key, audioBuffer);
+      await this.deps.storage.uploadFile(s3Key, audioBuffer, "audio/mpeg");
 
       this.deps.logger.info(
         { text, s3Key, provider: this.deps.ttsProvider.name },

@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, Play } from "lucide-react";
+import { ChevronLeft, Play, BookOpen } from "lucide-react";
 import { useSuspenseQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -79,21 +79,26 @@ function DeckOverviewContent() {
       <div className="mb-6">
         <Link
           href="/decks"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ChevronLeft className="size-4 mr-1" />
           Back to Decks
         </Link>
       </div>
 
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">{deck.deckName}</h1>
+          <h1 className="font-brush text-4xl text-primary mb-2 brush-underline">
+            {deck.deckName}
+          </h1>
           <p className="text-sm text-muted-foreground">
             Created by: @{deck.createdByUsername}
           </p>
         </div>
-        <Button onClick={() => setShowSaveDialog(true)}>SAVE DECK</Button>
+        <Button size="lg" onClick={() => setShowSaveDialog(true)}>
+          <BookOpen className="size-5 mr-2" />
+          Save Deck
+        </Button>
       </div>
 
       <DeckSettingsDialog
@@ -108,9 +113,9 @@ function DeckOverviewContent() {
         saveButtonText="Add to Study List"
       />
 
-      <Card className="mb-8">
+      <Card className="mb-8 ornament-corners">
         <CardHeader>
-          <CardTitle>Description</CardTitle>
+          <CardTitle className="font-brush text-xl">Description</CardTitle>
         </CardHeader>
         <CardContent>
           <CardDescription className="text-base">
@@ -119,9 +124,14 @@ function DeckOverviewContent() {
         </CardContent>
       </Card>
 
+      {/* Section Divider */}
+      <div className="divider-ornamental mb-6">
+        <span className="medallion">词</span>
+      </div>
+
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Words in this Deck</h2>
+          <h2 className="font-brush text-2xl text-primary">Words in this Deck</h2>
           <div className="flex items-center space-x-2">
             <Switch
               id="include-constituents"
@@ -137,23 +147,23 @@ function DeckOverviewContent() {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[20%]">Character</TableHead>
-                  <TableHead className="w-[45%]">Translation</TableHead>
-                  <TableHead className="w-[15%]">Audio</TableHead>
-                  <TableHead className="w-[20%]">Type</TableHead>
+                <TableRow className="bg-rice-paper">
+                  <TableHead className="w-[20%] font-brush text-primary">Character</TableHead>
+                  <TableHead className="w-[45%] font-brush text-primary">Translation</TableHead>
+                  <TableHead className="w-[15%] font-brush text-primary">Audio</TableHead>
+                  <TableHead className="w-[20%] font-brush text-primary">Type</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deck.vocabItems.map((item) => (
+                {deck.vocabItems.map((item, index) => (
                   <TableRow
                     key={item.id}
-                    className="cursor-pointer"
+                    className={`cursor-pointer hover:bg-gold/10 transition-colors ${index % 2 === 0 ? "bg-cream" : "bg-rice-paper"}`}
                     onClick={() => {
                       window.location.href = `/dictionary/${item.vocabItem}`;
                     }}
                   >
-                    <TableCell className="font-medium text-lg">
+                    <TableCell className="font-medium text-xl text-primary">
                       {item.vocabItem}
                     </TableCell>
                     <TableCell>{item.translation}</TableCell>
@@ -161,7 +171,7 @@ function DeckOverviewContent() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-8"
+                        className="size-8 text-gold hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
                           // TODO: Implement audio playback

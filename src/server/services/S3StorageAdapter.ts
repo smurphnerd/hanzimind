@@ -105,12 +105,17 @@ export class S3StorageAdapter {
     });
   }
 
-  public async uploadFile(key: string, buffer: Buffer): Promise<string> {
+  public async uploadFile(
+    key: string,
+    buffer: Buffer,
+    contentType?: string,
+  ): Promise<string> {
     try {
       const command = new PutObjectCommand({
         Bucket: this.opts.bucketName,
         Key: key,
         Body: buffer,
+        ContentType: contentType,
       });
       const response = await this.s3.send(command);
       const etag = response.ETag;

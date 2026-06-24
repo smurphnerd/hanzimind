@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Play } from "lucide-react";
+import { Settings, Play, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -67,32 +67,54 @@ function StudyContent() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">My Study Decks</h1>
+      <div className="mb-8 text-center">
+        <h1 className="font-brush text-4xl text-primary brush-underline mb-2">
+          My Study Decks
+        </h1>
         <p className="text-muted-foreground">
           Manage your saved decks and their study settings
         </p>
       </div>
 
+      {/* Section Divider */}
+      <div className="divider-ornamental mb-8">
+        <span className="medallion">学</span>
+      </div>
+
       {data.decks.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">
+        <Card className="ornament-corners">
+          <CardContent className="py-16 text-center">
+            <div className="mb-6">
+              <div className="h-20 w-20 mx-auto rounded-full border-4 border-gold bg-rice-paper flex items-center justify-center">
+                <span className="font-brush text-4xl text-primary">空</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground mb-6 text-lg">
               You haven&apos;t added any decks to your study list yet.
             </p>
-            <Button asChild>
-              <Link href="/decks">Browse Decks</Link>
+            <Button asChild size="lg">
+              <Link href="/decks">
+                <BookOpen className="size-5 mr-2" />
+                Browse Decks
+              </Link>
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {data.decks.map((deck) => (
-            <Card key={deck.id} className="flex flex-col">
-              <CardHeader>
+            <Card key={deck.id} className="flex flex-col group relative overflow-hidden">
+              {/* Lantern top decoration */}
+              <div className="absolute inset-x-0 top-0 flex justify-center">
+                <div className="h-2 w-12 rounded-b-full bg-gradient-to-b from-gold to-gold-bright opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
+
+              <CardHeader className="pt-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="mb-1">{deck.deckName}</CardTitle>
+                    <CardTitle className="mb-1 font-brush text-xl group-hover:text-vermillion transition-colors">
+                      {deck.deckName}
+                    </CardTitle>
                     <CardDescription className="text-xs">
                       By @{deck.createdByUsername}
                     </CardDescription>
@@ -100,6 +122,7 @@ function StudyContent() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="text-gold hover:text-primary"
                     onClick={() =>
                       setSelectedDeck({
                         id: deck.id,
@@ -125,22 +148,22 @@ function StudyContent() {
 
                 <div className="flex flex-wrap gap-2">
                   {deck.readingEnabled && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs border-gold/50 text-primary">
                       Reading
                     </Badge>
                   )}
                   {deck.listeningEnabled && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs border-gold/50 text-primary">
                       Listening
                     </Badge>
                   )}
                   {deck.understandingEnabled && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs border-gold/50 text-primary">
                       Understanding
                     </Badge>
                   )}
                   {deck.writingEnabled && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className="text-xs border-gold/50 text-primary">
                       Writing
                     </Badge>
                   )}
@@ -152,13 +175,15 @@ function StudyContent() {
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant="secondary">{deck.numLearners} learners</Badge>
+                  <Badge variant="secondary" className="bg-gold/20 text-primary">
+                    {deck.numLearners} learners
+                  </Badge>
                 </div>
 
                 <div className="pt-2">
-                  <Button asChild className="w-full">
+                  <Button asChild className="w-full" size="lg">
                     <Link href={`/study/${deck.id}`}>
-                      <Play className="size-4 mr-2" />
+                      <Play className="size-5 mr-2" />
                       Start Studying
                     </Link>
                   </Button>

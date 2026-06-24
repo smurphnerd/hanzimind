@@ -35,7 +35,7 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
   const redirectURL = useSearchParams().get("redirectUrl");
   const callbackURL = redirectURL
     ? `${props.baseUrl}/${redirectURL}` // prevent open redirect
-    : "/dashboard";
+    : "/";
 
   const form = useForm({
     resolver: zodResolver(SignUpFormSchema, {
@@ -88,17 +88,34 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
   });
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Card className="w-[32rem] max-w-full">
-        <CardContent className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold">Create an account</h1>
+    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center py-8">
+      <Card className="relative w-[32rem] max-w-full overflow-hidden ornament-corners">
+        {/* Decorative red header strip */}
+        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-r from-primary via-vermillion to-primary" />
+        <div className="absolute inset-x-0 top-16 h-1 bg-gold" />
+
+        <CardContent className="flex flex-col gap-4 pt-24 pb-8">
+          {/* Decorative logo element */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2">
+            <div className="h-14 w-14 rounded-full border-3 border-gold bg-rice-paper flex items-center justify-center shadow-lg">
+              <span className="font-brush text-2xl text-primary">新</span>
+            </div>
+          </div>
+
+          <h1 className="text-center mb-2">
+            <span className="font-brush text-2xl text-primary">Create Account</span>
+          </h1>
+          <p className="text-center text-sm text-muted-foreground mb-2">
+            Begin your Chinese learning journey
+          </p>
+
           <form
             onSubmit={(event) => {
               void form.handleSubmit((data) => {
                 signUpMutation.mutate(data);
               })(event);
             }}
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-4"
           >
             <Controller
               name="username"
@@ -160,13 +177,20 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
               type="submit"
               isPending={signUpMutation.isPending}
               disabled={signUpMutation.isSuccess}
+              className="mt-2"
+              size="lg"
             >
-              Sign up
+              Create Account
             </Button>
           </form>
-          <div className="text-sm text-center">
+
+          <div className="divider-ornamental my-2">
+            <span className="medallion text-xs">或</span>
+          </div>
+
+          <div className="text-sm text-center text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/signin" className="text-primary hover:underline">
+            <Link href="/signin" className="text-primary font-medium hover:text-vermillion transition-colors">
               Sign in
             </Link>
           </div>
