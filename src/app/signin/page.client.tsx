@@ -8,6 +8,7 @@ import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod/v4";
 
+import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -52,7 +53,9 @@ export default function SignInClientPage(props: { baseUrl: string }) {
         callbackURL,
       });
       if (result.error) {
-        throw new Error(result.error.message);
+        const err = new Error(result.error.message ?? "Sign in failed");
+        err.name = result.error.code ?? "UNKNOWN";
+        throw err;
       }
     },
     onSuccess: () => {
@@ -60,7 +63,10 @@ export default function SignInClientPage(props: { baseUrl: string }) {
       window.location.href = callbackURL;
     },
     onError: (error) => {
-      if (error.message.includes("verify")) {
+      if (
+        error.name === "EMAIL_NOT_VERIFIED" ||
+        /not verified/i.test(error.message)
+      ) {
         toast.error(
           "Please verify your email address. Check your inbox for the verification link.",
         );
@@ -71,23 +77,15 @@ export default function SignInClientPage(props: { baseUrl: string }) {
   });
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center py-8">
-      <Card className="relative w-[32rem] max-w-full overflow-hidden ornament-corners">
-        {/* Decorative red header strip */}
-        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-r from-primary via-vermillion to-primary" />
-        <div className="absolute inset-x-0 top-16 h-1 bg-gold" />
-
-        <CardContent className="flex flex-col gap-4 pt-24 pb-8">
-          {/* Decorative logo element */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2">
-            <div className="h-14 w-14 rounded-full border-3 border-gold bg-rice-paper flex items-center justify-center shadow-lg">
-              <span className="font-brush text-2xl text-primary">登</span>
-            </div>
+    <div className="flex flex-1 flex-col items-center justify-center py-8">
+      <Card className="w-[32rem] max-w-full">
+        <CardContent className="flex flex-col gap-4 py-8">
+          <div className="flex flex-col items-center gap-2">
+            <Mika pose="wave" size={56} />
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
+              Welcome Back
+            </h1>
           </div>
-
-          <h1 className="text-center mb-2">
-            <span className="font-brush text-2xl text-primary">Welcome Back</span>
-          </h1>
 
           <form
             onSubmit={(event) => {
@@ -144,13 +142,14 @@ export default function SignInClientPage(props: { baseUrl: string }) {
             </Button>
           </form>
 
-          <div className="divider-ornamental my-2">
-            <span className="medallion text-xs">或</span>
-          </div>
+          <div className="border-border my-2 border-t" />
 
-          <div className="text-sm text-center text-muted-foreground">
+          <div className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-primary font-medium hover:text-vermillion transition-colors">
+            <Link
+              href="/signup"
+              className="font-semibold text-primary transition-colors hover:text-primary/80"
+            >
               Sign up
             </Link>
           </div>

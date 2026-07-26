@@ -1,149 +1,163 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight, BookOpen, Flame, Target } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Mika } from "@/components/mika";
 import { authClient } from "@/lib/authClient";
+
+function StatTile({
+  icon,
+  tone,
+  value,
+  label,
+}: {
+  icon: React.ReactNode;
+  tone: "violet" | "coral" | "green";
+  value: string;
+  label: string;
+}) {
+  const toneClass = {
+    violet: "bg-type-character-soft text-type-character",
+    coral: "bg-secondary text-primary",
+    green: "bg-success/15 text-success",
+  }[tone];
+
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-4">
+        <span
+          className={`flex size-12 items-center justify-center rounded-2xl ${toneClass}`}
+        >
+          {icon}
+        </span>
+        <div>
+          <div className="font-display text-2xl font-extrabold tracking-tight">
+            {value}
+          </div>
+          <div className="text-muted-foreground text-sm">{label}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Home() {
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
     return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-        <div className="relative">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-gold border-t-primary" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="font-brush text-primary text-sm">心</span>
-          </div>
-        </div>
+      <div className="flex flex-1 items-center justify-center">
+        <div className="border-muted border-t-primary size-10 animate-spin rounded-full border-4" />
       </div>
     );
   }
 
   if (session?.user) {
     return (
-      <div className="container mx-auto max-w-4xl px-4 py-12">
-        {/* Welcome Card with lantern styling */}
-        <Card className="relative mb-12 overflow-hidden ornament-corners">
-          {/* Decorative top accent */}
-          <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-primary via-vermillion to-primary" />
+      <div className="container mx-auto max-w-4xl px-4 py-10">
+        {/* Greeting */}
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Mika pose="wave" size={56} />
+            <div>
+              <h1 className="font-display text-2xl font-extrabold tracking-tight">
+                Welcome back!
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Your garden&apos;s looking healthy. Let&apos;s keep it growing.
+              </p>
+            </div>
+          </div>
+          <div className="bg-secondary text-primary inline-flex items-center gap-2 rounded-full px-4 py-2 font-display text-sm font-bold">
+            <Flame className="size-4" />5 day streak
+          </div>
+        </div>
 
-          <CardContent className="py-16 text-center">
-            <p className="font-brush text-2xl text-gold mb-2">欢迎回来</p>
-            <Button size="lg" className="mb-4 text-lg" asChild>
-              <Link href="/study">RESUME STUDYING</Link>
+        {/* Resume hero */}
+        <Card className="from-primary to-primary/85 mb-6 border-none bg-gradient-to-br text-primary-foreground shadow-card">
+          <CardContent className="flex items-center gap-5 py-2">
+            <div className="font-display text-5xl font-extrabold tracking-tight tabular-nums">
+              20
+            </div>
+            <div className="flex-1">
+              <div className="font-display text-lg font-bold">
+                Reviews ready today
+              </div>
+              <div className="text-primary-foreground/80 text-sm">
+                Continue · HSK 1 Standard Course
+              </div>
+            </div>
+            <Button
+              asChild
+              variant="secondary"
+              size="icon"
+              className="bg-white text-primary hover:bg-white/90 size-12 shrink-0"
+            >
+              <Link href="/study" aria-label="Resume studying">
+                <ArrowRight className="size-5" />
+              </Link>
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Last Deck: HSK 1 Standard Course
-            </p>
           </CardContent>
         </Card>
 
-        {/* Section divider */}
-        <div className="divider-ornamental mb-8">
-          <span className="medallion">学</span>
-        </div>
-
-        <h2 className="mb-8 text-center">
-          <span className="font-brush text-3xl text-primary brush-underline">
-            Your Progress
-          </span>
-        </h2>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Progress Cards with lantern tops */}
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-x-0 top-0 flex justify-center">
-              <div className="h-3 w-16 rounded-b-full bg-gradient-to-b from-gold to-gold-bright shadow-md" />
-            </div>
-            <CardHeader className="pt-8">
-              <CardTitle className="text-center font-brush text-xl">
-                Total Cards
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-4xl font-bold text-primary">150</p>
-              <p className="text-center text-sm text-gold mt-1">字</p>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-x-0 top-0 flex justify-center">
-              <div className="h-3 w-16 rounded-b-full bg-gradient-to-b from-gold to-gold-bright shadow-md" />
-            </div>
-            <CardHeader className="pt-8">
-              <CardTitle className="text-center font-brush text-xl">
-                Day Streak
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-4xl font-bold text-primary">5</p>
-              <p className="text-center text-sm text-gold mt-1">天</p>
-            </CardContent>
-          </Card>
-
-          <Card className="relative overflow-hidden">
-            <div className="absolute inset-x-0 top-0 flex justify-center">
-              <div className="h-3 w-16 rounded-b-full bg-gradient-to-b from-gold to-gold-bright shadow-md" />
-            </div>
-            <CardHeader className="pt-8">
-              <CardTitle className="text-center font-brush text-xl">
-                Reviews Due
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-4xl font-bold text-primary">20</p>
-              <p className="text-center text-sm text-gold mt-1">复习</p>
-            </CardContent>
-          </Card>
+        {/* Stats */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatTile
+            tone="violet"
+            icon={<BookOpen className="size-6" />}
+            value="150"
+            label="Items learned"
+          />
+          <StatTile
+            tone="coral"
+            icon={<Flame className="size-6" />}
+            value="5"
+            label="Day streak"
+          />
+          <StatTile
+            tone="green"
+            icon={<Target className="size-6" />}
+            value="20"
+            label="Reviews due"
+          />
         </div>
       </div>
     );
   }
 
-  // Landing page for non-authenticated users
+  // Landing page for logged-out visitors
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4">
-      <div className="max-w-3xl text-center">
-        {/* Decorative top element */}
-        <div className="mb-8 flex justify-center">
-          <div className="relative">
-            <div className="h-24 w-24 rounded-full border-4 border-gold flex items-center justify-center bg-rice-paper shadow-lg">
-              <span className="font-brush text-5xl text-primary">心</span>
-            </div>
-            <div className="absolute -inset-4 rounded-full border border-gold/30" />
-          </div>
+    <div className="flex flex-1 flex-col items-center justify-center px-4 py-10">
+      <div className="max-w-2xl text-center">
+        <div className="mb-6 flex justify-center">
+          <Mika pose="wave" size={112} />
         </div>
 
-        <h1 className="mb-6">
-          <span className="font-brush text-5xl tracking-wide text-primary sm:text-6xl md:text-7xl brush-underline">
-            Master Chinese
-          </span>
+        <h1 className="font-display text-5xl font-extrabold tracking-tight text-balance sm:text-6xl">
+          Master Chinese, one <span className="text-primary">sprout</span> at a
+          time
         </h1>
 
-        <p className="mb-4 font-brush text-2xl text-gold">
-          学中文，懂中国
+        <p className="hanzi text-muted-foreground mt-4 text-xl">学中文，懂中国</p>
+
+        <p className="text-muted-foreground mx-auto mt-4 max-w-lg text-lg">
+          Clean, focused flashcard learning with stroke animations, pinyin, and
+          spaced repetition that actually feels good.
         </p>
 
-        <p className="mb-10 text-lg text-muted-foreground sm:text-xl max-w-xl mx-auto">
-          Clean, focused, and efficient flashcard learning with stroke animations,
-          pinyin, and spaced repetition.
-        </p>
-
-        <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
-          <Button size="lg" variant="outline" className="text-lg px-8" asChild>
-            <Link href="/signin">LOG IN</Link>
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/signin">Log in</Link>
           </Button>
-          <Button size="lg" className="text-lg px-8" asChild>
-            <Link href="/signup">START LEARNING</Link>
+          <Button size="lg" asChild>
+            <Link href="/signup">
+              Start learning
+              <ArrowRight className="size-5" />
+            </Link>
           </Button>
-        </div>
-
-        {/* Decorative bottom element */}
-        <div className="mt-16 divider-ornamental">
-          <span className="medallion">福</span>
         </div>
       </div>
     </div>

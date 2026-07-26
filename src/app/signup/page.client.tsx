@@ -4,10 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { MailCheck } from "lucide-react";
 import * as z from "zod/v4";
 
+import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -35,7 +38,8 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
   const redirectURL = useSearchParams().get("redirectUrl");
   const callbackURL = redirectURL
     ? `${props.baseUrl}/${redirectURL}` // prevent open redirect
-    : "/";
+    : "/verified";
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   const form = useForm({
     resolver: zodResolver(SignUpFormSchema, {
@@ -71,10 +75,10 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
         throw new Error(result.error.message);
       }
     },
-    onSuccess: () => {
-      toast.success(
-        "Account created! Please check your email to verify your account.",
-      );
+    onSuccess: (_data, variables) => {
+      setSentTo(variables.email);
+      form.reset();
+      toast.success("Account created! Check your email to verify it.");
     },
     onError: (error) => {
       if (error.message.includes("already exists")) {
@@ -87,25 +91,52 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     },
   });
 
-  return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center py-8">
-      <Card className="relative w-[32rem] max-w-full overflow-hidden ornament-corners">
-        {/* Decorative red header strip */}
-        <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-r from-primary via-vermillion to-primary" />
-        <div className="absolute inset-x-0 top-16 h-1 bg-gold" />
-
-        <CardContent className="flex flex-col gap-4 pt-24 pb-8">
-          {/* Decorative logo element */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2">
-            <div className="h-14 w-14 rounded-full border-3 border-gold bg-rice-paper flex items-center justify-center shadow-lg">
-              <span className="font-brush text-2xl text-primary">新</span>
+  if (sentTo) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center py-8">
+        <Card className="w-[32rem] max-w-full">
+          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+            <Mika pose="cheer" size={80} />
+            <div className="text-accent flex items-center gap-2">
+              <MailCheck className="size-5" />
+              <span className="font-display text-sm font-bold tracking-wide uppercase">
+                Check your email
+              </span>
             </div>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
+              Almost there!
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              We sent a verification link to{" "}
+              <span className="text-foreground font-semibold">{sentTo}</span>.
+              Click it to activate your account.
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setSentTo(null)}>
+                Use a different email
+              </Button>
+              <Button asChild>
+                <Link href="/signin">Go to sign in</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center py-8">
+      <Card className="w-[32rem] max-w-full">
+        <CardContent className="flex flex-col gap-4 py-8">
+          <div className="flex justify-center">
+            <Mika pose="wave" size={56} />
           </div>
 
-          <h1 className="text-center mb-2">
-            <span className="font-brush text-2xl text-primary">Create Account</span>
+          <h1 className="mb-1 text-center font-display text-2xl font-extrabold tracking-tight text-foreground">
+            Create Account
           </h1>
-          <p className="text-center text-sm text-muted-foreground mb-2">
+          <p className="mb-2 text-center text-sm text-muted-foreground">
             Begin your Chinese learning journey
           </p>
 
@@ -176,7 +207,6 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <Button
               type="submit"
               isPending={signUpMutation.isPending}
-              disabled={signUpMutation.isSuccess}
               className="mt-2"
               size="lg"
             >
@@ -184,13 +214,14 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             </Button>
           </form>
 
-          <div className="divider-ornamental my-2">
-            <span className="medallion text-xs">或</span>
-          </div>
+          <div className="border-border my-2 border-t" />
 
-          <div className="text-sm text-center text-muted-foreground">
+          <div className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/signin" className="text-primary font-medium hover:text-vermillion transition-colors">
+            <Link
+              href="/signin"
+              className="font-medium text-primary transition-colors hover:text-primary/80"
+            >
               Sign in
             </Link>
           </div>

@@ -4,7 +4,11 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ChevronLeft, Play, BookOpen } from "lucide-react";
-import { useSuspenseQuery, useMutation } from "@tanstack/react-query";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -32,15 +36,16 @@ import {
 } from "@/components/deck-settings-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
+import { ItemTypeBadge } from "@/components/item-type-badge";
 
 function DeckOverviewContent() {
   const params = useParams();
   const deckId = params.deckId as string;
   const orpc = useORPC();
+  const queryClient = useQueryClient();
   const [includeConstituents, setIncludeConstituents] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveSettings, setSaveSettings] = useState<DeckSettings>({
-    includeConstituents: false,
     readingEnabled: true,
     listeningEnabled: true,
     understandingEnabled: true,
@@ -58,6 +63,9 @@ function DeckOverviewContent() {
       onSuccess: () => {
         toast.success("Deck added to your study list!");
         setShowSaveDialog(false);
+        void queryClient.invalidateQueries({
+          queryKey: orpc.decks.getUserDecks.key(),
+        });
       },
       onError: (error) => {
         toast.error(
@@ -88,7 +96,7 @@ function DeckOverviewContent() {
 
       <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="font-brush text-4xl text-primary mb-2 brush-underline">
+          <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground mb-2">
             {deck.deckName}
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -113,9 +121,11 @@ function DeckOverviewContent() {
         saveButtonText="Add to Study List"
       />
 
-      <Card className="mb-8 ornament-corners">
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle className="font-brush text-xl">Description</CardTitle>
+          <CardTitle className="font-display text-xl font-bold">
+            Description
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <CardDescription className="text-base">
@@ -124,14 +134,11 @@ function DeckOverviewContent() {
         </CardContent>
       </Card>
 
-      {/* Section Divider */}
-      <div className="divider-ornamental mb-6">
-        <span className="medallion">词</span>
-      </div>
-
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-brush text-2xl text-primary">Words in this Deck</h2>
+          <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+            Words in this Deck
+          </h2>
           <div className="flex items-center space-x-2">
             <Switch
               id="include-constituents"
@@ -147,23 +154,33 @@ function DeckOverviewContent() {
           <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="bg-rice-paper">
-                  <TableHead className="w-[20%] font-brush text-primary">Character</TableHead>
-                  <TableHead className="w-[45%] font-brush text-primary">Translation</TableHead>
-                  <TableHead className="w-[15%] font-brush text-primary">Audio</TableHead>
-                  <TableHead className="w-[20%] font-brush text-primary">Type</TableHead>
+                <TableRow>
+                  <TableHead className="w-[20%] font-display text-muted-foreground">
+                    Character
+                  </TableHead>
+                  <TableHead className="w-[45%] font-display text-muted-foreground">
+                    Translation
+                  </TableHead>
+                  <TableHead className="w-[15%] font-display text-muted-foreground">
+                    Audio
+                  </TableHead>
+                  <TableHead className="w-[20%] font-display text-muted-foreground">
+                    Type
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {deck.vocabItems.map((item, index) => (
+                {deck.vocabItems.map((item) => (
                   <TableRow
                     key={item.id}
-                    className={`cursor-pointer hover:bg-gold/10 transition-colors ${index % 2 === 0 ? "bg-cream" : "bg-rice-paper"}`}
+                    className="cursor-pointer border-border hover:bg-muted transition-colors"
                     onClick={() => {
-                      window.location.href = `/dictionary/${item.vocabItem}`;
+                      window.location.href = `/dictionary/${encodeURIComponent(
+                        item.vocabItem,
+                      )}`;
                     }}
                   >
-                    <TableCell className="font-medium text-xl text-primary">
+                    <TableCell className="hanzi text-xl text-foreground">
                       {item.vocabItem}
                     </TableCell>
                     <TableCell>{item.translation}</TableCell>
@@ -171,7 +188,7 @@ function DeckOverviewContent() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-8 text-gold hover:text-primary"
+                        className="size-8 text-muted-foreground hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
                           // TODO: Implement audio playback
@@ -181,12 +198,8 @@ function DeckOverviewContent() {
                         <Play className="size-4" />
                       </Button>
                     </TableCell>
-                    <TableCell className="capitalize">
-                      {item.vocabType === "character"
-                        ? "Char"
-                        : item.vocabType === "compound"
-                          ? "Word"
-                          : item.vocabType}
+                    <TableCell>
+                      <ItemTypeBadge type={item.vocabType} short />
                     </TableCell>
                   </TableRow>
                 ))}
