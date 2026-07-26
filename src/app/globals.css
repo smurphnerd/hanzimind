@@ -1,120 +1,177 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme inline {
+  /* Fonts */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-nunito);
+  --font-hanzi: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* Semantic (shadcn) tokens */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-brush: var(--font-brush);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --color-surface: var(--surface);
   --color-card: var(--card);
-  /* Chinese theme colors */
-  --color-imperial: var(--imperial);
-  --color-imperial-foreground: var(--imperial-foreground);
-  --color-vermillion: var(--vermillion);
-  --color-gold: var(--gold);
-  --color-gold-bright: var(--gold-bright);
-  --color-cream: var(--cream);
-  --color-rice-paper: var(--rice-paper);
-  --color-ink: var(--ink);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Item-type color-coding (character / compound / sentence + component context) */
+  --color-type-character: var(--type-character);
+  --color-type-character-soft: color-mix(in oklab, var(--type-character) 15%, var(--surface));
+  --color-type-compound: var(--type-compound);
+  --color-type-compound-soft: color-mix(in oklab, var(--type-compound) 15%, var(--surface));
+  --color-type-sentence: var(--type-sentence);
+  --color-type-sentence-soft: color-mix(in oklab, var(--type-sentence) 15%, var(--surface));
+  --color-type-component: var(--type-component);
+  --color-type-component-soft: color-mix(in oklab, var(--type-component) 15%, var(--surface));
+
+  /* Growth-stage (SRS) colors */
+  --color-stage-none: var(--stage-none);
+  --color-stage-seedling: var(--stage-seedling);
+  --color-stage-sprout: var(--stage-sprout);
+  --color-stage-sapling: var(--stage-sapling);
+  --color-stage-blooming: var(--stage-blooming);
+  --color-stage-evergreen: var(--stage-evergreen);
+
+  /* Soft card shadows */
+  --shadow-card: 0 1px 2px rgba(24, 22, 30, 0.04),
+    0 8px 24px -12px rgba(24, 22, 30, 0.14);
+  --shadow-card-hover: 0 2px 4px rgba(24, 22, 30, 0.05),
+    0 14px 32px -12px rgba(24, 22, 30, 0.18);
+
+  /* Radius scale */
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: calc(var(--radius) - 2px);
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) + 4px);
+  --radius-3xl: calc(var(--radius) + 8px);
+  --radius-4xl: calc(var(--radius) + 12px);
 }
 
 :root {
-  --radius: 0.75rem;
+  --radius: 1.1rem;
 
-  /* Chinese Theme - Light Mode Only */
-  --background: oklch(0.97 0.01 90); /* Cream white */
-  --foreground: oklch(0.15 0.01 0); /* Ink black */
+  /* ---- Sprout raw palette (LIGHT) ---- */
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --text: #1c1b1f;
+  --muted-fg: #6b6a73;
+  --coral: #f0522e;
+  --coral-fg: #ffffff;
+  --violet: #7c6bf0;
+  --green: #1fa463;
+  --red: #e11d48;
+  --line: #eceae4;
 
-  --card: oklch(0.94 0.02 85); /* Rice paper */
-  --card-foreground: oklch(0.15 0.01 0);
+  --type-character: #7c6bf0;
+  --type-compound: #ec4899;
+  --type-sentence: #f59e0b;
+  --type-component: #14b8a6;
 
-  --popover: oklch(0.96 0.015 88);
-  --popover-foreground: oklch(0.15 0.01 0);
+  --stage-none: #c9c7cf;
+  --stage-seedling: #38bdf8;
+  --stage-sprout: #a78bfa;
+  --stage-sapling: #ec4899;
+  --stage-blooming: #fb923c;
+  --stage-evergreen: #22c55e;
 
-  /* Primary is now Imperial Red */
-  --primary: oklch(0.45 0.2 25); /* Imperial red */
-  --primary-foreground: oklch(0.97 0.01 90); /* Cream */
+  /* ---- Semantic aliases ---- */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--coral);
+  --primary-foreground: var(--coral-fg);
+  --secondary: color-mix(in oklab, var(--coral) 9%, var(--surface));
+  --secondary-foreground: var(--coral);
+  --muted: color-mix(in oklab, var(--text) 4%, var(--surface));
+  --muted-foreground: var(--muted-fg);
+  --accent: var(--violet);
+  --accent-foreground: #ffffff;
+  --destructive: var(--red);
+  --success: var(--green);
+  --success-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--coral);
 
-  /* Secondary uses gold tones */
-  --secondary: oklch(0.92 0.04 85); /* Light gold tint */
-  --secondary-foreground: oklch(0.35 0.15 30); /* Dark red */
+  --chart-1: var(--coral);
+  --chart-2: var(--violet);
+  --chart-3: var(--type-component);
+  --chart-4: var(--type-sentence);
+  --chart-5: var(--green);
 
-  --muted: oklch(0.92 0.02 85);
-  --muted-foreground: oklch(0.35 0.01 0); /* Charcoal */
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--coral);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: color-mix(in oklab, var(--text) 4%, var(--surface));
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--coral);
+}
 
-  /* Accent is gold */
-  --accent: oklch(0.75 0.15 85); /* Antique gold */
-  --accent-foreground: oklch(0.15 0.01 0);
+.dark {
+  /* Only the raw values change; every alias + color-mix tint recomputes automatically. */
+  --bg: #111014;
+  --surface: #1b1a20;
+  --text: #f3f2f5;
+  --muted-fg: #9b99a4;
+  --coral: #ff6b47;
+  --coral-fg: #231007;
+  --violet: #9b8cff;
+  --green: #34d399;
+  --red: #fb6a78;
+  --line: #2b2a33;
 
-  --destructive: oklch(0.55 0.25 25);
+  --type-character: #9b8cff;
+  --type-compound: #f472b6;
+  --type-sentence: #fbbf3c;
+  --type-component: #2dd4bf;
 
-  /* Borders use gold */
-  --border: oklch(0.82 0.08 85); /* Soft gold border */
-  --input: oklch(0.88 0.05 85);
-  --ring: oklch(0.75 0.15 85); /* Gold ring */
-
-  /* Chart colors - Chinese themed */
-  --chart-1: oklch(0.45 0.2 25); /* Imperial red */
-  --chart-2: oklch(0.75 0.15 85); /* Gold */
-  --chart-3: oklch(0.55 0.22 30); /* Vermillion */
-  --chart-4: oklch(0.85 0.18 90); /* Bright gold */
-  --chart-5: oklch(0.35 0.15 30); /* Dark red */
-
-  /* Sidebar - Imperial red theme */
-  --sidebar: oklch(0.45 0.2 25);
-  --sidebar-foreground: oklch(0.97 0.01 90);
-  --sidebar-primary: oklch(0.85 0.18 90);
-  --sidebar-primary-foreground: oklch(0.15 0.01 0);
-  --sidebar-accent: oklch(0.55 0.22 30);
-  --sidebar-accent-foreground: oklch(0.97 0.01 90);
-  --sidebar-border: oklch(0.75 0.15 85 / 30%);
-  --sidebar-ring: oklch(0.75 0.15 85);
-
-  /* Named Chinese colors for direct use */
-  --imperial: oklch(0.45 0.2 25);
-  --imperial-foreground: oklch(0.97 0.01 90);
-  --vermillion: oklch(0.55 0.22 30);
-  --gold: oklch(0.75 0.15 85);
-  --gold-bright: oklch(0.85 0.18 90);
-  --cream: oklch(0.97 0.01 90);
-  --rice-paper: oklch(0.94 0.02 85);
-  --ink: oklch(0.15 0.01 0);
+  --stage-none: #3a3944;
+  --stage-seedling: #38bdf8;
+  --stage-sprout: #a78bfa;
+  --stage-sapling: #ec4899;
+  --stage-blooming: #fb923c;
+  --stage-evergreen: #22c55e;
 }
 
 @layer base {
@@ -124,145 +181,9 @@
   body {
     @apply bg-background text-foreground;
   }
-}
-
-/* Brush stroke font class */
-.font-brush {
-  font-family: var(--font-brush), "Ma Shan Zheng", cursive;
-}
-
-/* Traditional Chinese decorative patterns */
-.pattern-clouds {
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 45c-8.284 0-15-6.716-15-15 0-4.142 1.686-7.893 4.393-10.607C22.107 16.686 25.858 15 30 15c8.284 0 15 6.716 15 15 0 4.142-1.686 7.893-4.393 10.607C37.893 43.314 34.142 45 30 45zm0-5c5.523 0 10-4.477 10-10s-4.477-10-10-10-10 4.477-10 10 4.477 10 10 10z' fill='%23C4A052' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
-}
-
-.pattern-lattice {
-  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 20h40M20 0v40M0 0l40 40M40 0L0 40' stroke='%23C4A052' stroke-opacity='0.08' stroke-width='1' fill='none'/%3E%3C/svg%3E");
-}
-
-.pattern-waves {
-  background-image: url("data:image/svg+xml,%3Csvg width='80' height='20' viewBox='0 0 80 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10c10 0 10-8 20-8s10 8 20 8 10-8 20-8 10 8 20 8' stroke='%23C4A052' stroke-opacity='0.1' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-}
-
-/* Ornamental corner decorations */
-.ornament-corners::before,
-.ornament-corners::after {
-  content: '';
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  border-color: var(--gold);
-  pointer-events: none;
-}
-
-.ornament-corners::before {
-  top: 8px;
-  left: 8px;
-  border-top: 2px solid;
-  border-left: 2px solid;
-}
-
-.ornament-corners::after {
-  bottom: 8px;
-  right: 8px;
-  border-bottom: 2px solid;
-  border-right: 2px solid;
-}
-
-/* Gold shimmer animation for buttons */
-@keyframes gold-shimmer {
-  0% {
-    background-position: -200% center;
+  /* Opt-in for large Chinese characters */
+  .hanzi {
+    font-family: var(--font-hanzi);
+    font-weight: 500;
   }
-  100% {
-    background-position: 200% center;
-  }
-}
-
-.shimmer-gold {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    oklch(0.85 0.18 90 / 0.3) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: gold-shimmer 2s ease-in-out infinite;
-}
-
-/* Decorative divider with medallion */
-.divider-ornamental {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem 0;
-}
-
-.divider-ornamental::before,
-.divider-ornamental::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--gold) 20%,
-    var(--gold) 80%,
-    transparent
-  );
-}
-
-.divider-ornamental .medallion {
-  width: 32px;
-  height: 32px;
-  margin: 0 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--gold);
-  border-radius: 50%;
-  color: var(--imperial);
-  font-family: var(--font-brush);
-  font-size: 1rem;
-}
-
-/* Lantern glow effect for cards */
-.lantern-glow {
-  box-shadow:
-    0 4px 20px oklch(0.75 0.15 85 / 0.15),
-    inset 0 1px 0 oklch(1 0 0 / 0.5);
-}
-
-.lantern-glow:hover {
-  box-shadow:
-    0 8px 30px oklch(0.75 0.15 85 / 0.25),
-    inset 0 1px 0 oklch(1 0 0 / 0.6);
-}
-
-/* Imperial header gradient */
-.imperial-gradient {
-  background: linear-gradient(
-    180deg,
-    oklch(0.48 0.2 25) 0%,
-    oklch(0.42 0.2 25) 100%
-  );
-}
-
-/* Ink brush stroke underline */
-.brush-underline {
-  position: relative;
-  display: inline-block;
-}
-
-.brush-underline::after {
-  content: '';
-  position: absolute;
-  left: -5%;
-  bottom: -4px;
-  width: 110%;
-  height: 8px;
-  background: url("data:image/svg+xml,%3Csvg width='100' height='8' viewBox='0 0 100 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4c20-3 40 3 60-1s30 2 40 1' stroke='%23C4A052' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center;
-  background-size: 100% 100%;
-  opacity: 0.8;
 }

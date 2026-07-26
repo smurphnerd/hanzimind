@@ -3,59 +3,70 @@
 import Link from "next/link";
 import { authClient } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Mika } from "@/components/mika";
+
+const navLinks = [
+  { href: "/study", label: "Study" },
+  { href: "/decks", label: "Decks" },
+  { href: "/dictionary", label: "Dictionary" },
+  { href: "/profile", label: "Profile" },
+];
 
 export function Header() {
   const { data: session } = authClient.useSession();
 
   return (
-    <header className="imperial-gradient pattern-lattice relative border-b-4 border-gold">
-      {/* Decorative top border */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-gold-bright to-transparent" />
-
-      <div className="container mx-auto flex h-20 items-center justify-between px-4">
-        {/* Logo with brush stroke font */}
+    <header className="bg-surface/85 sticky top-0 z-40 border-b border-border backdrop-blur-md backdrop-saturate-150">
+      <div className="container mx-auto flex h-16 items-center gap-3 px-4">
         <Link
           href="/"
-          className="font-brush text-3xl text-cream tracking-wide hover:text-gold-bright transition-colors duration-300 drop-shadow-md"
+          className="flex items-center gap-2 font-display text-lg font-extrabold tracking-tight text-foreground transition-opacity hover:opacity-80"
         >
-          漢字心
-          <span className="ml-2 text-lg font-sans font-medium text-gold">HanziMind</span>
+          <Mika pose="peek" size={32} />
+          HanziMind
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <nav className="ml-2 hidden items-center gap-1 sm:flex">
+          {session?.user &&
+            navLinks.map((link) => (
+              <Button
+                key={link.href}
+                asChild
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Link href={link.href}>{link.label}</Link>
+              </Button>
+            ))}
+        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           {session?.user ? (
-            <>
-              <Button asChild variant="ghost" className="text-cream hover:text-gold-bright hover:bg-white/10">
-                <Link href="/decks">Decks</Link>
-              </Button>
-              <Button asChild variant="ghost" className="text-cream hover:text-gold-bright hover:bg-white/10">
-                <Link href="/study">Study</Link>
-              </Button>
-              <Button asChild variant="ghost" className="text-cream hover:text-gold-bright hover:bg-white/10">
-                <Link href="/dictionary">Dictionary</Link>
-              </Button>
-              <Button asChild variant="ghost" className="text-cream hover:text-gold-bright hover:bg-white/10">
-                <Link href="/profile">Profile</Link>
-              </Button>
-            </>
+            <Link
+              href="/profile"
+              aria-label="Your profile"
+              title={session.user.name ?? session.user.email ?? "Profile"}
+              className="bg-accent/15 text-accent hover:bg-accent/25 flex size-9 items-center justify-center rounded-full font-display text-sm font-bold uppercase transition-colors"
+            >
+              {(session.user.name ?? session.user.email ?? "?")
+                .charAt(0)
+                .toUpperCase()}
+            </Link>
           ) : (
             <>
-              <Button asChild variant="ghost" className="text-cream hover:text-gold-bright hover:bg-white/10">
+              <Button asChild variant="ghost" size="sm">
                 <Link href="/signin">Sign In</Link>
               </Button>
-              <Button
-                asChild
-                className="bg-gold text-ink hover:bg-gold-bright border-none"
-              >
+              <Button asChild size="sm">
                 <Link href="/signup">Get Started</Link>
               </Button>
             </>
           )}
-        </nav>
+        </div>
       </div>
-
-      {/* Decorative wave pattern at bottom */}
-      <div className="absolute inset-x-0 -bottom-2 h-2 pattern-waves opacity-60" />
     </header>
   );
 }

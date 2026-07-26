@@ -5,27 +5,26 @@ import * as React from "react";
 import { cn } from "@/components/ui-utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full font-display text-sm font-bold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive active:translate-y-px",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-md border-2 border-gold hover:bg-vermillion hover:border-gold-bright hover:shadow-lg",
+          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md",
         destructive:
-          "bg-destructive text-white shadow-md border-2 border-destructive/50 hover:bg-destructive/90 focus-visible:ring-destructive/20",
+          "bg-destructive text-white shadow-sm hover:bg-destructive/90 focus-visible:ring-destructive/20",
         outline:
-          "border-2 border-gold bg-transparent text-primary shadow-sm hover:bg-primary/10 hover:border-gold-bright",
+          "border border-border bg-surface text-foreground shadow-sm hover:bg-muted hover:border-primary/40",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm border border-gold/50 hover:bg-secondary/80 hover:border-gold",
-        ghost:
-          "text-primary hover:bg-primary/10 hover:text-vermillion",
-        link: "text-primary underline-offset-4 hover:underline hover:text-vermillion",
+          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/70",
+        ghost: "text-foreground hover:bg-muted",
+        link: "text-primary underline-offset-4 hover:underline hover:text-primary/80",
       },
       size: {
         default: "h-10 px-5 py-2 has-[>svg]:px-4",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-12 rounded-lg px-8 text-base has-[>svg]:px-5",
-        icon: "size-10 rounded-full text-xl",
+        sm: "h-8 gap-1.5 px-4 text-xs has-[>svg]:px-3",
+        lg: "h-12 px-8 text-base has-[>svg]:px-5",
+        icon: "size-10 text-xl",
       },
     },
     defaultVariants: {
