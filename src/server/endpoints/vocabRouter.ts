@@ -33,7 +33,15 @@ export const vocabRouter = {
     .output(VocabItemDetailedDto)
     .handler(async ({ input, context }) => {
       try {
-        return await context.cradle.vocabService.getVocabItemDetailed(input);
+        // Public endpoint: include the viewer's own private memory aids when
+        // they happen to be signed in, but never anyone else's.
+        const session = await context.cradle.auth.api.getSession({
+          headers: context.headers,
+        });
+        return await context.cradle.vocabService.getVocabItemDetailed({
+          ...input,
+          viewerId: session?.user?.id,
+        });
       } catch (error) {
         throw new ORPCError("NOT_FOUND", {
           message:

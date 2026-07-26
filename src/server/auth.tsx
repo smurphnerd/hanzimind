@@ -40,6 +40,7 @@ export const getAuth = (
       requireEmailVerification: true,
     },
     emailVerification: {
+      autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         void deps.email.sendEmail({
           from: options.systemEmailFrom,

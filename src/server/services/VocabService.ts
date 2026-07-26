@@ -1,6 +1,6 @@
 import "server-only";
 
-import { inArray, desc, count, eq, ilike, or, sql } from "drizzle-orm";
+import { and, inArray, desc, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import type { Drizzle } from "@/server/database/database";
@@ -49,15 +49,23 @@ export class VocabService {
     vocabItem: string;
     memoryAidPage: number;
     memoryAidPageSize: number;
+    viewerId?: string;
   }): Promise<VocabItemDetailedDto> {
     const vocabItem = await this.getVocabItem(args.vocabItem);
 
     const offset = (args.memoryAidPage - 1) * args.memoryAidPageSize;
-    const memoryAids = await this.getMemoryAidsSortedByUsage({
-      vocabItemId: vocabItem.id,
-      limit: args.memoryAidPageSize,
-      offset,
-    });
+    const [memoryAids, memoryAidTotal] = await Promise.all([
+      this.getMemoryAidsSortedByUsage({
+        vocabItemId: vocabItem.id,
+        limit: args.memoryAidPageSize,
+        offset,
+        viewerId: args.viewerId,
+      }),
+      this.countMemoryAids({
+        vocabItemId: vocabItem.id,
+        viewerId: args.viewerId,
+      }),
+    ]);
 
     // Transform to VocabItemDto
     const vocabItemDto: VocabItemDetailedDto = {
@@ -77,6 +85,7 @@ export class VocabService {
       createdAt: vocabItem.createdAt,
       updatedAt: vocabItem.updatedAt,
       memoryAids,
+      memoryAidTotal,
       constituents: await this.getVocabItemParts({
         vocabItem: vocabItem.vocabItem,
         vocabType: vocabItem.vocabType,
@@ -87,10 +96,45 @@ export class VocabService {
     return vocabItemDto;
   }
 
+  /**
+   * Visibility rule shared by the memory aid list and its total count so the
+   * two can never disagree: public aids, plus the viewer's own private ones.
+   */
+  private memoryAidVisibilityWhere(args: {
+    vocabItemId: string;
+    viewerId?: string;
+  }) {
+    return and(
+      eq(memoryAids.vocabItemId, args.vocabItemId),
+      // Private aids belong to their author only.
+      args.viewerId
+        ? or(
+            eq(memoryAids.public, true),
+            eq(memoryAids.createdById, args.viewerId),
+          )
+        : eq(memoryAids.public, true),
+    );
+  }
+
+  /** Total memory aids visible to the viewer, ignoring pagination. */
+  async countMemoryAids(args: {
+    vocabItemId: string;
+    viewerId?: string;
+  }): Promise<number> {
+    const [row] = await this.deps.database
+      .select({ count: count() })
+      .from(memoryAids)
+      .where(this.memoryAidVisibilityWhere(args));
+
+    return Number(row?.count ?? 0);
+  }
+
   async getMemoryAidsSortedByUsage(args: {
     vocabItemId: string;
     limit: number;
     offset: number;
+    /** When set, this user's own private aids are included alongside public ones. */
+    viewerId?: string;
   }): Promise<MemoryAidDto[]> {
     const rows = await this.deps.database
       .select({
@@ -106,7 +150,12 @@ export class VocabService {
       .from(memoryAids)
       .leftJoin(users, eq(memoryAids.createdById, users.id))
       .leftJoin(userVocabItems, eq(memoryAids.id, userVocabItems.memoryAidId))
-      .where(eq(memoryAids.vocabItemId, args.vocabItemId))
+      .where(
+        this.memoryAidVisibilityWhere({
+          vocabItemId: args.vocabItemId,
+          viewerId: args.viewerId,
+        }),
+      )
       .groupBy(memoryAids.id, users.id)
       .orderBy(desc(count(userVocabItems.userId)))
       .limit(args.limit)
@@ -251,7 +300,14 @@ export class VocabService {
     totalPages: number;
   }> {
     const offset = (args.page - 1) * args.pageSize;
-    const searchPattern = `%${args.query}%`;
+    // Trim stray whitespace and neutralise LIKE wildcards so a query of "%" or
+    // "_" is matched literally instead of matching every row. Backslash is the
+    // default LIKE escape character in Postgres, so it must be escaped first.
+    const escapedQuery = args.query
+      .trim()
+      .replace(/\\/g, "\\\\")
+      .replace(/[%_]/g, (char) => `\\${char}`);
+    const searchPattern = `%${escapedQuery}%`;
 
     // Build where clause based on search language
     const whereClause =
