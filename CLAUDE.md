@@ -83,16 +83,62 @@ The API uses **oRPC** (not tRPC) for type-safe RPC communication between client 
 - Seeding: `src/server/database/seed/` contains seed scripts
 
 **Key tables:**
-- `vocabItems` - Characters, compounds, and sentences with stroke data, audio, etymology
+- `vocabItems` - Components, characters, compounds, and sentences with stroke data, audio, etymology
 - `decks` - User-created vocabulary decks
 - `deckVocabItems` - Links vocab items to decks
 - `userVocabItems` - Tracks user progress per vocab item
 
 ### Vocabulary Item Types
-Vocab items are categorized by `vocabType`:
-- `character` - Single Chinese character (has strokes, radicals, etymology)
-- `compound` - Multi-character word (split by individual characters)
+Vocab items are categorized by `vocabType`, ordered largest to smallest:
 - `sentence` - Full sentence (split by word boundaries using `Intl.Segmenter`)
+- `compound` - Multi-character word (split by individual characters)
+- `character` - Single Chinese character (has strokes, radicals, etymology)
+- `component` - A bound radical form (亻, 氵, ⺮, 糹) — a graphical part of a
+  character that is never typed as a word on its own. This is the floor of the
+  hierarchy: components never decompose further and are introduced before
+  everything built from them.
+
+**Components are understanding-only, and carry no reading**
+A bound form has no pronunciation of its own. The dictionary gives 亻 the same
+"rén" as 人 — borrowed, and worse than nothing on a card — so components are
+stored with `pinyin` and `audioUrl` empty (both columns are NOT NULL; `""` is the
+sentinel) and are served for `understanding` only. `reading` and `listening` are
+unanswerable, and `writing` is impossible on a pinyin IME. Because meaning is the
+only path, a component **must** have a gloss; `vocab-classification.tsv` carries a
+`gloss` column for the five the dictionary leaves blank, and the generator refuses
+to emit a glossless one.
+
+**The gating rule that goes with it**
+`weakestServableLevel` must only consider study types `canStudy` permits for that
+item. Taking the minimum over every *deck-enabled* type instead pins a component
+at level 0 forever — it can never be served for reading, so `readingLevel` never
+advances — and the constituent gate then locks every character built on it,
+permanently and unrecoverably. Likewise a dependency with *no* servable type must
+not gate at all. Both are covered in `src/server/__tests__/study-rules.test.ts`;
+do not reintroduce a gate that reads levels the item cannot earn.
+
+The rules live in `src/server/study-rules.ts` as pure functions over a minimal
+item shape, deliberately outside the 300-line `getNextVocabItem` — the deadlock
+above shipped because they were untestable closures.
+
+**Disabled items**
+`vocabItems.disabled` hides a row from *every* read path — decomposition,
+dictionary, search, deck membership, and study selection — so it behaves as if
+deleted. Two things get disabled: glyphs more basic than a radical (absent from
+the standard 214), and glyphs with no gloss or reading, which can never produce
+an answerable card.
+
+Classification lives in `src/server/database/seed/vocab-classification.tsv`, a
+hand-editable file listing only the exceptions (anything absent from it is a
+`character`). Apply edits with `tsx scripts/classify-vocab.ts` (supports
+`--dry-run`); regenerate the whole file from the rules with
+`node scripts/build-vocab-classification.mjs`. `seed-dictionary.ts` reads the same
+file, so a fresh seed lands in the same state as the backfill.
+
+**Resolving parts:** always go through `VocabService.getVocabItemParts`, which
+drops disabled parts. `filterDecomposition` in `src/lib/decomposition.ts` is
+string-level only and cannot tell what is disabled — client components must
+render the server-provided `constituents` array, never re-split `decomposition`.
 
 **Audio file naming:**
 - Single characters: `audio/{unicode-codepoint}.mp3`

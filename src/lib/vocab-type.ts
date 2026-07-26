@@ -3,8 +3,11 @@ import { AlignLeft, Blocks, Puzzle, Square } from "lucide-react";
 
 import type { VocabType } from "@/definitions/definitions";
 
-/** The 3 vocab types plus "component" (a decomposition context, not a vocabType). */
-export type ItemTypeKey = VocabType | "component";
+/**
+ * Every vocab type. `component` used to be a display-only label; it is now a
+ * real vocabType, so this is just an alias kept for the existing call sites.
+ */
+export type ItemTypeKey = VocabType;
 
 export interface ItemTypeMeta {
   key: ItemTypeKey;

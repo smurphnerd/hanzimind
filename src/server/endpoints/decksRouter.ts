@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { ORPCError } from "@orpc/client";
 
@@ -46,13 +46,21 @@ export const decksRouter = {
       const { deckName, description, vocabList } = input;
       const userId = context.user.id;
 
-      // Check which vocab items already exist
-      const existingVocabItems =
+      // A disabled glyph is meant to behave as if deleted, so drop it from the
+      // request rather than treating it as missing — it exists, it just cannot
+      // be taught, and trying to "create" a single character throws.
+      const usableVocabItems =
         await context.cradle.vocabService.getExistingVocabItems(vocabList);
+      const storedVocabItems =
+        await context.cradle.vocabService.getStoredVocabItems(vocabList);
+
+      const requestedVocabList = vocabList.filter(
+        (item) => !storedVocabItems.includes(item) || usableVocabItems.includes(item),
+      );
 
       // Find missing vocab items
-      const missingVocabItems = vocabList.filter(
-        (item) => !existingVocabItems.includes(item),
+      const missingVocabItems = requestedVocabList.filter(
+        (item) => !usableVocabItems.includes(item),
       );
 
       // Create missing vocab items with their components
@@ -67,8 +75,8 @@ export const decksRouter = {
         }
       }
 
-      const vocabSet = new Set(vocabList);
-      for (const vocabItem of vocabList) {
+      const vocabSet = new Set(requestedVocabList);
+      for (const vocabItem of requestedVocabList) {
         const components =
           await context.cradle.vocabService.getVocabItemPartsDeep(vocabItem);
         components.forEach((component) => {
@@ -102,7 +110,14 @@ export const decksRouter = {
               vocabItem: schema.vocabItems.vocabItem,
             })
             .from(schema.vocabItems)
-            .where(inArray(schema.vocabItems.vocabItem, Array.from(vocabSet)));
+            .where(
+              and(
+                inArray(schema.vocabItems.vocabItem, Array.from(vocabSet)),
+                // Keep disabled items out of deck membership entirely, so nothing
+                // downstream has to filter them back out again.
+                eq(schema.vocabItems.disabled, false),
+              ),
+            );
 
           if (vocabItems.length > 0) {
             await tx.insert(schema.deckVocabItems).values(

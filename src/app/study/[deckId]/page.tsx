@@ -25,7 +25,6 @@ import { CharacterStrokes } from "@/components/character-strokes";
 import { Mika } from "@/components/mika";
 import { cn } from "@/lib/utils";
 import { vocabTypeMeta } from "@/lib/vocab-type";
-import { filterDecomposition } from "@/lib/decomposition";
 import { playAnswerSound } from "@/lib/sounds";
 import type {
   VocabItemStudyDto,
@@ -76,8 +75,12 @@ function HanziPanel({
   );
 }
 
-function Decomposition({ decomposition }: { decomposition: string }) {
-  const parts = filterDecomposition(decomposition);
+/**
+ * `parts` comes from the server (`constituents`), which has already dropped any
+ * disabled part. Do not re-derive it from the raw `decomposition` string here —
+ * the client cannot tell which parts are hidden.
+ */
+function Decomposition({ parts }: { parts: string[] }) {
   if (parts.length === 0) {
     return (
       <p className="text-muted-foreground py-6 text-center text-sm">
@@ -121,17 +124,28 @@ function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
           />
           <div className="flex flex-col items-start gap-3">
             <ItemTypeBadge type={vocabItem.vocabType} />
-            <div className="hanzi text-accent text-2xl">
-              {vocabItem.pinyin}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => playAudio(vocabItem.audioUrl)}
-            >
-              <Volume2 className="size-4" />
-              Play
-            </Button>
+            {/* A component has no reading of its own, so there is nothing to
+                show and nothing to play — say so rather than render an empty
+                line above a button that would be silent. */}
+            {vocabItem.vocabType === "component" ? (
+              <p className="text-muted-foreground text-sm">
+                A part of other characters — no pronunciation of its own.
+              </p>
+            ) : (
+              <>
+                <div className="hanzi text-accent text-2xl">
+                  {vocabItem.pinyin}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => playAudio(vocabItem.audioUrl)}
+                >
+                  <Volume2 className="size-4" />
+                  Play
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -145,7 +159,10 @@ function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
         </CardContent>
       </Card>
 
-      {vocabItem.vocabType === "character" && (
+      {/* Components get stroke order too — with pinyin and audio gone it is the
+          main thing left to learn them by. */}
+      {(vocabItem.vocabType === "character" ||
+        vocabItem.vocabType === "component") && (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -170,7 +187,7 @@ function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
               <CardTitle>Decomposition</CardTitle>
             </CardHeader>
             <CardContent>
-              <Decomposition decomposition={vocabItem.decomposition ?? ""} />
+              <Decomposition parts={vocabItem.constituents} />
             </CardContent>
           </Card>
         </div>
@@ -320,14 +337,18 @@ function StudyCard({
                   className="size-32"
                   textClassName="text-6xl"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => playAudio(vocabItem.audioUrl)}
-                >
-                  <Volume2 className="size-4" />
-                  Play
-                </Button>
+                {/* The prompt is the glyph alone for a component — there is no
+                    audio to offer alongside it. */}
+                {vocabItem.vocabType !== "component" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => playAudio(vocabItem.audioUrl)}
+                  >
+                    <Volume2 className="size-4" />
+                    Play
+                  </Button>
+                )}
               </div>
             )}
 
@@ -498,17 +519,22 @@ function ResultCard({
                 />
                 <div className="flex flex-1 flex-col items-start gap-2">
                   <ItemTypeBadge type={userVocabItem.vocabType} />
-                  <div className="hanzi text-accent text-2xl">
-                    {userVocabItem.pinyin}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => playAudio(userVocabItem.audioUrl)}
-                  >
-                    <Volume2 className="size-4" />
-                    Play
-                  </Button>
+                  {/* Components carry no reading — see VocabOverview. */}
+                  {userVocabItem.vocabType !== "component" && (
+                    <>
+                      <div className="hanzi text-accent text-2xl">
+                        {userVocabItem.pinyin}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => playAudio(userVocabItem.audioUrl)}
+                      >
+                        <Volume2 className="size-4" />
+                        Play
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -520,14 +546,12 @@ function ResultCard({
               </div>
 
               {userVocabItem.vocabType === "character" &&
-                userVocabItem.decomposition && (
+                userVocabItem.constituents.length > 0 && (
                   <div className="border-border border-t pt-4">
                     <div className="text-muted-foreground mb-1 text-xs font-bold tracking-wider uppercase">
                       Built from
                     </div>
-                    <Decomposition
-                      decomposition={userVocabItem.decomposition}
-                    />
+                    <Decomposition parts={userVocabItem.constituents} />
                   </div>
                 )}
             </CardContent>

@@ -104,6 +104,11 @@ export const vocabItems = pgTable("vocab_items", {
   strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
   strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes
   strokeMatches: jsonb().$type<(number[] | null)[] | null>(), // Used for characters
+  // Too basic to teach (a sub-radical fragment) or unstudiable (no gloss to quiz
+  // against). Disabled items are filtered out of every read path — decompositions,
+  // dictionary, search, and study selection — so they behave as if deleted.
+  // Driven by seed/vocab-classification.tsv; see scripts/classify-vocab.ts.
+  disabled: boolean().notNull().default(false),
   ...timestampFields,
 });
 

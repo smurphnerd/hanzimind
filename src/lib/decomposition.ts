@@ -1,8 +1,13 @@
 /**
- * Split a raw decomposition string into teachable component characters,
+ * Split a raw decomposition string into candidate component characters,
  * stripping Ideographic Description Characters (U+2FF0–U+2FFF) and the
- * `？`/`?` placeholders. Mirrors the server-side logic in
- * VocabService.getVocabItemParts.
+ * `？`/`?` placeholders.
+ *
+ * This is purely string-level. It cannot tell whether a part is disabled, so it
+ * is not enough on its own for anything user-facing — go through
+ * VocabService.getVocabItemParts, which additionally drops disabled parts, and
+ * render the resulting array. Client components should use the `constituents`
+ * field rather than re-splitting the raw `decomposition` string.
  */
 export function filterDecomposition(
   decomposition: string | null | undefined,

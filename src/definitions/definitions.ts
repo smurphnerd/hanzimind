@@ -9,7 +9,14 @@ export const studyTypeValues = [
 export const StudyTypeEnum = z.enum(studyTypeValues);
 export type StudyType = z.infer<typeof StudyTypeEnum>;
 
-const vocabTypeValues = ["sentence", "compound", "character"] as const;
+// Ordered largest to smallest. `component` is a bound radical form (亻, 氵, ⺮) —
+// a graphical part of a character that is never typed as a word on its own.
+const vocabTypeValues = [
+  "sentence",
+  "compound",
+  "character",
+  "component",
+] as const;
 export const VocabTypeEnum = z.enum(vocabTypeValues);
 export type VocabType = z.infer<typeof VocabTypeEnum>;
 
@@ -61,19 +68,27 @@ export const VocabItemDetailedDto = VocabItemDto.extend({
 });
 export type VocabItemDetailedDto = z.infer<typeof VocabItemDetailedDto>;
 
+/**
+ * Components are meaning-only — they have no reading of their own and cannot be
+ * typed — so reading, listening and writing cards are unreachable for them.
+ * Narrowing the vocabType here makes the API reject one rather than trusting
+ * every producer to remember. See canStudy in @/server/study-rules.
+ */
+const quizzableByPronunciation = z.enum(["sentence", "compound", "character"]);
+
 const VocabItemStudyReadingDto = VocabItemDto.pick({
   id: true,
   vocabItem: true,
-  vocabType: true,
 }).extend({
+  vocabType: quizzableByPronunciation,
   studyType: z.literal("reading"),
 });
 
 const VocabItemStudyListeningDto = VocabItemDto.pick({
   id: true,
   audioUrl: true,
-  vocabType: true,
 }).extend({
+  vocabType: quizzableByPronunciation,
   studyType: z.literal("listening"),
 });
 
@@ -89,13 +104,19 @@ const VocabItemStudyUnderstandingDto = VocabItemDto.pick({
 const VocabItemStudyWritingDto = VocabItemDto.pick({
   id: true,
   translation: true,
-  vocabType: true,
 }).extend({
+  vocabType: quizzableByPronunciation,
   studyType: z.literal("writing"),
 });
 
 const VocabItemStudyNewDto = VocabItemDto.extend({
   studyType: z.literal("new"),
+  /**
+   * The teachable parts of this item, already resolved server-side. Prefer this
+   * over splitting `decomposition` on the client — only the server knows which
+   * parts are disabled and must not be shown.
+   */
+  constituents: z.array(z.string()),
 });
 
 export const VocabItemStudyDto = z.discriminatedUnion("studyType", [
@@ -170,5 +191,7 @@ export const UserVocabItemDto = VocabItemDto.extend({
   listeningNextAt: z.date().nullable(),
   understandingNextAt: z.date().nullable(),
   writingNextAt: z.date().nullable(),
+  /** See VocabItemStudyNewDto.constituents — resolved server-side, disabled parts removed. */
+  constituents: z.array(z.string()),
 });
 export type UserVocabItemDto = z.infer<typeof UserVocabItemDto>;

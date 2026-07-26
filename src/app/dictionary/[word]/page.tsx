@@ -63,25 +63,37 @@ function DictionaryWordContent() {
             </div>
             <div className="flex flex-col items-start gap-3">
               <ItemTypeBadge type={vocabData.vocabType} />
-              <div className="hanzi text-accent text-3xl">
-                {vocabData.pinyin}
-              </div>
-              <Button
-                variant="outline"
-                // audioUrl is "" when TTS generation failed; new Audio("") makes
-                // play() reject with NotSupportedError, so guard and catch.
-                disabled={!vocabData.audioUrl}
-                onClick={() => {
-                  if (!vocabData.audioUrl) return;
-                  const audio = new Audio(vocabData.audioUrl);
-                  audio
-                    .play()
-                    .catch(() => toast.error("Couldn't play audio"));
-                }}
-              >
-                <Volume2 className="mr-2 h-4 w-4" />
-                Play Audio
-              </Button>
+              {/* A component is a bound form — it is never pronounced on its
+                  own, so it is stored with no reading and no audio. Explain the
+                  absence rather than showing a blank line and a dead button. */}
+              {vocabData.vocabType === "component" ? (
+                <p className="text-muted-foreground text-sm">
+                  A part used to build other characters — it has no pronunciation
+                  of its own.
+                </p>
+              ) : (
+                <>
+                  <div className="hanzi text-accent text-3xl">
+                    {vocabData.pinyin}
+                  </div>
+                  <Button
+                    variant="outline"
+                    // audioUrl is "" when TTS generation failed; new Audio("")
+                    // makes play() reject with NotSupportedError, so guard and catch.
+                    disabled={!vocabData.audioUrl}
+                    onClick={() => {
+                      if (!vocabData.audioUrl) return;
+                      const audio = new Audio(vocabData.audioUrl);
+                      audio
+                        .play()
+                        .catch(() => toast.error("Couldn't play audio"));
+                    }}
+                  >
+                    <Volume2 className="mr-2 h-4 w-4" />
+                    Play Audio
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </CardContent>

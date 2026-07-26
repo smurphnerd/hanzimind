@@ -12,12 +12,20 @@ import {
   type StudyAnswerDto,
 } from "@/definitions/definitions";
 import type { ITranslationChecker } from "./TranslationChecker";
+import type { VocabService } from "./VocabService";
 import {
   SPACED_REPETITION_INTERVALS,
   CONSTITUENT_GATE_LEVEL,
   REQUIRE_PINYIN_TONES,
 } from "@/server/constants";
-import { filterDecomposition } from "@/lib/decomposition";
+import {
+  canStudy,
+  isUnlocked,
+  pronounceableType,
+  readingOf,
+  servableStudyTypes,
+  VOCAB_TYPE_PRIORITY,
+} from "@/server/study-rules";
 import { pinyinMatches } from "@/lib/pinyin";
 
 export class StudyService {
@@ -26,6 +34,7 @@ export class StudyService {
       logger: Logger;
       database: Drizzle;
       translationChecker: ITranslationChecker;
+      vocabService: VocabService;
     },
   ) {}
 
@@ -75,13 +84,23 @@ export class StudyService {
             },
           });
 
-        // Every item in the deck, constituents included.
+        // Every item in the deck, constituents included — but not disabled ones,
+        // which must never get a progress row to be served from.
         const vocabItems = await tx
           .select({
             vocabItemId: schema.deckVocabItems.vocabItemId,
           })
           .from(schema.deckVocabItems)
-          .where(eq(schema.deckVocabItems.deckId, deckId));
+          .innerJoin(
+            schema.vocabItems,
+            eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+          )
+          .where(
+            and(
+              eq(schema.deckVocabItems.deckId, deckId),
+              eq(schema.vocabItems.disabled, false),
+            ),
+          );
 
         // Create userVocabItems for all vocab items in the deck
         // Items start with seen=false (default), levels at 0 (default), and no nextAt times
@@ -147,7 +166,16 @@ export class StudyService {
             vocabItemId: schema.deckVocabItems.vocabItemId,
           })
           .from(schema.deckVocabItems)
-          .where(eq(schema.deckVocabItems.deckId, deckId));
+          .innerJoin(
+            schema.vocabItems,
+            eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+          )
+          .where(
+            and(
+              eq(schema.deckVocabItems.deckId, deckId),
+              eq(schema.vocabItems.disabled, false),
+            ),
+          );
 
         if (vocabItems.length > 0) {
           await tx
@@ -249,7 +277,11 @@ export class StudyService {
       // Fetch both vocab item and user progress in parallel
       const [vocabItem, existingUserVocabItem] = await Promise.all([
         this.deps.database.query.vocabItems.findFirst({
-          where: (vocabItems, { eq }) => eq(vocabItems.id, answer.vocabItemId),
+          where: (vocabItems, { and, eq }) =>
+            and(
+              eq(vocabItems.id, answer.vocabItemId),
+              eq(vocabItems.disabled, false),
+            ),
         }),
         this.deps.database.query.userVocabItems.findFirst({
           where: (userVocabItems, { eq, and }) =>
@@ -262,6 +294,19 @@ export class StudyService {
 
       if (!vocabItem) {
         throw new Error(`Vocab item not found: ${answer.vocabItemId}`);
+      }
+
+      // getNextVocabItem never offers a card the item can't answer, but the
+      // client sends the study type back, so a stale tab or a crafted request
+      // could otherwise advance e.g. readingLevel on a component using the
+      // borrowed parent pinyin. Re-check server-side.
+      if (
+        answer.studyType !== "new" &&
+        !canStudy(vocabItem, answer.studyType)
+      ) {
+        throw new Error(
+          `Study type "${answer.studyType}" is not valid for ${vocabItem.vocabType} ${vocabItem.vocabItem}`,
+        );
       }
 
       let userVocabItem = existingUserVocabItem;
@@ -470,7 +515,15 @@ export class StudyService {
             eq(schema.userVocabItems.userId, userDeck.userId),
           ),
         )
-        .where(eq(schema.deckVocabItems.deckId, userDeck.deckId));
+        .where(
+          and(
+            eq(schema.deckVocabItems.deckId, userDeck.deckId),
+            // Disabled items are never served, and because the prerequisite
+            // gating below is built from this same result set, they also stop
+            // gating the characters they used to be part of.
+            eq(schema.vocabItems.disabled, false),
+          ),
+        );
 
       if (vocabItems.length === 0) {
         // Empty deck (or no items match the current settings) — nothing to study.
@@ -482,65 +535,15 @@ export class StudyService {
       // also in this deck is known to at least CONSTITUENT_GATE_LEVEL. This is
       // what paces the deck: only the parts are available up front, and the
       // things built from them unlock as those parts mature.
+      // The rules themselves live in @/server/study-rules as pure functions so
+      // they can be tested without a database.
       const byVocabItem = new Map(vocabItems.map((i) => [i.vocabItem, i]));
-
-      const minEnabledLevel = (item: (typeof vocabItems)[number]) =>
-        Math.min(
-          ...enabledStudyTypes.map((st) => item[`${st}Level`] ?? 0),
-        );
-
-      const constituentsOf = (item: (typeof vocabItems)[number]) =>
-        item.vocabType === "character"
-          ? filterDecomposition(item.decomposition)
-          : // Compounds and sentences are gated on their characters.
-            Array.from(item.vocabItem);
-
-      const isUnlocked = (item: (typeof vocabItems)[number]) =>
-        constituentsOf(item)
-          .filter((part) => part !== item.vocabItem)
-          .every((part) => {
-            const dep = byVocabItem.get(part);
-            // A part that isn't in this deck can't be learned here, so it
-            // can't gate anything.
-            if (!dep) return true;
-            if (!dep.seen) return false;
-            return minEnabledLevel(dep) >= CONSTITUENT_GATE_LEVEL;
-          });
-
-      // --- Answerable data ------------------------------------------------
-      // Some entries (graphical radicals especially) have no definition, and
-      // no romanisation — pinyin-pro hands the glyph straight back. Serving
-      // those produces a card that cannot be answered, and an understanding
-      // card with no translation makes processAnswer throw.
-      const hasPinyin = (item: (typeof vocabItems)[number]) =>
-        !!item.pinyin && item.pinyin !== item.vocabItem;
-      const hasTranslation = (item: (typeof vocabItems)[number]) =>
-        !!item.translation && item.translation.trim().length > 0;
-
-      const canStudy = (item: (typeof vocabItems)[number], type: StudyType) => {
-        switch (type) {
-          case "reading":
-            return hasPinyin(item);
-          case "listening":
-            return hasPinyin(item) && !!item.audioUrl;
-          case "understanding":
-            return hasTranslation(item);
-          case "writing":
-            // You type the characters, which every item has.
-            return true;
-        }
-      };
 
       // Filter and score vocab items for each enabled study type
       const candidates = vocabItems
         .map((item) => {
           // Calculate shared scoring metrics
-          const vocabTypePriority =
-            item.vocabType === "character"
-              ? 1
-              : item.vocabType === "compound"
-                ? 2
-                : 3;
+          const vocabTypePriority = VOCAB_TYPE_PRIORITY[item.vocabType];
 
           const decompositionLength =
             item.vocabType === "character" && item.decomposition
@@ -550,9 +553,18 @@ export class StudyService {
           // Unseen items are introductions — only offer them once their
           // constituents are known well enough.
           if (!item.seen) {
-            if (!isUnlocked(item)) return null;
+            if (
+              !isUnlocked(
+                item,
+                byVocabItem,
+                enabledStudyTypes,
+                CONSTITUENT_GATE_LEVEL,
+              )
+            ) {
+              return null;
+            }
             // An intro card is pointless if nothing about it can be quizzed.
-            if (!enabledStudyTypes.some((type) => canStudy(item, type))) {
+            if (servableStudyTypes(item, enabledStudyTypes).length === 0) {
               return null;
             }
             return {
@@ -608,7 +620,7 @@ export class StudyService {
       //    every introduction before you review anything (Anki's
       //    "show new cards after reviews").
       // 2. Minimum level (ascending - lower level first)
-      // 3. Vocab type priority (ascending - characters first)
+      // 3. Vocab type priority (ascending - components first, then characters)
       // 4. Decomposition length (ascending - shorter first for characters)
       // 5. Random tiebreaker
       candidates.sort((a, b) => {
@@ -629,9 +641,9 @@ export class StudyService {
           id: selectedItem.id,
           vocabItem: selectedItem.vocabItem,
           translation: selectedItem.translation,
-          pinyin: selectedItem.pinyin,
+          pinyin: readingOf(selectedItem).pinyin,
           vocabType: selectedItem.vocabType,
-          audioUrl: selectedItem.audioUrl,
+          audioUrl: readingOf(selectedItem).audioUrl,
           decomposition: selectedItem.decomposition,
           etymologyHint: selectedItem.etymologyHint,
           etymologyType: selectedItem.etymologyType,
@@ -642,6 +654,11 @@ export class StudyService {
           createdAt: selectedItem.createdAt,
           updatedAt: selectedItem.updatedAt,
           studyType: "new",
+          constituents: await this.deps.vocabService.getVocabItemParts({
+            vocabItem: selectedItem.vocabItem,
+            vocabType: selectedItem.vocabType,
+            decomposition: selectedItem.decomposition,
+          }),
         };
       }
 
@@ -653,21 +670,21 @@ export class StudyService {
           id: selectedItem.id,
           studyType: "reading",
           vocabItem: selectedItem.vocabItem,
-          vocabType: selectedItem.vocabType,
+          vocabType: pronounceableType(selectedItem, studyType),
         };
       } else if (studyType === "listening") {
         return {
           id: selectedItem.id,
           studyType: "listening",
           audioUrl: selectedItem.audioUrl,
-          vocabType: selectedItem.vocabType,
+          vocabType: pronounceableType(selectedItem, studyType),
         };
       } else if (studyType === "understanding") {
         return {
           id: selectedItem.id,
           studyType: "understanding",
           vocabItem: selectedItem.vocabItem,
-          audioUrl: selectedItem.audioUrl,
+          audioUrl: readingOf(selectedItem).audioUrl,
           vocabType: selectedItem.vocabType,
         };
       } else {
@@ -676,7 +693,7 @@ export class StudyService {
           id: selectedItem.id,
           studyType: "writing",
           translation: selectedItem.translation,
-          vocabType: selectedItem.vocabType,
+          vocabType: pronounceableType(selectedItem, studyType),
         };
       }
     } catch (error) {
@@ -743,7 +760,12 @@ export class StudyService {
           schema.memoryAids,
           eq(schema.memoryAids.id, schema.userVocabItems.memoryAidId),
         )
-        .where(eq(schema.vocabItems.id, vocabItemId))
+        .where(
+          and(
+            eq(schema.vocabItems.id, vocabItemId),
+            eq(schema.vocabItems.disabled, false),
+          ),
+        )
         .limit(1);
 
       if (result.length === 0) {
@@ -758,9 +780,9 @@ export class StudyService {
         id: item.id,
         vocabItem: item.vocabItem,
         translation: item.translation,
-        pinyin: item.pinyin,
+        pinyin: readingOf(item).pinyin,
         vocabType: item.vocabType,
-        audioUrl: item.audioUrl,
+        audioUrl: readingOf(item).audioUrl,
         decomposition: item.decomposition,
         etymologyHint: item.etymologyHint,
         etymologyType: item.etymologyType,
@@ -783,6 +805,11 @@ export class StudyService {
         listeningNextAt: item.listeningNextAt,
         understandingNextAt: item.understandingNextAt,
         writingNextAt: item.writingNextAt,
+        constituents: await this.deps.vocabService.getVocabItemParts({
+          vocabItem: item.vocabItem,
+          vocabType: item.vocabType,
+          decomposition: item.decomposition,
+        }),
       };
     } catch (error) {
       this.deps.logger.error(

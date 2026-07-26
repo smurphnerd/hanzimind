@@ -3,6 +3,7 @@ import "server-only";
 import { and, inArray, desc, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
+import { filterDecomposition } from "@/lib/decomposition";
 import type { Drizzle } from "@/server/database/database";
 import {
   memoryAids,
@@ -35,7 +36,10 @@ export class VocabService {
 
   async getVocabItem(vocabItem: string): Promise<VocabItemDto> {
     const vocabItemRes = await this.deps.database.query.vocabItems.findFirst({
-      where: (vocabItems, { eq }) => eq(vocabItems.vocabItem, vocabItem),
+      // Disabled items are treated as if they did not exist, so this throws for
+      // them exactly as it does for an unknown glyph.
+      where: (vocabItems, { and, eq }) =>
+        and(eq(vocabItems.vocabItem, vocabItem), eq(vocabItems.disabled, false)),
     });
 
     if (!vocabItemRes) {
@@ -202,7 +206,39 @@ export class VocabService {
     };
   }
 
+  /**
+   * Which of these are usable — present and not disabled.
+   *
+   * This is a read-path question. To ask whether a row is physically there
+   * (before inserting, say) use getStoredVocabItems: `vocabItem` is unique, so a
+   * disabled row still occupies its glyph.
+   */
   async getExistingVocabItems(vocabList: string[]): Promise<string[]> {
+    if (vocabList.length === 0) {
+      return [];
+    }
+
+    const results = await this.deps.database
+      .select({ vocabItem: schema.vocabItems.vocabItem })
+      .from(schema.vocabItems)
+      .where(
+        and(
+          inArray(schema.vocabItems.vocabItem, vocabList),
+          eq(schema.vocabItems.disabled, false),
+        ),
+      );
+
+    return results.map((r) => r.vocabItem);
+  }
+
+  /**
+   * Which of these rows physically exist, disabled or not.
+   *
+   * Write paths must use this. Treating a disabled row as absent would send a
+   * caller off to create it, and for a single character there is nothing to
+   * create from — the dictionary seed is the only source — so it would throw.
+   */
+  async getStoredVocabItems(vocabList: string[]): Promise<string[]> {
     if (vocabList.length === 0) {
       return [];
     }
@@ -217,8 +253,8 @@ export class VocabService {
 
   async addVocabItem(vocabItem: string): Promise<void> {
     try {
-      // Check if it already exists
-      const existing = await this.getExistingVocabItems([vocabItem]);
+      // Already stored — including as a disabled row, which still owns the glyph.
+      const existing = await this.getStoredVocabItems([vocabItem]);
       if (existing.length > 0) {
         return;
       }
@@ -309,14 +345,18 @@ export class VocabService {
       .replace(/[%_]/g, (char) => `\\${char}`);
     const searchPattern = `%${escapedQuery}%`;
 
-    // Build where clause based on search language
-    const whereClause =
+    // Build where clause based on search language. Both the page and the count
+    // query use it, so disabled items are excluded from the totals too — filtering
+    // only one of the two would make the paging disagree with the result set.
+    const whereClause = and(
+      eq(schema.vocabItems.disabled, false),
       args.searchLanguage === "chinese"
         ? or(
             ilike(schema.vocabItems.vocabItem, searchPattern),
             ilike(schema.vocabItems.pinyin, searchPattern),
           )
-        : ilike(schema.vocabItems.translation, searchPattern);
+        : ilike(schema.vocabItems.translation, searchPattern),
+    );
 
     const [items, totalResult] = await Promise.all([
       this.deps.database
@@ -394,9 +434,9 @@ export class VocabService {
 
     switch (vocabType) {
       case "sentence":
-        return this.deps.translator.cutSentence(vocabItem);
+        return this.removeDisabled(this.deps.translator.cutSentence(vocabItem));
       case "compound":
-        return vocabItem.split("");
+        return this.removeDisabled(vocabItem.split(""));
       case "character":
         if (!decomposition) {
           this.deps.logger.warn(
@@ -405,18 +445,38 @@ export class VocabService {
           );
           return [];
         }
-        return Array.from(decomposition).filter((char) => {
-          const codePoint = char.codePointAt(0);
-          if (!codePoint) return false;
-
-          if (char === "？" || char === "?") return false;
-
-          if (codePoint >= 0x2ff0 && codePoint <= 0x2fff) return false;
-
-          return true;
-        });
+        return this.removeDisabled(filterDecomposition(decomposition));
+      // A component is a bound radical form — the floor of the hierarchy. Whatever
+      // strokes it is drawn from are more basic than a radical, so we don't teach
+      // them and don't decompose any further.
+      case "component":
+        return [];
       default:
         return [];
     }
+  }
+
+  /**
+   * Drop any part that points at a disabled item. Disabled items are hidden
+   * everywhere, so a decomposition must not surface them either — a character
+   * built partly from a disabled fragment shows only its teachable parts.
+   */
+  private async removeDisabled(parts: string[]): Promise<string[]> {
+    if (parts.length === 0) return [];
+
+    const hidden = await this.deps.database
+      .select({ vocabItem: schema.vocabItems.vocabItem })
+      .from(schema.vocabItems)
+      .where(
+        and(
+          inArray(schema.vocabItems.vocabItem, parts),
+          eq(schema.vocabItems.disabled, true),
+        ),
+      );
+
+    if (hidden.length === 0) return parts;
+
+    const hiddenSet = new Set(hidden.map((row) => row.vocabItem));
+    return parts.filter((part) => !hiddenSet.has(part));
   }
 }

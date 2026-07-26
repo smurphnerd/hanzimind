@@ -18,7 +18,7 @@
  */
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { pino } from "pino";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 import { getDatabase } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
@@ -84,13 +84,22 @@ async function main() {
   console.log(`Objects already in audio/: ${present.size}`);
 
   // ---- What the database expects ---------------------------------------
+  // Components have no pronunciation of their own and disabled items are hidden
+  // everywhere, so neither should ever get audio — without this filter a run
+  // here would put back exactly what the classification strips out.
   const items = await database
     .select({
       id: schema.vocabItems.id,
       vocabItem: schema.vocabItems.vocabItem,
       audioUrl: schema.vocabItems.audioUrl,
     })
-    .from(schema.vocabItems);
+    .from(schema.vocabItems)
+    .where(
+      and(
+        ne(schema.vocabItems.vocabType, "component"),
+        eq(schema.vocabItems.disabled, false),
+      ),
+    );
 
   const work = items.map((item) => {
     const key = tts.getVocabAudioFP(item.vocabItem);

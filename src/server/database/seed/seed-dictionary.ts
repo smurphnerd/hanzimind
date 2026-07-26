@@ -5,6 +5,11 @@ import type { Drizzle } from "@/server/database/database";
 import type { TranslatorService } from "@/server/services/TranslatorService";
 import type { TTSService } from "@/server/services/TTSService";
 import { schema } from "@/server/database/schema";
+import {
+  applyClassification,
+  loadVocabClassification,
+  suppressesAudio,
+} from "@/server/database/seed/vocab-classification";
 import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
 
 interface SeedCradle {
@@ -107,17 +112,26 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
     "Prepared dictionary entries",
   );
 
+  // Bound radical forms and too-basic/unstudiable glyphs are classified up front
+  // so a fresh seed lands in the same state the backfill produces — re-seeding
+  // must not reintroduce a disabled glyph as a studiable character.
+  const classification = loadVocabClassification();
+
   const buildRow = async (entry: DictionaryEntry) => {
     const graphics = graphicsMap.get(entry.character);
+    const classified = classification.get(entry.character);
 
     // Prefer the dictionary's own reading, fall back to the translator.
-    const pinyin =
+    const rawPinyin =
       entry.pinyin && entry.pinyin.length > 0
         ? entry.pinyin[0]
         : cradle.translator.getPinyin(entry.character);
 
+    // Components and disabled glyphs are never pronounced in the app, so skip
+    // the TTS round-trip for them entirely — that is ~156 fewer network calls
+    // per seed, and it stops a fresh seed reintroducing audio the app hides.
     let audioUrl = "";
-    if (pinyin) {
+    if (rawPinyin && !suppressesAudio(classified)) {
       try {
         audioUrl = await cradle.tts.getVocabAudio(entry.character);
       } catch (error) {
@@ -129,12 +143,22 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       }
     }
 
+    const stored = applyClassification(classified, {
+      pinyin: rawPinyin || "",
+      audioUrl,
+      translation: entry.definition ?? null,
+    });
+
     return {
       vocabItem: entry.character,
-      translation: entry.definition,
-      pinyin: pinyin || "",
-      vocabType: VocabTypeEnum.enum.character,
-      audioUrl,
+      translation: stored.translation,
+      pinyin: stored.pinyin,
+      vocabType:
+        classified?.decision === "component"
+          ? VocabTypeEnum.enum.component
+          : VocabTypeEnum.enum.character,
+      disabled: classified?.decision === "disabled",
+      audioUrl: stored.audioUrl,
       decomposition: entry.decomposition || null,
       etymologyHint: entry.etymology?.hint || null,
       etymologyType: entry.etymology?.type

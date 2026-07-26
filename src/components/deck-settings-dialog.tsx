@@ -60,8 +60,10 @@ export function DeckSettingsDialog({
 
         <div className="space-y-4 py-4">
           <p className="text-muted-foreground text-sm">
-            Component characters are always included — you&apos;ll learn the
-            parts first, and words unlock as their parts stick.
+            The parts of each word are always included — you&apos;ll learn the
+            parts first, and words unlock as their parts stick. Components
+            (character parts like 亻 and 氵) are reviewed by meaning only, since
+            they have no pronunciation of their own.
           </p>
 
           <div className="space-y-3">

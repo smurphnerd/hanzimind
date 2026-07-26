@@ -94,12 +94,13 @@ export class DeckService {
       throw new Error("Deck not found");
     }
 
-    const whereConditions = includeConstituents
-      ? eq(schema.deckVocabItems.deckId, deckId)
-      : and(
-          eq(schema.deckVocabItems.deckId, deckId),
-          eq(schema.deckVocabItems.isConstituent, false),
-        );
+    const whereConditions = and(
+      eq(schema.deckVocabItems.deckId, deckId),
+      eq(schema.vocabItems.disabled, false),
+      ...(includeConstituents
+        ? []
+        : [eq(schema.deckVocabItems.isConstituent, false)]),
+    );
 
     const vocabItems = await this.deps.database
       .select({

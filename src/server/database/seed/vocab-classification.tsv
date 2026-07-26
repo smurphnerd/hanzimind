@@ -1,0 +1,164 @@
+# Source of truth for vocab classification. Edit a decision here and re-run the backfill.
+# decision: component = a bound radical form, kept and studiable as a component
+#           disabled  = too basic to teach, or no gloss to quiz. Hidden everywhere.
+# gloss:    overrides the dictionary translation. Required where the dictionary
+#           has none, since components are quizzed on meaning alone.
+# The pinyin/definition columns are informational — components are stored with
+# neither, because a bound form has no reading of its own.
+# Anything absent from this file stays vocabType=character.
+glyph	codepoint	decision	reason	uses	pinyin	definition	review	gloss
+氵	U+6C35	component	radical-85	471	shuǐ	water		
+艹	U+8279	component	radical-140	435	cǎo	grass, weed, plant, herb		
+扌	U+624C	component	radical-64	344	shǒu	hand		
+亻	U+4EBB	component	radical-9	284	rén	man, person; people		
+钅	U+9485	component	radical-167	223	jīn	gold, metal; money		
+⺼	U+2EBC	component	radical-130	183		meat, flesh; organic compound		
+忄	U+5FC4	component	radical-61	166	xīn	heart; mind; soul		
+阝	U+961D	component	radical-170	161	yì	place, town, city		
+纟	U+7E9F	component	radical-120	148	sī	silk; thread		
+讠	U+8BA0	component	radical-149	147	yán	words, speech; to speak, to say		
+⺮	U+2EAE	component	radical-118	146	zhú	bamboo; flute		
+釒	U+91D2	component	radical-167	135	jīn	gold, metal; money		
+辶	U+8FB6	component	radical-162	132	chuò	to walk; walking		
+糹	U+7CF9	component	radical-120	128	sī	silk; thread		
+疒	U+7592	component	radical-104	126	nè	sickness, disease		
+犭	U+72AD	component	radical-94	88	quǎn	dog		
+冖	U+5196	component	radical-14	87	mì	cover		
+宀	U+5B80	component	radical-40	84	gài	roof; house		
+刂	U+5202	component	radical-18	83	dāo	knife		
+衤	U+8864	component	radical-145	72	yī	cloth		
+隹	U+96B9	component	radical-172	64	zhuī	short-tailed bird; sparrow	review	
+攵	U+6535	component	radical-66	59	pū	to rap, to tap; script; to let go		
+丿	U+4E3F	component	radical-4	55	piě	slash		
+亠	U+4EA0	component	radical-8	46	tóu	lid, cover; head		
+彳	U+5F73	component	radical-60	45	chì	to step with the left foot		
+丨	U+4E28	component	radical-2	44	shù	number one; line		
+礻	U+793B	component	radical-113	44	shì	spirit		
+飠	U+98E0	component	radical-184	44	shí	food; to eat		
+罒	U+7F52	component	radical-122	43	wǎng	net, network		
+厶	U+53B6	component	radical-28	42	sī	private, secret		
+饣	U+9963	component	radical-184	42	shí	food; to eat		
+戈	U+6208	component	radical-62	40	gē	spear, lance, halberd	review	
+冂	U+5182	component	radical-13	38	jiōng	wide		
+灬	U+706C	component	radical-86	38	huǒ	fire		
+丷	U+4E37	component	radical-12	37	ha	kwukyel		
+丶	U+4E36	component	radical-3	36	diǎn	dot		
+冫	U+51AB	component	radical-15	33	bīng	ice		
+彐	U+5F50	component	radical-58	33	jì	snout		
+殳	U+6BB3	component	radical-79	32	shū	tool, weapon	review	
+乚	U+4E5A	component	radical-5	31	gōu	secret, hidden, mysterious; small, minute; to conceal		
+幺	U+5E7A	component	radical-52	30	yāo	one; tiny, small	review	
+夂	U+5902	component	radical-34	28	zhǐ	to go		
+彡	U+5F61	component	radical-59	28	shān	hair; sunlight		
+糸	U+7CF8	component	radical-120	28	mì	silk; thread		
+爫	U+722B	component	radical-87	25	zhǎo	claws, nails, talons		
+艮	U+826E	component	radical-138	24	gěn	blunt; tough, chewy	review	
+勹	U+52F9	component	radical-20	21	bāo	wrap		
+臼	U+81FC	component	radical-134	21	jiù	mortar; bone joint socket	review	
+髟	U+9ADF	component	radical-190	20	biāo	long hair		
+匚	U+531A	component	radical-22	19	fāng	box; basket		
+虍	U+864D	component	radical-141	19	hū	tiger		
+廾	U+5EFE	component	radical-55	18	gǒng	two hands		
+耒	U+8012	component	radical-127	18	lěi	plow		
+⺈	U+2E88	component	radical-18	17				knife; the top of 争, 免 and 色
+卩	U+5369	component	radical-26	15	jié	seal; kneeling person		
+豸	U+8C78	component	radical-153	14	zhì	badger; legendary beast		
+㔾	U+353E	component	radical-26	12	xiān	seal; kneeling person		
+凵	U+51F5	component	radical-17	12	qiǎn	container; receptacle		
+巛	U+5DDB	component	radical-47	12	chuān	stream, river		
+⺊	U+2E8A	component	radical-25	11				divination; the left of 上, 卓 and 占
+亅	U+4E85	component	radical-6	11	jué	hook		
+爿	U+723F	component	radical-90	11	qiáng	half of a tree trunk		
+⺌	U+2E8C	component	radical-42	10				small; the top of 光, 尚 and 当
+氺	U+6C3A	component	radical-85	10	shui			water; the foot of 求, 泰 and 录
+疋	U+758B	component	radical-103	10	pǐ	roll, bolt of cloth; foot	review	
+覀	U+8980	component	radical-146	10	xī	west, western, westward		
+⺍	U+2E8D	component	radical-42	9				small; the top of 学, 兴 and 觉
+丬	U+4E2C	component	radical-90	9	qiáng	half of tree trunk		
+屮	U+5C6E	component	radical-45	9	chè	sprout		
+弋	U+5F0B	component	radical-56	9	yì	to catch, to arrest; to shoot with a bow	review	
+鬲	U+9B32	component	radical-193	9	gé	earthen pot, iron cauldron		
+匸	U+5338	component	radical-23	7	xì	box		
+尢	U+5C22	component	radical-43	7	yóu	weak, lame		
+爻	U+723B	component	radical-89	7	yáo	diagrams for divination	review	
+黽	U+9EFD	component	radical-205	7	miǎn	frog, toad; to strive, to endeavor		
+釆	U+91C6	component	radical-165	6	biàn	to distinguish; to pick, to gather, to collect		
+⺀	U+2E80	component	radical-15	5		ice		
+彑	U+5F51	component	radical-58	5	jì	snout		
+黾	U+9EFE	component	radical-205	5	miǎn	frog, toad; to strive, to endeavor		
+⺗	U+2E97	component	radical-61	4		heart; mind; soul		
+乛	U+4E5B	component	radical-5	4	ya	kwukyel		
+禸	U+79B8	component	radical-114	4	róu	rump		
+耂	U+8002	component	radical-125	4	lǎo	old, aged; experienced		
+肀	U+8080	component	radical-129	4	yù	pen		
+舛	U+821B	component	radical-136	4	chuǎn	mistaken; to be contrary; to deviate		
+镸	U+9578	component	radical-168	4	cháng	long; lasting; to excel in		
+⺳	U+2EB3	component	radical-122	3		net, network		
+廴	U+5EF4	component	radical-54	3	yǐn	to walk, to go; a place		
+攴	U+6534	component	radical-66	3	pū	to rap, to tap		
+癶	U+7676	component	radical-105	3	bō	legs		
+龠	U+9FA0	component	radical-214	3	yuè	flute; pipe, ancient measure		
+黹	U+9EF9	component	radical-204	2	zhǐ	embroidery, needlework		
+夊	U+590A	component	radical-35	1	suī	to go slowly		
+鬯	U+9B2F	component	radical-192	1	chàng	sacrificial wine; unhindered		
+尣	U+5C23	component	radical-43	0	wāng	weak, lame		
+毋	U+6BCB	component	radical-80	0	wú	not; do not; surname	review	
+罓	U+7F53	component	radical-122	0	gāng	net, network		
+艸	U+8278	component	radical-140	0	cǎo	grass		
+襾	U+897E	component	radical-146	0	yà	cover		
+訁	U+8A01	component	radical-149	0	yán	words, speech; to speak, to say		
+辵	U+8FB5	component	radical-162	0	chuò	to walk; walking		
+龹	U+9FB9	disabled	not-typed-not-a-radical	13	quǎn	Form of 卷 used as a phonetic component		
+龶	U+9FB6	disabled	no-gloss	8				
+倠	U+5020	disabled	no-gloss	4	suī			
+吂	U+5402	disabled	no-gloss	4	máng			
+厽	U+53BD	disabled	no-gloss	2	lěi			
+狊	U+72CA	disabled	no-gloss	2	jú			
+耴	U+8034	disabled	no-gloss	2	yì			
+侌	U+4F8C	disabled	no-gloss	1	yīn			
+兓	U+5153	disabled	no-gloss	1	jīn			
+冡	U+51A1	disabled	no-gloss	1	méng			
+匛	U+531B	disabled	no-gloss	1	jiù			
+嘼	U+563C	disabled	no-gloss	1	chù			
+圤	U+5724	disabled	no-gloss	1	pǔ			
+夃	U+5903	disabled	no-gloss	1	gǔ			
+媷	U+5AB7	disabled	no-gloss	1	rù			
+屚	U+5C5A	disabled	no-gloss	1	lòu			
+巸	U+5DF8	disabled	no-gloss	1	yí			
+惢	U+60E2	disabled	no-gloss	1	suǒ			
+斦	U+65A6	disabled	no-gloss	1	yín			
+汒	U+6C52	disabled	no-gloss	1	máng			
+牚	U+725A	disabled	no-gloss	1	chēng			
+犾	U+72BE	disabled	no-gloss	1	yín			
+猒	U+7312	disabled	no-gloss	1	yān			
+竘	U+7AD8	disabled	no-gloss	1	qǔ			
+羍	U+7F8D	disabled	no-gloss	1	dá			
+臱	U+81F1	disabled	no-gloss	1	mián			
+豙	U+8C59	disabled	no-gloss	1	yì			
+閵	U+95B5	disabled	no-gloss	1	lìn			
+隡	U+96A1	disabled	no-gloss	1	sa			
+韰	U+97F0	disabled	no-gloss	1	xiè			
+鬳	U+9B33	disabled	no-gloss	1	yàn			
+魝	U+9B5D	disabled	no-gloss	1	jié			
+圪	U+572A	disabled	no-gloss	0	gē			
+尥	U+5C25	disabled	no-gloss	0	liào			
+撖	U+6496	disabled	no-gloss	0	hàn			
+椥	U+6925	disabled	no-gloss	0	zhī			
+楱	U+6971	disabled	no-gloss	0	zòu			
+榀	U+6980	disabled	no-gloss	0	pǐn			
+榍	U+698D	disabled	no-gloss	0	xiè			
+泶	U+6CF6	disabled	no-gloss	0	xué			
+犋	U+728B	disabled	no-gloss	0	jù			
+疰	U+75B0	disabled	no-gloss	0	zhù			
+碥	U+78A5	disabled	no-gloss	0	biǎn			
+碹	U+78B9	disabled	no-gloss	0	xuàn			
+箅	U+7B85	disabled	no-gloss	0	bì			
+箢	U+7BA2	disabled	no-gloss	0	yuān			
+缍	U+7F0D	disabled	no-gloss	0	duǒ			
+耖	U+8016	disabled	no-gloss	0	chào			
+舯	U+822F	disabled	no-gloss	0	zhōng			
+茺	U+833A	disabled	no-gloss	0	chōng			
+郫	U+90EB	disabled	no-gloss	0	pí			
+锍	U+950D	disabled	no-gloss	0	liǔ			
+镙	U+9559	disabled	no-gloss	0	luó			
+阽	U+963D	disabled	no-gloss	0	diàn			
