@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 
 export type DeckSettings = {
-  includeConstituents: boolean;
   readingEnabled: boolean;
   listeningEnabled: boolean;
   understandingEnabled: boolean;
@@ -43,6 +42,14 @@ export function DeckSettingsDialog({
   description = "Choose which study modes to enable and whether to include constituent characters.",
   saveButtonText = "Save Settings",
 }: DeckSettingsDialogProps) {
+  // A deck with every mode disabled has nothing to serve and errors on the
+  // study screen, so block saving that combination.
+  const hasAnyStudyMode =
+    settings.readingEnabled ||
+    settings.listeningEnabled ||
+    settings.understandingEnabled ||
+    settings.writingEnabled;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -52,18 +59,10 @@ export function DeckSettingsDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="constituents" className="cursor-pointer">
-              Include constituent characters
-            </Label>
-            <Switch
-              id="constituents"
-              checked={settings.includeConstituents}
-              onCheckedChange={(checked) =>
-                onSettingsChange({ ...settings, includeConstituents: checked })
-              }
-            />
-          </div>
+          <p className="text-muted-foreground text-sm">
+            Component characters are always included — you&apos;ll learn the
+            parts first, and words unlock as their parts stick.
+          </p>
 
           <div className="space-y-3">
             <p className="text-sm font-medium">Study Types</p>
@@ -126,6 +125,13 @@ export function DeckSettingsDialog({
           </div>
         </div>
 
+        {!hasAnyStudyMode && (
+          <p className="text-destructive text-sm">
+            Pick at least one study mode — otherwise there&apos;s nothing to
+            review.
+          </p>
+        )}
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -134,7 +140,7 @@ export function DeckSettingsDialog({
           >
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={isPending}>
+          <Button onClick={onSave} disabled={isPending || !hasAnyStudyMode}>
             {isPending ? "Saving..." : saveButtonText}
           </Button>
         </DialogFooter>

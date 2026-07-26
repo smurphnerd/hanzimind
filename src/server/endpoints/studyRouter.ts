@@ -9,7 +9,6 @@ import {
 } from "@/definitions/definitions";
 
 const deckSettingsSchema = z.object({
-  includeConstituents: z.boolean(),
   readingEnabled: z.boolean(),
   listeningEnabled: z.boolean(),
   understandingEnabled: z.boolean(),
@@ -33,7 +32,6 @@ export const studyRouter = {
         await context.cradle.studyService.addDeck({
           userId,
           deckId: input.deckId,
-          includeConstituents: input.includeConstituents,
           readingEnabled: input.readingEnabled,
           listeningEnabled: input.listeningEnabled,
           understandingEnabled: input.understandingEnabled,
@@ -65,7 +63,6 @@ export const studyRouter = {
         await context.cradle.studyService.updateDeckSettings({
           userId,
           deckId: input.deckId,
-          includeConstituents: input.includeConstituents,
           readingEnabled: input.readingEnabled,
           listeningEnabled: input.listeningEnabled,
           understandingEnabled: input.understandingEnabled,
@@ -87,7 +84,7 @@ export const studyRouter = {
       z.object({
         correct: z.boolean(),
         userVocabItem: UserVocabItemDto,
-        nextVocabItem: VocabItemStudyDto,
+        nextVocabItem: VocabItemStudyDto.nullable(),
       }),
     )
     .handler(async ({ input, context }) => {
@@ -111,9 +108,34 @@ export const studyRouter = {
       return { correct, userVocabItem, nextVocabItem };
     }),
 
+  addSynonym: authProcedure
+    .input(
+      z.object({
+        vocabItemId: z.string(),
+        synonym: z.string().min(1).max(100),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      try {
+        await context.cradle.studyService.addSynonym({
+          userId: context.user.id,
+          vocabItemId: input.vocabItemId,
+          synonym: input.synonym,
+        });
+        return { success: true };
+      } catch (error) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message:
+            error instanceof Error ? error.message : "Failed to add synonym",
+          cause: error,
+        });
+      }
+    }),
+
   nextVocabItem: authProcedure
     .input(z.object({ deckId: z.string() }))
-    .output(VocabItemStudyDto)
+    .output(VocabItemStudyDto.nullable())
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
       const { deckId } = input;

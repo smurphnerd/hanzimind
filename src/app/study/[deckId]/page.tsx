@@ -2,142 +2,178 @@
 
 import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSuspenseQuery, useMutation } from "@tanstack/react-query";
-import { Volume2, ArrowRight, Trophy, BookOpen } from "lucide-react";
+import {
+  useSuspenseQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Volume2, ArrowRight, BookOpen, Plus, Check } from "lucide-react";
+import Link from "next/link";
+import pinyinTone from "pinyin-tone";
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useORPC } from "@/lib/orpc.client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { StudyLoading } from "@/components/study-loading";
-import { LevelStars } from "@/components/level-stars";
+import { GrowthTracker } from "@/components/growth-tracker";
+import { ItemTypeBadge } from "@/components/item-type-badge";
+import { ConfettiBurst } from "@/components/confetti-burst";
+import { CharacterStrokes } from "@/components/character-strokes";
+import { Mika } from "@/components/mika";
+import { cn } from "@/lib/utils";
+import { vocabTypeMeta } from "@/lib/vocab-type";
+import { filterDecomposition } from "@/lib/decomposition";
+import { playAnswerSound } from "@/lib/sounds";
 import type {
   VocabItemStudyDto,
+  VocabType,
   StudyType,
   UserVocabItemDto,
 } from "@/definitions/definitions";
-import Link from "next/link";
-import pinyinTone from "pinyin-tone";
+
+const STUDY_LABELS: Record<string, string> = {
+  reading: "Reading",
+  listening: "Listening",
+  understanding: "Understanding",
+  writing: "Writing",
+};
+
+function playAudio(url: string) {
+  // audioUrl is "" when TTS generation failed during seeding — calling play()
+  // on an empty src rejects with NotSupportedError, so bail out first.
+  if (!url) return;
+  const audio = new Audio(url);
+  audio.play().catch(() => {
+    toast.error("Couldn't play audio");
+  });
+}
+
+function HanziPanel({
+  char,
+  type,
+  className,
+  textClassName,
+}: {
+  char: string;
+  type: VocabType;
+  className?: string;
+  textClassName?: string;
+}) {
+  const meta = vocabTypeMeta(type);
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-center rounded-2xl",
+        meta.softClass,
+        className,
+      )}
+    >
+      <span className={cn("hanzi text-foreground", textClassName)}>{char}</span>
+    </div>
+  );
+}
+
+function Decomposition({ decomposition }: { decomposition: string }) {
+  const parts = filterDecomposition(decomposition);
+  if (parts.length === 0) {
+    return (
+      <p className="text-muted-foreground py-6 text-center text-sm">
+        No decomposition available
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-3 py-4">
+      {parts.map((component, index) => (
+        <div key={index} className="flex items-center gap-3">
+          {index > 0 && (
+            <span className="text-muted-foreground text-xl">+</span>
+          )}
+          <Link
+            href={`/dictionary/${encodeURIComponent(component)}`}
+            className="group"
+          >
+            <div className="hanzi bg-type-component-soft text-type-component border-type-component/30 flex size-16 items-center justify-center rounded-xl border text-3xl transition-transform group-hover:-translate-y-0.5">
+              {component}
+            </div>
+          </Link>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
   if (vocabItem.studyType !== "new") return null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card className="relative overflow-hidden ornament-corners">
-        <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-r from-primary via-vermillion to-primary" />
-        <CardContent className="pt-8 pb-6">
-          <div className="flex items-center gap-6">
-            <div className="h-24 w-24 rounded-full border-4 border-gold bg-rice-paper flex items-center justify-center">
-              <span className="font-brush text-5xl text-primary">{vocabItem.vocabItem}</span>
+    <div className="space-y-5">
+      <Card>
+        <CardContent className="flex items-center gap-6">
+          <HanziPanel
+            char={vocabItem.vocabItem}
+            type={vocabItem.vocabType}
+            className="size-28 shrink-0"
+            textClassName="text-6xl"
+          />
+          <div className="flex flex-col items-start gap-3">
+            <ItemTypeBadge type={vocabItem.vocabType} />
+            <div className="hanzi text-accent text-2xl">
+              {vocabItem.pinyin}
             </div>
-            <div className="flex flex-col gap-2">
-              <div className="font-brush text-2xl text-gold">
-                {vocabItem.pinyin}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const audio = new Audio(vocabItem.audioUrl);
-                  audio.play();
-                }}
-              >
-                <Volume2 className="mr-2 h-4 w-4" />
-                Play
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => playAudio(vocabItem.audioUrl)}
+            >
+              <Volume2 className="size-4" />
+              Play
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Definition */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-brush text-xl">Definition</CardTitle>
+          <CardTitle>Definition</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-lg text-foreground">{vocabItem.translation}</p>
+          <p className="text-lg">{vocabItem.translation}</p>
         </CardContent>
       </Card>
 
-      {/* Visuals - Two Column Layout */}
       {vocabItem.vocabType === "character" && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Stroke Order Animation */}
-          {vocabItem.strokes && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-brush text-xl">Stroke Order</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex aspect-square items-center justify-center rounded-lg border-2 border-gold/30 bg-cream">
-                  <span className="text-sm text-muted-foreground">
-                    [SVG ANIMATION]
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Decomposition */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="font-brush text-xl">Decomposition</CardTitle>
+              <CardTitle>Stroke order</CardTitle>
             </CardHeader>
             <CardContent>
-              {vocabItem.decomposition ? (
-                <div className="flex flex-wrap items-center justify-center gap-4 py-6">
-                  {vocabItem.decomposition
-                    .split("")
-                    .filter(
-                      (c) =>
-                        c !== "？" &&
-                        c !== "?" &&
-                        !(c.charCodeAt(0) >= 0x2ff0 && c.charCodeAt(0) <= 0x2fff),
-                    )
-                    .map((component, index) => (
-                      <div key={index} className="flex items-center gap-4">
-                        {index > 0 && (
-                          <span className="text-2xl text-gold">+</span>
-                        )}
-                        <Link
-                          href={`/dictionary/${encodeURIComponent(component)}`}
-                          className="group"
-                        >
-                          <div className="h-16 w-16 rounded-lg border-2 border-gold/50 bg-rice-paper flex items-center justify-center text-3xl font-brush text-primary transition-all group-hover:border-gold group-hover:shadow-md">
-                            {component}
-                          </div>
-                        </Link>
-                      </div>
-                    ))}
-                </div>
+              {vocabItem.strokes && vocabItem.strokes.length > 0 ? (
+                <CharacterStrokes
+                  strokes={vocabItem.strokes}
+                  strokeMedians={vocabItem.strokeMedians ?? undefined}
+                />
               ) : (
-                <p className="py-8 text-center text-muted-foreground">
-                  No decomposition available
+                <p className="text-muted-foreground py-8 text-center text-sm">
+                  No stroke data available
                 </p>
               )}
             </CardContent>
           </Card>
-        </div>
-      )}
 
-      {/* Memory Aids - Only for character and compound types */}
-      {(vocabItem.vocabType === "character" ||
-        vocabItem.vocabType === "compound") && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-brush text-xl">Memory Aids</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="py-8 text-center">
-              <p className="text-muted-foreground">
-                Memory aids feature coming soon
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Decomposition</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Decomposition decomposition={vocabItem.decomposition ?? ""} />
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
@@ -154,16 +190,28 @@ function StudyCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const hasAutoPlayed = useRef(false);
 
-  // Auto-play audio for listening type
   useEffect(() => {
-    if (vocabItem.studyType === "listening" && !hasAutoPlayed.current) {
-      const audio = new Audio(vocabItem.audioUrl);
-      audio.play();
+    if (hasAutoPlayed.current) return;
+
+    // Listening cards need the audio to be answerable at all; new-word intros
+    // play it so you hear the pronunciation the first time you meet the word.
+    if (vocabItem.studyType === "listening") {
       hasAutoPlayed.current = true;
+      if (!vocabItem.audioUrl) {
+        toast.error("No audio available for this card");
+        return;
+      }
+      playAudio(vocabItem.audioUrl);
+      return;
+    }
+
+    if (vocabItem.studyType === "new") {
+      hasAutoPlayed.current = true;
+      // Missing audio is not worth interrupting an intro card over.
+      if (vocabItem.audioUrl) playAudio(vocabItem.audioUrl);
     }
   }, [vocabItem]);
 
-  // Focus input on mount for non-"new" study types
   useEffect(() => {
     if (vocabItem.studyType !== "new") {
       inputRef.current?.focus();
@@ -178,37 +226,41 @@ function StudyCard({
     [answer, onSubmit],
   );
 
-  const handleGiveUp = useCallback(() => {
-    onSubmit("");
-  }, [onSubmit]);
+  const handleGiveUp = useCallback(() => onSubmit(""), [onSubmit]);
 
-  // Handle Enter key
   useEffect(() => {
     if (vocabItem.studyType === "new") return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        handleSubmit();
-      }
+      if (e.key !== "Enter") return;
+      // This listener already submits, so cancel the key to stop the browser
+      // also implicitly submitting the form via the focused input.
+      e.preventDefault();
+      handleSubmit();
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSubmit, vocabItem.studyType]);
 
   if (vocabItem.studyType === "new") {
     return (
-      <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center p-8">
-        <div className="w-full max-w-4xl">
-          <div className="mb-8 text-center">
-            <h1 className="font-brush text-4xl text-primary brush-underline">New Word</h1>
-            <p className="mt-2 text-gold font-brush text-xl">新词</p>
+      <div className="flex flex-1 flex-col items-center justify-center p-6">
+        <div className="w-full max-w-3xl">
+          <div className="mb-6 flex items-center gap-3">
+            <Mika pose="read" size={44} />
+            <div>
+              <h1 className="font-display text-2xl font-extrabold tracking-tight">
+                New word
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Meet it before you&apos;re quizzed.
+              </p>
+            </div>
           </div>
           <VocabOverview vocabItem={vocabItem} />
-          <div className="mt-8 flex justify-center">
+          <div className="mt-6 flex justify-center">
             <Button size="lg" onClick={() => onSubmit("")}>
               Continue
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="size-5" />
             </Button>
           </div>
         </div>
@@ -216,131 +268,130 @@ function StudyCard({
     );
   }
 
-  const studyTypeLabels: Record<string, { en: string; zh: string }> = {
-    reading: { en: "Reading", zh: "阅读" },
-    listening: { en: "Listening", zh: "听力" },
-    understanding: { en: "Understanding", zh: "理解" },
-    writing: { en: "Writing", zh: "写作" },
-  };
-
-  const currentType = studyTypeLabels[vocabItem.studyType] || { en: vocabItem.studyType, zh: "" };
+  const modeLabel = STUDY_LABELS[vocabItem.studyType] ?? vocabItem.studyType;
+  // "writing" shows the English and expects the Chinese characters back — the
+  // server grades it against vocabItem, not pinyin.
+  const isPinyinAnswer =
+    vocabItem.studyType === "reading" || vocabItem.studyType === "listening";
+  const isHanziAnswer = vocabItem.studyType === "writing";
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center p-8">
-      <div className="w-full max-w-2xl">
-        {/* Study Type Header */}
-        <div className="mb-8 text-center">
-          <h1 className="font-brush text-3xl text-primary">{currentType.en}</h1>
-          <p className="text-gold font-brush text-xl">{currentType.zh}</p>
+    <div className="flex flex-1 flex-col items-center justify-center p-6">
+      <div className="w-full max-w-xl">
+        <div className="mb-5 flex items-center justify-center gap-2">
+          <ItemTypeBadge type={vocabItem.vocabType} />
+          <span className="text-muted-foreground font-display text-sm font-bold">
+            · {modeLabel}
+          </span>
         </div>
 
-        {/* Main Content Area */}
-        <Card className="mb-8 ornament-corners">
-          <CardContent className="py-12">
+        <Card className="mb-6">
+          <CardContent className="py-10">
             {vocabItem.studyType === "reading" && (
-              <div className="text-center">
-                <div className="h-36 w-36 mx-auto rounded-full border-4 border-gold bg-rice-paper flex items-center justify-center mb-4">
-                  <span className="font-brush text-7xl text-primary">{vocabItem.vocabItem}</span>
-                </div>
-              </div>
+              <HanziPanel
+                char={vocabItem.vocabItem}
+                type={vocabItem.vocabType}
+                className="mx-auto size-40"
+                textClassName="text-7xl"
+              />
             )}
 
             {vocabItem.studyType === "listening" && (
-              <div className="flex flex-col items-center gap-8">
+              <div className="flex flex-col items-center gap-6">
                 <Button
-                  size="lg"
                   variant="outline"
-                  className="h-32 w-32 rounded-full border-4 border-gold hover:border-gold-bright hover:bg-gold/10"
-                  onClick={() => {
-                    const audio = new Audio(vocabItem.audioUrl);
-                    audio.play();
-                  }}
+                  className="hover:bg-accent/10 hover:border-accent size-32 rounded-full"
+                  onClick={() => playAudio(vocabItem.audioUrl)}
+                  aria-label="Play audio"
                 >
-                  <Volume2 className="h-16 w-16 text-primary" />
+                  <Volume2 className="text-accent size-14" />
                 </Button>
-                <p className="text-muted-foreground">Click to play again</p>
+                <p className="text-muted-foreground text-sm">
+                  Tap to play again
+                </p>
               </div>
             )}
 
             {vocabItem.studyType === "understanding" && (
-              <div className="text-center">
-                <div className="h-28 w-28 mx-auto rounded-full border-4 border-gold bg-rice-paper flex items-center justify-center mb-4">
-                  <span className="font-brush text-5xl text-primary">{vocabItem.vocabItem}</span>
-                </div>
+              <div className="flex flex-col items-center gap-4">
+                <HanziPanel
+                  char={vocabItem.vocabItem}
+                  type={vocabItem.vocabType}
+                  className="size-32"
+                  textClassName="text-6xl"
+                />
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    const audio = new Audio(vocabItem.audioUrl);
-                    audio.play();
-                  }}
+                  onClick={() => playAudio(vocabItem.audioUrl)}
                 >
-                  <Volume2 className="mr-2 h-4 w-4" />
+                  <Volume2 className="size-4" />
                   Play
                 </Button>
               </div>
             )}
 
             {vocabItem.studyType === "writing" && (
-              <div className="text-center">
-                <p className="font-brush text-3xl text-gold mb-4">{vocabItem.translation}</p>
-              </div>
+              <p className="text-accent font-display text-center text-2xl font-bold">
+                {vocabItem.translation}
+              </p>
             )}
           </CardContent>
         </Card>
 
-        {/* Input Area */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            {(vocabItem.studyType === "reading" ||
-              vocabItem.studyType === "listening" ||
-              vocabItem.studyType === "writing") && (
-              <Input
-                ref={inputRef}
-                type="text"
-                placeholder="Enter pinyin (e.g., ni3hao3)"
-                value={answer}
-                onChange={(e) => {
-                  const converted = pinyinTone(e.target.value) as string;
-                  setAnswer(converted);
-                }}
-                className="text-center text-2xl h-14"
-                autoComplete="off"
-              />
-            )}
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder={
+              isPinyinAnswer
+                ? "Pinyin — e.g. ni3 hao3"
+                : isHanziAnswer
+                  ? "Type the characters (e.g. 你好)"
+                  : "Enter English meaning"
+            }
+            value={answer}
+            onChange={(e) =>
+              setAnswer(
+                isPinyinAnswer
+                  ? // The converter runs per keystroke, so "v" becomes "ü"
+                    // before its tone digit is typed — and it can't put a tone
+                    // on "ü". Folding ü back to v first makes "nv3" → "nǚ".
+                    (pinyinTone(e.target.value.replace(/ü/g, "v")) as string)
+                  : e.target.value,
+              )
+            }
+            className={`h-14 text-center text-2xl${isHanziAnswer ? " hanzi" : ""}`}
+            autoComplete="off"
+          />
 
-            {vocabItem.studyType === "understanding" && (
-              <Input
-                ref={inputRef}
-                type="text"
-                placeholder="Enter English translation"
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                className="text-center text-2xl h-14"
-                autoComplete="off"
-              />
-            )}
-          </div>
-
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               className="flex-1"
               size="lg"
               onClick={handleGiveUp}
             >
-              Give Up
+              Give up
             </Button>
             <Button type="submit" className="flex-1" size="lg">
-              Submit
+              Check
             </Button>
           </div>
         </form>
 
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          Press Enter to submit
-        </div>
+        <p className="text-muted-foreground mt-4 text-center text-xs">
+          {isPinyinAnswer ? (
+            <>
+              Tones as numbers (<span className="font-medium">hao3</span> → hǎo)
+              · type <span className="font-medium">v</span> for ü (
+              <span className="font-medium">nv3</span> → nǚ) · Enter to check
+            </>
+          ) : (
+            "Press Enter to check"
+          )}
+        </p>
       </div>
     </div>
   );
@@ -349,21 +400,48 @@ function StudyCard({
 function ResultCard({
   isCorrect,
   userVocabItem,
-  previousLevel,
   newLevel,
+  lastAnswer,
+  studyType,
   onNext,
 }: {
   isCorrect: boolean;
   userVocabItem: UserVocabItemDto | null;
-  previousLevel: number;
   newLevel: number;
+  lastAnswer: string;
+  studyType: StudyType | "new" | null;
   onNext: () => void;
 }) {
+  const orpc = useORPC();
+  const [synonymAdded, setSynonymAdded] = useState(false);
+
+  const addSynonymMutation = useMutation(
+    orpc.study.addSynonym.mutationOptions({
+      onSuccess: () => {
+        setSynonymAdded(true);
+        toast.success("Saved — we'll accept that answer next time.");
+      },
+      onError: () => toast.error("Couldn't save that answer."),
+    }),
+  );
+
+  // Only meaning answers have synonyms worth teaching the grader, and only
+  // when the user actually typed something.
+  const canAddSynonym =
+    !isCorrect &&
+    studyType === "understanding" &&
+    lastAnswer.trim().length > 0 &&
+    !!userVocabItem;
+
   const handleKeyPress = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        onNext();
-      }
+      if (e.key !== "Enter") return;
+      // Without this, the same physical Enter press goes on to fire `keypress`,
+      // which by then targets the next card's freshly focused input — and its
+      // default action is implicit form submission, instantly answering the
+      // next card with "". Cancelling keydown suppresses keypress entirely.
+      e.preventDefault();
+      onNext();
     },
     [onNext],
   );
@@ -374,134 +452,122 @@ function ResultCard({
   }, [handleKeyPress]);
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center p-8">
-      <div className="w-full max-w-4xl">
-        {/* Result Header */}
-        <div className="mb-8 text-center">
-          <div className={`mb-4 font-brush text-6xl ${isCorrect ? "text-green-600" : "text-primary"}`}>
-            {isCorrect ? "Correct!" : "Incorrect"}
+    <div className="flex flex-1 flex-col items-center justify-center p-6">
+      <div className="w-full max-w-2xl">
+        <div className="mb-6 text-center">
+          <div className="mb-2 flex justify-center">
+            <Mika pose={isCorrect ? "cheer" : "read"} size={72} />
           </div>
-          <p className="font-brush text-2xl text-gold">
-            {isCorrect ? "正确" : "不正确"}
+          <div
+            className={cn(
+              "font-display text-3xl font-extrabold tracking-tight",
+              isCorrect ? "text-success" : "text-destructive",
+            )}
+          >
+            {isCorrect ? "对! Nailed it" : "Not quite"}
+          </div>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {isCorrect
+              ? "That one's growing nicely."
+              : "No stress — it'll come back around soon."}
           </p>
 
-          {/* Level Change Display */}
-          <Card className="mt-6 inline-block">
-            <CardContent className="py-4 px-8">
-              <div className="flex items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="mb-2 text-sm text-muted-foreground">Previous</div>
-                  <LevelStars level={previousLevel} size="lg" />
-                </div>
-                <div className="text-3xl text-gold">→</div>
-                <div className="text-center">
-                  <div className="mb-2 text-sm text-muted-foreground">New</div>
-                  <LevelStars level={newLevel} size="lg" />
+          <div className="mt-5 flex justify-center">
+            <Card className="inline-block">
+              <CardContent className="py-4">
+                <GrowthTracker level={newLevel} size="lg" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {userVocabItem && (
+          <Card
+            className={cn(
+              "border-2",
+              isCorrect ? "border-success/40" : "border-destructive/40",
+            )}
+          >
+            <CardContent className="space-y-5">
+              <div className="flex items-center gap-5">
+                <HanziPanel
+                  char={userVocabItem.vocabItem}
+                  type={userVocabItem.vocabType}
+                  className="size-24 shrink-0"
+                  textClassName="text-5xl"
+                />
+                <div className="flex flex-1 flex-col items-start gap-2">
+                  <ItemTypeBadge type={userVocabItem.vocabType} />
+                  <div className="hanzi text-accent text-2xl">
+                    {userVocabItem.pinyin}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => playAudio(userVocabItem.audioUrl)}
+                  >
+                    <Volume2 className="size-4" />
+                    Play
+                  </Button>
                 </div>
               </div>
+
+              <div className="border-border border-t pt-4">
+                <div className="text-muted-foreground mb-1 text-xs font-bold tracking-wider uppercase">
+                  Meaning
+                </div>
+                <p className="text-lg">{userVocabItem.translation}</p>
+              </div>
+
+              {userVocabItem.vocabType === "character" &&
+                userVocabItem.decomposition && (
+                  <div className="border-border border-t pt-4">
+                    <div className="text-muted-foreground mb-1 text-xs font-bold tracking-wider uppercase">
+                      Built from
+                    </div>
+                    <Decomposition
+                      decomposition={userVocabItem.decomposition}
+                    />
+                  </div>
+                )}
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        {/* Section Divider */}
-        <div className="divider-ornamental mb-6">
-          <span className="medallion">词</span>
-        </div>
-
-        {/* Vocab Overview - Show for all types in result card */}
-        {userVocabItem && (
-          <div className="space-y-6">
-            {/* Header */}
-            <Card className="relative overflow-hidden">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-gold via-gold-bright to-gold" />
-              <CardContent className="pt-6 pb-4">
-                <div className="flex items-center gap-6">
-                  <div className="h-20 w-20 rounded-full border-3 border-gold bg-rice-paper flex items-center justify-center">
-                    <span className="font-brush text-4xl text-primary">{userVocabItem.vocabItem}</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div className="font-brush text-2xl text-gold">
-                      {userVocabItem.pinyin}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const audio = new Audio(userVocabItem.audioUrl);
-                        audio.play();
-                      }}
-                    >
-                      <Volume2 className="mr-2 h-4 w-4" />
-                      Play
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Definition */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-brush text-xl">Definition</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg text-foreground">{userVocabItem.translation}</p>
-              </CardContent>
-            </Card>
-
-            {/* Decomposition - Only for character types */}
-            {userVocabItem.vocabType === "character" &&
-              userVocabItem.decomposition && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="font-brush text-xl">Decomposition</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap items-center justify-center gap-4 py-4">
-                      {userVocabItem.decomposition
-                        .split("")
-                        .filter(
-                          (c: string) =>
-                            c !== "？" &&
-                            c !== "?" &&
-                            !(
-                              c.charCodeAt(0) >= 0x2ff0 &&
-                              c.charCodeAt(0) <= 0x2fff
-                            ),
-                        )
-                        .map((component: string, index: number) => (
-                          <div key={index} className="flex items-center gap-4">
-                            {index > 0 && (
-                              <span className="text-2xl text-gold">+</span>
-                            )}
-                            <Link
-                              href={`/dictionary/${encodeURIComponent(component)}`}
-                              className="group"
-                            >
-                              <div className="h-16 w-16 rounded-lg border-2 border-gold/50 bg-rice-paper flex items-center justify-center text-3xl font-brush text-primary transition-all group-hover:border-gold">
-                                {component}
-                              </div>
-                            </Link>
-                          </div>
-                        ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+        {canAddSynonym && (
+          <div className="mt-5 flex justify-center">
+            {synonymAdded ? (
+              <p className="text-success flex items-center gap-2 text-sm">
+                <Check className="size-4" />
+                &ldquo;{lastAnswer.trim()}&rdquo; will be accepted from now on
+              </p>
+            ) : (
+              <Button
+                variant="outline"
+                isPending={addSynonymMutation.isPending}
+                onClick={() =>
+                  addSynonymMutation.mutate({
+                    vocabItemId: userVocabItem.id,
+                    synonym: lastAnswer,
+                  })
+                }
+              >
+                <Plus className="size-4" />
+                My answer was right — accept &ldquo;{lastAnswer.trim()}&rdquo;
+              </Button>
+            )}
           </div>
         )}
 
-        {/* Next Button */}
-        <div className="mt-8 flex justify-center">
+        <div className="mt-6 flex justify-center">
           <Button size="lg" onClick={onNext}>
             Next
-            <ArrowRight className="ml-2 h-5 w-5" />
+            <ArrowRight className="size-5" />
           </Button>
         </div>
-
-        <div className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-3 text-center text-xs">
           Press Enter to continue
-        </div>
+        </p>
       </div>
     </div>
   );
@@ -509,22 +575,22 @@ function ResultCard({
 
 function CompletionScreen() {
   const router = useRouter();
-
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col items-center justify-center p-8">
-      <Card className="max-w-lg ornament-corners">
+    <div className="flex flex-1 flex-col items-center justify-center p-6">
+      <Card className="max-w-lg">
         <CardContent className="py-12 text-center">
-          <div className="h-24 w-24 mx-auto mb-6 rounded-full border-4 border-gold bg-rice-paper flex items-center justify-center">
-            <Trophy className="h-12 w-12 text-gold" />
+          <div className="mb-4 flex justify-center">
+            <Mika pose="cheer" size={104} />
           </div>
-          <h1 className="mb-2 font-brush text-5xl text-primary">Complete!</h1>
-          <p className="mb-2 font-brush text-2xl text-gold">完成</p>
-          <p className="mb-8 text-lg text-muted-foreground">
-            Great work! You&apos;ve completed all the cards in this session.
+          <h1 className="font-display text-3xl font-extrabold tracking-tight">
+            All done!
+          </h1>
+          <p className="text-muted-foreground mt-2 mb-6 text-lg">
+            Great work — you&apos;ve cleared every card in this session.
           </p>
           <Button size="lg" onClick={() => router.push("/study")}>
-            <BookOpen className="mr-2 h-5 w-5" />
-            Return to Study
+            <BookOpen className="size-5" />
+            Return to study
           </Button>
         </CardContent>
       </Card>
@@ -535,45 +601,60 @@ function CompletionScreen() {
 function StudyPageContent() {
   const orpc = useORPC();
   const params = useParams();
+  const queryClient = useQueryClient();
   const deckId = params.deckId as string;
 
-  // Fetch initial vocab item
   const { data: initialVocabItem } = useSuspenseQuery(
-    orpc.study.nextVocabItem.queryOptions({
-      input: { deckId },
-    }),
+    orpc.study.nextVocabItem.queryOptions({ input: { deckId } }),
   );
 
   const [currentVocabItem, setCurrentVocabItem] =
     useState<VocabItemStudyDto | null>(initialVocabItem);
   const [showingResult, setShowingResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
-  const [previousLevel, setPreviousLevel] = useState(0);
   const [newLevel, setNewLevel] = useState(0);
   const [userVocabItem, setUserVocabItem] = useState<UserVocabItemDto | null>(
     null,
   );
   const [isCompleted, setIsCompleted] = useState(false);
+  const [lastAnswer, setLastAnswer] = useState("");
+  const [lastStudyType, setLastStudyType] = useState<StudyType | "new" | null>(
+    null,
+  );
+  const [confettiKey, setConfettiKey] = useState(0);
+
+  // `isPending` is React state, so it is still false for a second call made in
+  // the same tick — a ref flips synchronously and actually blocks the double.
+  const submitInFlight = useRef(false);
 
   const submitAnswerMutation = useMutation(
     orpc.study.submitAnswer.mutationOptions({
       onSuccess: (data) => {
-        setIsCorrect(data.correct);
+        // The seed query is cached (staleTime 60s); without this, re-entering
+        // the deck soon after answering replays an already-answered card.
+        void queryClient.invalidateQueries({
+          queryKey: orpc.study.nextVocabItem.queryKey({ input: { deckId } }),
+        });
 
-        // Get previous level based on study type
-        const studyType = currentVocabItem?.studyType as StudyType;
-        const levelKey = `${studyType}Level` as
-          | "readingLevel"
-          | "listeningLevel"
-          | "understandingLevel"
-          | "writingLevel";
+        const studyType = currentVocabItem?.studyType;
+        // "new" is an intro card, not a graded answer: it has no level and
+        // shouldn't show a result/celebration screen.
+        const isIntro = studyType === "new";
 
-        setPreviousLevel(data.userVocabItem[levelKey]);
-        setNewLevel(data.userVocabItem[levelKey]);
-        setUserVocabItem(data.userVocabItem);
-        setShowingResult(true);
+        if (!isIntro) {
+          const levelKey = `${studyType as StudyType}Level` as
+            | "readingLevel"
+            | "listeningLevel"
+            | "understandingLevel"
+            | "writingLevel";
+          setNewLevel(data.userVocabItem[levelKey] ?? 0);
+          setIsCorrect(data.correct);
+          playAnswerSound(data.correct);
+          if (data.correct) setConfettiKey((k) => k + 1);
+          setUserVocabItem(data.userVocabItem);
+          setShowingResult(true);
+        }
 
-        // Check if session is complete
         if (!data.nextVocabItem) {
           setIsCompleted(true);
         } else {
@@ -585,44 +666,62 @@ function StudyPageContent() {
 
   const handleSubmit = (answer: string) => {
     if (!currentVocabItem) return;
-
-    submitAnswerMutation.mutate({
-      deckId,
-      answer: {
-        vocabItemId: currentVocabItem.id,
-        userId: "", // Will be filled by backend
+    setLastAnswer(answer);
+    setLastStudyType(currentVocabItem.studyType);
+    // Ignore repeat Enter presses / clicks while an answer is in flight,
+    // otherwise the SRS level advances twice for one card.
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
+    submitAnswerMutation.mutate(
+      {
         deckId,
-        studyType: currentVocabItem.studyType,
-        answer,
+        answer: {
+          vocabItemId: currentVocabItem.id,
+          userId: "",
+          deckId,
+          studyType: currentVocabItem.studyType,
+          answer,
+        },
       },
-    });
-  };
-
-  const handleNext = () => {
-    setShowingResult(false);
-  };
-
-  if (isCompleted) {
-    return <CompletionScreen />;
-  }
-
-  if (!currentVocabItem) {
-    return <CompletionScreen />;
-  }
-
-  if (showingResult) {
-    return (
-      <ResultCard
-        isCorrect={isCorrect}
-        userVocabItem={userVocabItem}
-        previousLevel={previousLevel}
-        newLevel={newLevel}
-        onNext={handleNext}
-      />
+      // Released here rather than in mutationOptions: that object is built
+      // during render, and reading a ref there is disallowed.
+      { onSettled: () => (submitInFlight.current = false) },
     );
+  };
+
+  const handleNext = () => setShowingResult(false);
+
+  if (isCompleted && !showingResult) {
+    return <CompletionScreen />;
   }
 
-  return <StudyCard key={currentVocabItem.id} vocabItem={currentVocabItem} onSubmit={handleSubmit} />;
+  if (!currentVocabItem && !showingResult) {
+    return <CompletionScreen />;
+  }
+
+  return (
+    <>
+      <ConfettiBurst trigger={confettiKey} />
+      {showingResult ? (
+        <ResultCard
+          isCorrect={isCorrect}
+          userVocabItem={userVocabItem}
+          newLevel={newLevel}
+          lastAnswer={lastAnswer}
+          studyType={lastStudyType}
+          onNext={handleNext}
+        />
+      ) : (
+        currentVocabItem && (
+          <StudyCard
+            key={currentVocabItem.id}
+            vocabItem={currentVocabItem}
+            onSubmit={handleSubmit}
+          />
+        )
+      )}
+    </>
+  );
 }
 
 export default function StudyPage() {

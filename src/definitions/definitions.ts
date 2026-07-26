@@ -55,6 +55,8 @@ export type VocabItemDto = z.infer<typeof VocabItemDto>;
 
 export const VocabItemDetailedDto = VocabItemDto.extend({
   memoryAids: z.array(MemoryAidDto).nullable(),
+  /** Total number of memory aids visible to the viewer, not just the current page. */
+  memoryAidTotal: z.number().int().nonnegative(),
   constituents: z.array(z.string()).nullable(),
 });
 export type VocabItemDetailedDto = z.infer<typeof VocabItemDetailedDto>;
@@ -62,6 +64,7 @@ export type VocabItemDetailedDto = z.infer<typeof VocabItemDetailedDto>;
 const VocabItemStudyReadingDto = VocabItemDto.pick({
   id: true,
   vocabItem: true,
+  vocabType: true,
 }).extend({
   studyType: z.literal("reading"),
 });
@@ -69,6 +72,7 @@ const VocabItemStudyReadingDto = VocabItemDto.pick({
 const VocabItemStudyListeningDto = VocabItemDto.pick({
   id: true,
   audioUrl: true,
+  vocabType: true,
 }).extend({
   studyType: z.literal("listening"),
 });
@@ -77,6 +81,7 @@ const VocabItemStudyUnderstandingDto = VocabItemDto.pick({
   id: true,
   vocabItem: true,
   audioUrl: true,
+  vocabType: true,
 }).extend({
   studyType: z.literal("understanding"),
 });
@@ -84,6 +89,7 @@ const VocabItemStudyUnderstandingDto = VocabItemDto.pick({
 const VocabItemStudyWritingDto = VocabItemDto.pick({
   id: true,
   translation: true,
+  vocabType: true,
 }).extend({
   studyType: z.literal("writing"),
 });
