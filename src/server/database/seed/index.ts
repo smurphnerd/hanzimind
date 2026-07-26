@@ -19,7 +19,8 @@ async function main() {
   // Create logger
   const logger = pino(
     {
-      level: env.LOG_LEVEL,
+      // LOG_LEVEL is optional in the env schema and pino rejects undefined.
+      level: env.LOG_LEVEL ?? "info",
     },
     env.NODE_ENV === "development" ? pinoPretty() : undefined,
   ).child({

@@ -29,6 +29,10 @@ import {
   type ITranslationChecker,
   JaccardTranslationChecker,
 } from "@/server/services/TranslationChecker";
+import {
+  CompositeTranslationChecker,
+  SemanticTranslationChecker,
+} from "@/server/services/SemanticTranslationChecker";
 
 export type Cradle = {
   logger: Logger;
@@ -63,9 +67,12 @@ if (process.env.NODE_ENV !== "test") {
 
   container.register({
     logger: asValue(logger),
+    // Must be a singleton: passing a connection string makes node-postgres
+    // create a new Pool per instance, so a transient registration opens a fresh
+    // pool on every resolution and exhausts Postgres connections under load.
     database: asFunction((deps: Cradle) =>
       getDatabase(deps.logger, env.DATABASE_URL),
-    ),
+    ).singleton(),
     auth: asFunction((deps: Cradle) =>
       getAuth(deps, {
         authSecret: env.AUTH_SECRET,
@@ -110,7 +117,14 @@ if (process.env.NODE_ENV !== "test") {
         ),
     ).singleton(),
     translationChecker: asFunction(
-      () => new JaccardTranslationChecker(),
+      (deps: Cradle) =>
+        new CompositeTranslationChecker(
+          // Fast, deterministic, handles the vast majority of answers.
+          // Ignores articles/"to" so "sell" is accepted for "to sell".
+          new JaccardTranslationChecker({ filterFillerWords: true }),
+          // Only consulted when the above rejects an answer.
+          new SemanticTranslationChecker({ logger: deps.logger }),
+        ),
     ).singleton(),
     vocabService: asClass(VocabService).singleton(),
     deckService: asClass(DeckService).singleton(),

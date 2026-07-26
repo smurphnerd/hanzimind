@@ -52,7 +52,11 @@ export class TTSService {
     }
   }
 
-  private getVocabAudioFP(vocabItem: string): string {
+  /**
+   * Storage key for an item's audio. Public so maintenance tasks can tell
+   * which objects already exist without regenerating them.
+   */
+  public getVocabAudioFP(vocabItem: string): string {
     // Use Array.from to properly count Unicode characters (handles multi-byte chars)
     const characters = Array.from(vocabItem);
 

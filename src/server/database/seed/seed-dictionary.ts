@@ -14,6 +14,13 @@ interface SeedCradle {
   tts: TTSService;
 }
 
+/**
+ * How many entries to build (and TTS) concurrently before inserting.
+ * Audio generation is ~325ms per character, so this is the main lever on
+ * total runtime; keep it modest to stay friendly to the TTS endpoint.
+ */
+const SEED_BATCH_SIZE = 12;
+
 interface DictionaryEntry {
   character: string;
   definition?: string;
@@ -73,83 +80,106 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
   }
 
   let processedCount = 0;
-  let skippedCount = 0;
   let errorCount = 0;
+  let audioFailures = 0;
 
-  // Process each dictionary entry
+  // Load the existing characters once. Querying per entry meant ~9.5k
+  // round trips, which dominated the run on a remote database.
+  const existingRows = await cradle.database
+    .select({ vocabItem: schema.vocabItems.vocabItem })
+    .from(schema.vocabItems);
+  const existing = new Set(existingRows.map((row) => row.vocabItem));
+
+  const pending: DictionaryEntry[] = [];
   for (const line of dictionaryLines) {
     try {
       const entry = JSON.parse(line) as DictionaryEntry;
-
-      // Check if entry already exists in database
-      const existingEntry = await cradle.database.query.vocabItems.findFirst({
-        where: (vocabItems, { eq }) =>
-          eq(vocabItems.vocabItem, entry.character),
-      });
-
-      if (existingEntry) {
-        skippedCount++;
-        continue;
-      }
-
-      const graphics = graphicsMap.get(entry.character);
-
-      // Get pinyin - try dictionary first, fall back to translator
-      let pinyin = "";
-      if (entry.pinyin && entry.pinyin.length > 0) {
-        pinyin = entry.pinyin[0]; // Use first pinyin if multiple
-      } else {
-        pinyin = cradle.translator.getPinyin(entry.character);
-      }
-
-      // Generate audio URL if we have pinyin
-      let audioUrl = "";
-      if (pinyin) {
-        try {
-          audioUrl = await cradle.tts.getVocabAudio(entry.character);
-        } catch (error) {
-          logger.warn(
-            {
-              error,
-              message: error instanceof Error ? error.message : String(error),
-              stack: error instanceof Error ? error.stack : undefined,
-              character: entry.character,
-            },
-            "Failed to generate audio, continuing without it",
-          );
-        }
-      }
-
-      // Insert vocab item into database
-      await cradle.database.insert(schema.vocabItems).values({
-        vocabItem: entry.character,
-        translation: entry.definition,
-        pinyin: pinyin || "",
-        vocabType: VocabTypeEnum.enum.character,
-        audioUrl: audioUrl || "",
-        decomposition: entry.decomposition || null,
-        etymologyHint: entry.etymology?.hint || null,
-        etymologyType: entry.etymology?.type
-          ? (entry.etymology.type as EtymologyType)
-          : null,
-        radical: entry.radical || null,
-        strokes: graphics?.strokes ?? null,
-        strokeMedians: graphics?.medians as [number, number][][] | null ?? null,
-        strokeMatches: entry.matches ?? null,
-      });
-
-      processedCount++;
-
-      // Log progress every 500 entries
-      if (processedCount % 500 === 0) {
-        logger.info(
-          `Progress: ${processedCount}/${dictionaryLines.length} entries processed`,
-        );
-      }
+      if (!existing.has(entry.character)) pending.push(entry);
     } catch (error) {
       errorCount++;
-      logger.error({ error, line }, "Failed to process dictionary entry");
+      logger.error({ error, line }, "Failed to parse dictionary entry");
     }
+  }
+
+  const skippedCount = dictionaryLines.length - pending.length - errorCount;
+  logger.info(
+    { toInsert: pending.length, alreadyPresent: skippedCount },
+    "Prepared dictionary entries",
+  );
+
+  const buildRow = async (entry: DictionaryEntry) => {
+    const graphics = graphicsMap.get(entry.character);
+
+    // Prefer the dictionary's own reading, fall back to the translator.
+    const pinyin =
+      entry.pinyin && entry.pinyin.length > 0
+        ? entry.pinyin[0]
+        : cradle.translator.getPinyin(entry.character);
+
+    let audioUrl = "";
+    if (pinyin) {
+      try {
+        audioUrl = await cradle.tts.getVocabAudio(entry.character);
+      } catch (error) {
+        audioFailures++;
+        logger.warn(
+          { error, character: entry.character },
+          "Failed to generate audio, continuing without it",
+        );
+      }
+    }
+
+    return {
+      vocabItem: entry.character,
+      translation: entry.definition,
+      pinyin: pinyin || "",
+      vocabType: VocabTypeEnum.enum.character,
+      audioUrl,
+      decomposition: entry.decomposition || null,
+      etymologyHint: entry.etymology?.hint || null,
+      etymologyType: entry.etymology?.type
+        ? (entry.etymology.type as EtymologyType)
+        : null,
+      radical: entry.radical || null,
+      strokes: graphics?.strokes ?? null,
+      strokeMedians: (graphics?.medians as [number, number][][] | null) ?? null,
+      strokeMatches: entry.matches ?? null,
+    };
+  };
+
+  // Audio generation is a network call per character and dominates the run,
+  // so build rows in parallel batches and insert each batch in one statement.
+  // onConflictDoNothing keeps the whole thing safely re-runnable.
+  for (let i = 0; i < pending.length; i += SEED_BATCH_SIZE) {
+    const batch = pending.slice(i, i + SEED_BATCH_SIZE);
+
+    const rows = await Promise.all(
+      batch.map(async (entry) => {
+        try {
+          return await buildRow(entry);
+        } catch (error) {
+          errorCount++;
+          logger.error(
+            { error, character: entry.character },
+            "Failed to build dictionary entry",
+          );
+          return null;
+        }
+      }),
+    );
+
+    const insertable = rows.filter((row) => row !== null);
+    if (insertable.length > 0) {
+      await cradle.database
+        .insert(schema.vocabItems)
+        .values(insertable)
+        .onConflictDoNothing();
+      processedCount += insertable.length;
+    }
+
+    logger.info(
+      `Progress: ${Math.min(i + SEED_BATCH_SIZE, pending.length)}/${pending.length} entries`,
+    );
   }
 
   logger.info(
@@ -157,6 +187,7 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       processed: processedCount,
       skipped: skippedCount,
       errors: errorCount,
+      audioFailures,
       total: dictionaryLines.length,
     },
     "Dictionary seeding completed",
