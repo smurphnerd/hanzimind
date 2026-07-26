@@ -34,10 +34,11 @@ export const TRANSLATION_SIMILARITY_THRESHOLDS = {
   JACCARD: 0.2,
 
   /**
-   * Threshold for semantic/transformer-based checkers (future implementation).
-   * Semantic models can be more lenient since they understand meaning beyond exact words.
+   * Threshold for the semantic (embedding) fallback checker.
    *
-   * Example: 0.7-0.8 for models like sentence-transformers or xenova/transformers
+   * Cosine similarity on all-MiniLM-L6-v2. Set high on purpose: embeddings
+   * place related-but-wrong words (notably antonyms) fairly close, and a false
+   * positive here silently stops the SRS correcting a real misunderstanding.
    */
   SEMANTIC: 0.75,
 } as const;
@@ -68,3 +69,21 @@ export const SPACED_REPETITION_INTERVALS = {
   /** Level 5 correct: review in 1 month */
   LEVEL_5: 30 * 24 * 60 * 60 * 1000,
 } as const;
+
+/**
+ * How well a constituent character must be known before the words and
+ * sentences built from it unlock.
+ *
+ * Levels are 0–5; 2 is "Sprout" (answered correctly twice, ~1 day retention).
+ * Set to 0 to disable prerequisite gating entirely.
+ */
+export const CONSTITUENT_GATE_LEVEL = 2;
+
+/**
+ * Whether pinyin answers must carry the right tone.
+ *
+ * Tones are part of the reading, so this is on. Notation is always flexible
+ * (nv3 / nü3 / nǚ all match) — this only governs whether a *toneless* answer
+ * such as "nv" counts for "nǚ".
+ */
+export const REQUIRE_PINYIN_TONES = true;

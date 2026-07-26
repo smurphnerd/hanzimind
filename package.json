@@ -23,6 +23,7 @@
     "@aws-sdk/client-ses": "^3.916.0",
     "@aws-sdk/s3-request-presigner": "^3.848.0",
     "@hookform/resolvers": "^5.1.1",
+    "@huggingface/transformers": "^4.2.0",
     "@orpc/client": "^1.7.4",
     "@orpc/server": "^1.7.4",
     "@orpc/tanstack-query": "^1.7.4",

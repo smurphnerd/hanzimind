@@ -183,6 +183,27 @@ export const memoryAids = pgTable("memory_aids", {
   ...timestampFields,
 });
 
+// Extra meanings a user has chosen to accept for a vocab item ("I meant
+// 'lady' for 女 — count it next time"). Personal, deterministic, and it makes
+// grading better the more the deck is used.
+export const userVocabSynonyms = pgTable(
+  "user_vocab_synonyms",
+  {
+    userId: text()
+      .notNull()
+      .references(() => users.id),
+    vocabItemId: text()
+      .notNull()
+      .references(() => vocabItems.id),
+    /** Stored lowercase/trimmed so lookups are a plain comparison. */
+    synonym: text().notNull(),
+    ...timestampFields,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.vocabItemId, table.synonym] }),
+  ],
+);
+
 export const vocabItemRelations = relations(vocabItems, ({ many }) => ({
   memoryAids: many(memoryAids),
   decks: many(deckVocabItems),
@@ -263,6 +284,7 @@ export const schema = {
   deckVocabItems,
   userDecks,
   memoryAids,
+  userVocabSynonyms,
   vocabItemRelations,
   memoryAidRelations,
   deckRelations,

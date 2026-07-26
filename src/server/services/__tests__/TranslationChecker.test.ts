@@ -295,4 +295,103 @@ describe("JaccardTranslationChecker", () => {
       expect(scoreWithFilter).toBe(1.0);
     });
   });
+  describe("comma-separated dictionary definitions", () => {
+    // Real makemeahanzi definitions list synonyms with commas as well as
+    // semicolons; any single listed meaning is a correct answer.
+    const checker = new JaccardTranslationChecker({ filterFillerWords: true });
+
+    it("should accept a synonym that is followed by a comma", () => {
+      // Regression: tokenising "woman, girl" produced "woman," (comma
+      // attached), so a typed "woman" scored 0 and was marked wrong.
+      expect(checker.checkSimilarity("woman", "woman, girl; female")).toBe(
+        true,
+      );
+    });
+
+    it("should accept a synonym that follows a comma", () => {
+      expect(checker.checkSimilarity("girl", "woman, girl; female")).toBe(true);
+    });
+
+    it("should accept a synonym after a semicolon", () => {
+      expect(checker.checkSimilarity("female", "woman, girl; female")).toBe(
+        true,
+      );
+    });
+
+    it("should accept any listed meaning of a longer definition", () => {
+      const truth = "good, excellent, fine; proper, suitable; well";
+      for (const answer of ["good", "excellent", "fine", "suitable", "well"]) {
+        expect(checker.checkSimilarity(answer, truth)).toBe(true);
+      }
+    });
+
+    it("should ignore case and trailing punctuation", () => {
+      expect(checker.checkSimilarity("Woman.", "woman, girl; female")).toBe(
+        true,
+      );
+    });
+
+    it("should accept a verb without its infinitive 'to'", () => {
+      expect(checker.checkSimilarity("sell", "to sell; to betray")).toBe(true);
+    });
+
+    it("should still reject an unrelated answer", () => {
+      expect(checker.checkSimilarity("dog", "woman, girl; female")).toBe(false);
+    });
+
+    it("should still reject an empty answer", () => {
+      expect(checker.checkSimilarity("", "woman, girl; female")).toBe(false);
+    });
+  });
+  describe("typo tolerance and stemming", () => {
+    const checker = new JaccardTranslationChecker({ filterFillerWords: true });
+
+    it("should accept a single-character typo", () => {
+      expect(checker.checkSimilarity("womsn", "woman, girl; female")).toBe(true);
+    });
+
+    it("should accept an adjacent transposition", () => {
+      // "woamn" swaps m/a — one edit under Damerau-Levenshtein.
+      expect(checker.checkSimilarity("woamn", "woman, girl; female")).toBe(true);
+    });
+
+    it("should reject a two-edit scramble of a short word", () => {
+      // "wonam" swaps non-adjacent letters (2 edits). Allowing that much
+      // slack on a 5-letter word would start accepting different answers.
+      expect(checker.checkSimilarity("wonam", "woman, girl; female")).toBe(
+        false,
+      );
+    });
+
+    it("should accept a missing letter in a longer word", () => {
+      expect(checker.checkSimilarity("excelent", "good, excellent, fine")).toBe(
+        true,
+      );
+    });
+
+    it("should accept a plural for a singular meaning", () => {
+      expect(checker.checkSimilarity("mountains", "mountain; hill")).toBe(true);
+    });
+
+    it("should accept an -ing form for an infinitive", () => {
+      expect(checker.checkSimilarity("selling", "to sell; to betray")).toBe(
+        true,
+      );
+    });
+
+    it("should accept an irregular plural", () => {
+      expect(checker.checkSimilarity("people", "man, person")).toBe(true);
+    });
+
+    it("should NOT treat a short lookalike as a typo", () => {
+      // "cat"/"car" are different answers, not a misspelling.
+      expect(checker.checkSimilarity("car", "cat")).toBe(false);
+    });
+
+    it("should still reject a genuinely different word", () => {
+      expect(checker.checkSimilarity("horse", "woman, girl; female")).toBe(
+        false,
+      );
+    });
+  });
 });

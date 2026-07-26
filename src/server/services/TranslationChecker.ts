@@ -4,6 +4,7 @@ import {
   TRANSLATION_SIMILARITY_THRESHOLDS,
   FILLER_WORDS,
 } from "@/server/constants";
+import { isTypoOf, stem } from "@/lib/text-match";
 
 /**
  * Interface for translation similarity checking.
@@ -21,7 +22,7 @@ export interface ITranslationChecker {
     userAnswer: string,
     groundTruth: string,
     threshold?: number,
-  ): boolean;
+  ): boolean | Promise<boolean>;
 
   /**
    * Get the raw similarity score between two texts.
@@ -29,7 +30,7 @@ export interface ITranslationChecker {
    * @param text2 - Second text
    * @returns Similarity score between 0 and 1
    */
-  getSimilarityScore(text1: string, text2: string): number;
+  getSimilarityScore(text1: string, text2: string): number | Promise<number>;
 }
 
 /**
@@ -51,10 +52,29 @@ export class JaccardTranslationChecker implements ITranslationChecker {
   ) {}
 
   /**
-   * Normalize text by converting to lowercase and removing extra whitespace
+   * Normalize text: lowercase, strip punctuation, collapse whitespace.
+   *
+   * Stripping punctuation matters — without it "woman," (from "woman, girl")
+   * never matches a typed "woman".
    */
   private normalize(text: string): string {
-    return text.toLowerCase().trim().replace(/\s+/g, " ");
+    return text
+      .toLowerCase()
+      .replace(/[.,;:!?"'()[\]{}]/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  /**
+   * Dictionary definitions list alternatives with both semicolons and commas
+   * ("woman, girl; female"), and any one of them is a correct answer, so both
+   * separate candidates. Slashes are used the same way.
+   */
+  private splitAlternatives(text: string): string[] {
+    return text
+      .split(/[;,/]/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
   }
 
   /**
@@ -74,18 +94,35 @@ export class JaccardTranslationChecker implements ITranslationChecker {
   }
 
   /**
-   * Calculate Jaccard similarity between two sets
+   * Calculate Jaccard similarity between two sets.
    * Jaccard = |A ∩ B| / |A ∪ B|
+   *
+   * Tokens count as shared when they stem to the same root ("selling" ≈
+   * "sell") or differ only by a plausible typo ("womsn" ≈ "woman"), so a
+   * near-miss spelling doesn't reset an item's SRS progress.
    */
   private jaccardSimilarity(set1: Set<string>, set2: Set<string>): number {
     if (set1.size === 0 && set2.size === 0) {
       return 1.0;
     }
 
-    const intersection = new Set([...set1].filter((x) => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
+    const matchesLoosely = (a: string, b: string) =>
+      a === b || stem(a) === stem(b) || isTypoOf(a, b) || isTypoOf(stem(a), stem(b));
 
-    return intersection.size / union.size;
+    const unmatched = new Set(set2);
+    let shared = 0;
+
+    for (const token of set1) {
+      const hit = [...unmatched].find((other) => matchesLoosely(token, other));
+      if (hit !== undefined) {
+        shared++;
+        unmatched.delete(hit);
+      }
+    }
+
+    // |A ∪ B| = |A| + |B| − |A ∩ B|
+    const union = set1.size + set2.size - shared;
+    return union === 0 ? 1.0 : shared / union;
   }
 
   /**
@@ -99,9 +136,9 @@ export class JaccardTranslationChecker implements ITranslationChecker {
       return 1.0;
     }
 
-    // Split both answers by semicolon to handle multiple definitions
-    const userParts = userAnswer.split(";").map((part) => part.trim());
-    const truthParts = groundTruth.split(";").map((part) => part.trim());
+    // Split both sides into individual candidate meanings
+    const userParts = this.splitAlternatives(userAnswer);
+    const truthParts = this.splitAlternatives(groundTruth);
 
     let maxSimilarity = 0;
 
