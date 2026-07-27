@@ -2,6 +2,8 @@ import { ORPCError } from "@orpc/client";
 import { os, ValidationError } from "@orpc/server";
 import type { ResponseHeadersPluginContext } from "@orpc/server/plugins";
 
+import { env } from "@/env";
+import { isAdminEmail, parseAdminEmails } from "@/server/admin-access";
 import type { Cradle } from "@/server/initialization";
 
 const baseProcedure = os
@@ -57,3 +59,22 @@ export const authMiddleware = baseProcedure.middleware(
 export const commonProcedure = baseProcedure.use(loggingMiddleware);
 
 export const authProcedure = commonProcedure.use(authMiddleware);
+
+/**
+ * Admin rights come from ADMIN_EMAILS, not from anything the request carries, so
+ * there is nothing a client can send to become an admin. Built on authProcedure,
+ * so an anonymous caller gets UNAUTHORIZED before this ever runs.
+ */
+export const adminProcedure = authProcedure.use(
+  async ({ context, next, errors }) => {
+    if (!isAdminEmail(context.user?.email, parseAdminEmails(env.ADMIN_EMAILS))) {
+      context.cradle.logger.warn(
+        { userId: context.user?.id },
+        "Non-admin attempted to reach an admin endpoint",
+      );
+      throw errors.FORBIDDEN();
+    }
+
+    return next({ context });
+  },
+);

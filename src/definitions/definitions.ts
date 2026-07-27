@@ -60,6 +60,33 @@ export const VocabItemDto = z.object({
 });
 export type VocabItemDto = z.infer<typeof VocabItemDto>;
 
+/**
+ * A vocab row as the admin screen sees it.
+ *
+ * Carries `disabled`, which the learner-facing DTOs deliberately omit — they can
+ * never contain a disabled row, so exposing the flag there would be dead weight
+ * and an invitation to filter in the wrong place.
+ */
+export const AdminVocabItemDto = VocabItemDto.pick({
+  id: true,
+  vocabItem: true,
+  translation: true,
+  pinyin: true,
+  vocabType: true,
+  decomposition: true,
+  radical: true,
+}).extend({
+  disabled: z.boolean(),
+});
+export type AdminVocabItemDto = z.infer<typeof AdminVocabItemDto>;
+
+export const AdminVocabCountDto = z.object({
+  vocabType: z.enum(vocabTypeValues),
+  disabled: z.boolean(),
+  count: z.number().int().nonnegative(),
+});
+export type AdminVocabCountDto = z.infer<typeof AdminVocabCountDto>;
+
 export const VocabItemDetailedDto = VocabItemDto.extend({
   memoryAids: z.array(MemoryAidDto).nullable(),
   /** Total number of memory aids visible to the viewer, not just the current page. */

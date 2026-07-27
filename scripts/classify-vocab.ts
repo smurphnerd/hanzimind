@@ -1,14 +1,22 @@
 /**
+ * ONE-TIME MIGRATION — ALREADY RUN. Prefer the admin UI at /admin/vocab.
+ *
  * Applies src/server/database/seed/vocab-classification.tsv to an existing
  * database: marks bound radical forms as `component`, hides `disabled` glyphs,
  * and purges the deck links and study progress that pointed at them.
  *
- * Idempotent, and re-runnable after editing the TSV — a glyph removed from the
- * file is restored to an ordinary enabled character, so a misclassification is
- * fixed by editing one line and running this again.
+ * The database is now the source of truth for classification, edited through the
+ * admin UI. This script still assumes the TSV is, so re-running it OVERWRITES
+ * every admin decision — a glyph an admin marked a component is reverted unless
+ * it also happens to be in the file, and one they removed is put back. That is
+ * why it now refuses to run without --force.
+ *
+ * The TSV itself is not dead: seed-dictionary.ts still reads it to classify rows
+ * on a fresh database. That is safe, because the seed only inserts rows that do
+ * not exist yet (onConflictDoNothing) and so never touches an admin's work.
  *
  * Run with:  doppler run --project hanzimind --config <cfg> -- \
- *              ./node_modules/.bin/tsx scripts/classify-vocab.ts [--dry-run]
+ *              ./node_modules/.bin/tsx scripts/classify-vocab.ts --dry-run
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,6 +29,7 @@ import { loadVocabClassification } from "@/server/database/seed/vocab-classifica
 import { envSchema } from "@/env-utils";
 
 const dryRun = process.argv.includes("--dry-run");
+const force = process.argv.includes("--force");
 
 interface DictionaryEntry {
   character: string;
@@ -30,6 +39,17 @@ interface DictionaryEntry {
 
 async function main() {
   const logger = pino({ transport: { target: "pino-pretty" } });
+
+  if (!dryRun && !force) {
+    logger.error(
+      "This migration has already run, and the admin UI is now the source of " +
+        "truth for classification. Re-running would overwrite every admin " +
+        "decision. Use --dry-run to inspect, or --force if you genuinely mean " +
+        "to reset the whole classification back to the TSV.",
+    );
+    process.exit(1);
+  }
+
   const env = envSchema.pick({ DATABASE_URL: true }).parse(process.env);
   const database = getDatabase(logger, env.DATABASE_URL);
 

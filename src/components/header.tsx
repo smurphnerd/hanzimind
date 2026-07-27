@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { authClient } from "@/lib/authClient";
+import { useORPC } from "@/lib/orpc.client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Mika } from "@/components/mika";
@@ -15,6 +17,14 @@ const navLinks = [
 
 export function Header() {
   const { data: session } = authClient.useSession();
+  const orpc = useORPC();
+
+  // Whether *you* are an admin, decided server-side — ADMIN_EMAILS never reaches
+  // the client. Hiding the link is cosmetic; the endpoints enforce access.
+  const { data: profile } = useQuery({
+    ...orpc.getProfile.queryOptions({}),
+    enabled: !!session?.user,
+  });
 
   return (
     <header className="bg-surface/85 sticky top-0 z-40 border-b border-border backdrop-blur-md backdrop-saturate-150">
@@ -29,7 +39,12 @@ export function Header() {
 
         <nav className="ml-2 hidden items-center gap-1 sm:flex">
           {session?.user &&
-            navLinks.map((link) => (
+            [
+              ...navLinks,
+              ...(profile?.isAdmin
+                ? [{ href: "/admin/vocab", label: "Admin" }]
+                : []),
+            ].map((link) => (
               <Button
                 key={link.href}
                 asChild

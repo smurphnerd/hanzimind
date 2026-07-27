@@ -22,6 +22,7 @@ import { TranslatorService } from "@/server/services/TranslatorService";
 import { VocabService } from "@/server/services/VocabService";
 import { TTSService } from "@/server/services/TTSService";
 import { DeckService } from "@/server/services/DeckService";
+import { AdminService } from "@/server/services/AdminService";
 import { StudyService } from "@/server/services/StudyService";
 import type { ITTSProvider } from "@/server/services/tts/ITTSProvider";
 import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
@@ -47,6 +48,7 @@ export type Cradle = {
   vocabService: VocabService;
   deckService: DeckService;
   studyService: StudyService;
+  adminService: AdminService;
 };
 
 export const container = createContainer<Cradle>({
@@ -129,5 +131,6 @@ if (process.env.NODE_ENV !== "test") {
     vocabService: asClass(VocabService).singleton(),
     deckService: asClass(DeckService).singleton(),
     studyService: asClass(StudyService).singleton(),
+    adminService: asClass(AdminService).singleton(),
   });
 }
