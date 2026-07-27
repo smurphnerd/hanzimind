@@ -13,7 +13,7 @@ import pinyinTone from "pinyin-tone";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useORPC } from "@/lib/orpc.client";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -21,8 +21,9 @@ import { StudyLoading } from "@/components/study-loading";
 import { GrowthTracker } from "@/components/growth-tracker";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ConfettiBurst } from "@/components/confetti-burst";
-import { CharacterStrokes } from "@/components/character-strokes";
 import { Mika } from "@/components/mika";
+import { VocabEntryDetail } from "@/components/vocab-entry";
+import { playAudio } from "@/lib/audio";
 import { cn } from "@/lib/utils";
 import { vocabTypeMeta } from "@/lib/vocab-type";
 import { playAnswerSound } from "@/lib/sounds";
@@ -39,16 +40,6 @@ const STUDY_LABELS: Record<string, string> = {
   understanding: "Understanding",
   writing: "Writing",
 };
-
-function playAudio(url: string) {
-  // audioUrl is "" when TTS generation failed during seeding — calling play()
-  // on an empty src rejects with NotSupportedError, so bail out first.
-  if (!url) return;
-  const audio = new Audio(url);
-  audio.play().catch(() => {
-    toast.error("Couldn't play audio");
-  });
-}
 
 function HanziPanel({
   char,
@@ -109,91 +100,15 @@ function Decomposition({ parts }: { parts: string[] }) {
   );
 }
 
+/**
+ * The first time a learner meets an item, show them exactly what the dictionary
+ * would — same component, so the two can't drift apart again. Parts are not
+ * links here: following one mid-session would abandon the card.
+ */
 function VocabOverview({ vocabItem }: { vocabItem: VocabItemStudyDto }) {
   if (vocabItem.studyType !== "new") return null;
 
-  return (
-    <div className="space-y-5">
-      <Card>
-        <CardContent className="flex items-center gap-6">
-          <HanziPanel
-            char={vocabItem.vocabItem}
-            type={vocabItem.vocabType}
-            className="size-28 shrink-0"
-            textClassName="text-6xl"
-          />
-          <div className="flex flex-col items-start gap-3">
-            <ItemTypeBadge type={vocabItem.vocabType} />
-            {/* A component has no reading of its own, so there is nothing to
-                show and nothing to play — say so rather than render an empty
-                line above a button that would be silent. */}
-            {vocabItem.vocabType === "component" ? (
-              <p className="text-muted-foreground text-sm">
-                A part of other characters — no pronunciation of its own.
-              </p>
-            ) : (
-              <>
-                <div className="hanzi text-accent text-2xl">
-                  {vocabItem.pinyin}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => playAudio(vocabItem.audioUrl)}
-                >
-                  <Volume2 className="size-4" />
-                  Play
-                </Button>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Definition</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-lg">{vocabItem.translation}</p>
-        </CardContent>
-      </Card>
-
-      {/* Components get stroke order too — with pinyin and audio gone it is the
-          main thing left to learn them by. */}
-      {(vocabItem.vocabType === "character" ||
-        vocabItem.vocabType === "component") && (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Stroke order</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {vocabItem.strokes && vocabItem.strokes.length > 0 ? (
-                <CharacterStrokes
-                  strokes={vocabItem.strokes}
-                  strokeMedians={vocabItem.strokeMedians ?? undefined}
-                />
-              ) : (
-                <p className="text-muted-foreground py-8 text-center text-sm">
-                  No stroke data available
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Decomposition</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Decomposition parts={vocabItem.constituents} />
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
+  return <VocabEntryDetail entry={vocabItem} partsLinkable={false} />;
 }
 
 function StudyCard({
