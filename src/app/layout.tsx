@@ -21,6 +21,18 @@ const nunito = Nunito({
   display: "swap",
 });
 
+/**
+ * Nothing here is statically prerenderable.
+ *
+ * Every screen fetches through the oRPC client, and under `useSuspenseQuery`
+ * that fetch also runs while the page is being rendered on the server. At build
+ * time the app is not listening yet, so prerendering `/study` reaches for
+ * BASE_URL and dies with ECONNREFUSED before a single page is emitted. The
+ * content is per-user anyway — even the landing page branches on the session —
+ * so there is no static output worth rescuing here.
+ */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "HanziMind",
