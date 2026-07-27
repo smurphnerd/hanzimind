@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "doppler run -- next dev",
-    "build": "doppler run -- env NODE_ENV=production next build",
+    "build": "env NODE_ENV=production next build",
+    "build:local": "doppler run -- pnpm build",
     "start": "doppler run -- next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
