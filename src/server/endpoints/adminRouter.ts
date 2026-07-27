@@ -3,8 +3,11 @@ import { z } from "zod";
 
 import { adminProcedure } from "@/server/endpoints/procedure";
 import {
+  AdminSuggestionDto,
   AdminVocabCountDto,
   AdminVocabItemDto,
+  SuggestionCountDto,
+  SuggestionStatusEnum,
   VocabTypeEnum,
 } from "@/definitions/definitions";
 
@@ -75,6 +78,62 @@ export const adminRouter = {
             error instanceof Error
               ? error.message
               : "Failed to update vocab item",
+          cause: error,
+        });
+      }
+    }),
+
+  suggestionCounts: adminProcedure
+    .output(z.array(SuggestionCountDto))
+    .handler(async ({ context }) => {
+      return await context.cradle.suggestionService.counts();
+    }),
+
+  listSuggestions: adminProcedure
+    .input(
+      z.object({
+        status: SuggestionStatusEnum.optional(),
+        page: z.number().int().positive().optional().default(1),
+        pageSize: z.number().int().positive().max(200).optional().default(25),
+      }),
+    )
+    .output(
+      z.object({
+        items: z.array(AdminSuggestionDto),
+        pagingInfo: pagingInfoSchema,
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const { items, total, page, pageSize, totalPages } =
+        await context.cradle.suggestionService.list(input);
+
+      return { items, pagingInfo: { page, pageSize, total, totalPages } };
+    }),
+
+  setSuggestionStatus: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        status: SuggestionStatusEnum,
+        /** Omitted leaves any existing note alone; null clears it. */
+        adminNote: z.string().max(1000).nullish(),
+      }),
+    )
+    .output(AdminSuggestionDto)
+    .handler(async ({ input, context }) => {
+      try {
+        return await context.cradle.suggestionService.setStatus({
+          id: input.id,
+          status: input.status,
+          adminNote: input.adminNote,
+          reviewerId: context.user.id,
+        });
+      } catch (error) {
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to update the suggestion",
           cause: error,
         });
       }

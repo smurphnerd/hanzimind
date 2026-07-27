@@ -164,21 +164,13 @@ export const decksRouter = {
     }),
 
   getById: authProcedure
-    .input(
-      z.object({
-        deckId: z.string(),
-        includeConstituents: z.boolean().optional().default(false),
-      }),
-    )
+    .input(z.object({ deckId: z.string() }))
     .output(DeckDetailedDto)
     .handler(async ({ input, context }) => {
-      const { deckId, includeConstituents } = input;
+      const { deckId } = input;
 
       try {
-        return await context.cradle.deckService.getDeckById({
-          deckId,
-          includeConstituents,
-        });
+        return await context.cradle.deckService.getDeckById({ deckId });
       } catch (error) {
         throw new ORPCError("NOT_FOUND", {
           message: "Deck not found",

@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
 import {
+  DeckProgressDto,
   UserVocabItemDto,
   StudyAnswerDto,
   VocabItemStudyDto,
@@ -103,7 +104,6 @@ export const studyRouter = {
         userId,
         deckId,
       );
-      console.log(nextVocabItem);
 
       return { correct, userVocabItem, nextVocabItem };
     }),
@@ -131,6 +131,17 @@ export const studyRouter = {
           cause: error,
         });
       }
+    }),
+
+  deckProgress: authProcedure
+    // One call for the whole study list — the page renders up to 50 decks.
+    .input(z.object({ deckIds: z.array(z.string()).max(100) }))
+    .output(z.array(DeckProgressDto))
+    .handler(async ({ input, context }) => {
+      return context.cradle.studyService.getDeckProgress(
+        context.user.id,
+        input.deckIds,
+      );
     }),
 
   nextVocabItem: authProcedure

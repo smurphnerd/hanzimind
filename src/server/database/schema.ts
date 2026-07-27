@@ -9,7 +9,12 @@ import {
   bigint,
 } from "drizzle-orm/pg-core";
 import { timestampFields } from "./databaseUtils";
-import { EtymologyType, VocabType } from "@/definitions/definitions";
+import {
+  EtymologyType,
+  SuggestionKind,
+  SuggestionStatus,
+  VocabType,
+} from "@/definitions/definitions";
 import { relations } from "drizzle-orm";
 
 // Users table
@@ -209,6 +214,48 @@ export const userVocabSynonyms = pgTable(
   ],
 );
 
+// Learner-reported corrections ("this translation is wrong", "the audio is for
+// the wrong tone"), reviewed on the admin screen. Both targets are nullable so a
+// suggestion can be about a vocab row, about a memory aid, or about neither.
+//
+// This table doubles as its own rate-limit ledger: the submit endpoint counts a
+// user's rows inside a time window instead of keeping a separate counter, which
+// needs no extra table, cleans itself up as rows age out, and survives a
+// redeploy the way an in-memory Map would not.
+export const suggestions = pgTable("suggestions", {
+  id: text()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  createdById: text()
+    .notNull()
+    .references(() => users.id),
+  vocabItemId: text().references(() => vocabItems.id),
+  memoryAidId: text().references(() => memoryAids.id),
+  kind: text().notNull().$type<SuggestionKind>(),
+  body: text().notNull(),
+  status: text().notNull().$type<SuggestionStatus>().default("open"),
+  /** Set by a reviewer when closing the suggestion out. */
+  adminNote: text(),
+  resolvedById: text().references(() => users.id),
+  resolvedAt: timestamp(),
+  ...timestampFields,
+});
+
+export const suggestionRelations = relations(suggestions, ({ one }) => ({
+  vocabItem: one(vocabItems, {
+    fields: [suggestions.vocabItemId],
+    references: [vocabItems.id],
+  }),
+  memoryAid: one(memoryAids, {
+    fields: [suggestions.memoryAidId],
+    references: [memoryAids.id],
+  }),
+  createdBy: one(users, {
+    fields: [suggestions.createdById],
+    references: [users.id],
+  }),
+}));
+
 export const vocabItemRelations = relations(vocabItems, ({ many }) => ({
   memoryAids: many(memoryAids),
   decks: many(deckVocabItems),
@@ -290,6 +337,8 @@ export const schema = {
   userDecks,
   memoryAids,
   userVocabSynonyms,
+  suggestions,
+  suggestionRelations,
   vocabItemRelations,
   memoryAidRelations,
   deckRelations,

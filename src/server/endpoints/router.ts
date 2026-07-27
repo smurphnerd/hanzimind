@@ -3,6 +3,7 @@ import { isAdminEmail, parseAdminEmails } from "@/server/admin-access";
 import { authMiddleware, commonProcedure } from "@/server/endpoints/procedure";
 import { adminRouter } from "@/server/endpoints/adminRouter";
 import { decksRouter } from "@/server/endpoints/decksRouter";
+import { suggestionsRouter } from "@/server/endpoints/suggestionsRouter";
 import { vocabRouter } from "@/server/endpoints/vocabRouter";
 import { studyRouter } from "@/server/endpoints/studyRouter";
 
@@ -23,4 +24,5 @@ export const appRouter = {
   decks: decksRouter,
   vocab: vocabRouter,
   study: studyRouter,
+  suggestions: suggestionsRouter,
 };

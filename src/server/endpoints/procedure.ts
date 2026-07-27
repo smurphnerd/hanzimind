@@ -10,6 +10,7 @@ const baseProcedure = os
   .errors({
     UNAUTHORIZED: {},
     FORBIDDEN: {},
+    TOO_MANY_REQUESTS: {},
   })
   .$context<
     { headers: Headers; cradle: Cradle } & ResponseHeadersPluginContext

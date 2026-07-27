@@ -1,11 +1,12 @@
 import "server-only";
 
 import type { Logger } from "pino";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
+  type DeckProgressDto,
   type VocabItemStudyDto,
   type StudyType,
   type UserVocabItemDto,
@@ -24,9 +25,95 @@ import {
   pronounceableType,
   readingOf,
   servableStudyTypes,
+  weakestServableLevel,
   VOCAB_TYPE_PRIORITY,
+  type StudiableItem,
 } from "@/server/study-rules";
+import { growthStage } from "@/lib/growth";
 import { pinyinMatches } from "@/lib/pinyin";
+
+/** What the rollup reads for one item: the study rules' shape plus its due times. */
+export interface ProgressRollupItem extends StudiableItem {
+  readingNextAt: Date | null;
+  listeningNextAt: Date | null;
+  understandingNextAt: Date | null;
+  writingNextAt: Date | null;
+}
+
+const emptyStages = (): number[] => [0, 0, 0, 0, 0, 0];
+
+/**
+ * Roll one deck's items up into the figures the study card shows.
+ *
+ * Pure and outside the class for the same reason study-rules is: the two traps
+ * here ship silently otherwise. Mastery must be the minimum over the types the
+ * item can *actually* be quizzed on — a plain minimum over every enabled type
+ * pins components at level 0 forever — and an item with nothing servable must
+ * stay out of `byStage` altogether, since `weakestServableLevel` returns
+ * Infinity for it and `growthStage(Infinity)` reads as a harmless-looking
+ * "Not started". See DeckProgressDto for the full semantics.
+ */
+export function summariseDeckProgress(args: {
+  deckId: string;
+  items: readonly ProgressRollupItem[];
+  enabledStudyTypes: readonly StudyType[];
+  gateLevel: number;
+  now: Date;
+}): DeckProgressDto {
+  const { deckId, items, enabledStudyTypes, gateLevel, now } = args;
+
+  // The gate resolves parts by glyph against the rest of the deck, exactly as
+  // card selection does.
+  const byVocabItem = new Map(items.map((item) => [item.vocabItem, item]));
+
+  const byStage = emptyStages();
+  let total = 0;
+  let unstudiable = 0;
+  let seen = 0;
+  let dueNow = 0;
+  let newAvailable = 0;
+  let locked = 0;
+
+  for (const item of items) {
+    const servable = servableStudyTypes(item, enabledStudyTypes);
+
+    if (servable.length === 0) {
+      unstudiable++;
+      continue;
+    }
+
+    total++;
+    byStage[growthStage(weakestServableLevel(item, enabledStudyTypes)).index]++;
+
+    if (item.seen) {
+      // Answered at least once — which says nothing about the level, since a
+      // wrong answer leaves the item seen at 0.
+      seen++;
+      // A type that has never been scheduled is due immediately, matching how
+      // getNextVocabItem treats a null nextAt.
+      const isDue = servable.some((type) => {
+        const nextAt = item[`${type}NextAt`];
+        return nextAt === null || nextAt <= now;
+      });
+      if (isDue) dueNow++;
+    } else if (isUnlocked(item, byVocabItem, enabledStudyTypes, gateLevel)) {
+      newAvailable++;
+    } else {
+      locked++;
+    }
+  }
+
+  return {
+    deckId,
+    total,
+    unstudiable,
+    seen,
+    dueNow,
+    newAvailable,
+    locked,
+    byStage,
+  };
+}
 
 export class StudyService {
   constructor(
@@ -819,6 +906,138 @@ export class StudyService {
       throw error instanceof Error
         ? error
         : new Error("Failed to get user vocab item");
+    }
+  }
+
+  /**
+   * Each requested deck's standing for the current learner.
+   *
+   * Batched on purpose: the study list renders up to 50 decks, and a call per
+   * deck would be 50 round-trips for one screen. Unlike getNextVocabItem this
+   * tolerates a deck the viewer has not enrolled in — the caller may be showing
+   * any deck — and reports it as an empty garden rather than throwing.
+   *
+   * Returns one entry per requested id, in the order asked for.
+   */
+  async getDeckProgress(
+    userId: string,
+    deckIds: string[],
+  ): Promise<DeckProgressDto[]> {
+    if (deckIds.length === 0) return [];
+
+    const notEnrolled = (deckId: string): DeckProgressDto => ({
+      deckId,
+      total: 0,
+      unstudiable: 0,
+      seen: 0,
+      dueNow: 0,
+      newAvailable: 0,
+      locked: 0,
+      byStage: emptyStages(),
+    });
+
+    try {
+      // Settings are per user-deck, so what counts as studiable differs between
+      // decks and has to be read before the items can be bucketed.
+      const userDecks = await this.deps.database
+        .select({
+          deckId: schema.userDecks.deckId,
+          readingEnabled: schema.userDecks.readingEnabled,
+          listeningEnabled: schema.userDecks.listeningEnabled,
+          understandingEnabled: schema.userDecks.understandingEnabled,
+          writingEnabled: schema.userDecks.writingEnabled,
+        })
+        .from(schema.userDecks)
+        .where(
+          and(
+            eq(schema.userDecks.userId, userId),
+            inArray(schema.userDecks.deckId, [...new Set(deckIds)]),
+          ),
+        );
+
+      if (userDecks.length === 0) return deckIds.map(notEnrolled);
+
+      const enabledByDeck = new Map<string, StudyType[]>(
+        userDecks.map((deck) => {
+          const enabled: StudyType[] = [];
+          if (deck.readingEnabled) enabled.push("reading");
+          if (deck.listeningEnabled) enabled.push("listening");
+          if (deck.understandingEnabled) enabled.push("understanding");
+          if (deck.writingEnabled) enabled.push("writing");
+          return [deck.deckId, enabled];
+        }),
+      );
+
+      // The same join getNextVocabItem selects from, widened to every enrolled
+      // deck at once. Disabled items are excluded here too, so they neither
+      // count towards progress nor gate anything.
+      const rows = await this.deps.database
+        .select({
+          deckId: schema.deckVocabItems.deckId,
+          vocabItem: schema.vocabItems.vocabItem,
+          vocabType: schema.vocabItems.vocabType,
+          pinyin: schema.vocabItems.pinyin,
+          translation: schema.vocabItems.translation,
+          audioUrl: schema.vocabItems.audioUrl,
+          decomposition: schema.vocabItems.decomposition,
+          seen: schema.userVocabItems.seen,
+          readingLevel: schema.userVocabItems.readingLevel,
+          listeningLevel: schema.userVocabItems.listeningLevel,
+          understandingLevel: schema.userVocabItems.understandingLevel,
+          writingLevel: schema.userVocabItems.writingLevel,
+          readingNextAt: schema.userVocabItems.readingNextAt,
+          listeningNextAt: schema.userVocabItems.listeningNextAt,
+          understandingNextAt: schema.userVocabItems.understandingNextAt,
+          writingNextAt: schema.userVocabItems.writingNextAt,
+        })
+        .from(schema.deckVocabItems)
+        .innerJoin(
+          schema.vocabItems,
+          eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+        )
+        .leftJoin(
+          schema.userVocabItems,
+          and(
+            eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
+            eq(schema.userVocabItems.userId, userId),
+          ),
+        )
+        .where(
+          and(
+            inArray(schema.deckVocabItems.deckId, [...enabledByDeck.keys()]),
+            eq(schema.vocabItems.disabled, false),
+          ),
+        );
+
+      const itemsByDeck = new Map<string, ProgressRollupItem[]>();
+      for (const row of rows) {
+        const items = itemsByDeck.get(row.deckId);
+        if (items) items.push(row);
+        else itemsByDeck.set(row.deckId, [row]);
+      }
+
+      const now = new Date();
+
+      return deckIds.map((deckId) => {
+        const enabledStudyTypes = enabledByDeck.get(deckId);
+        if (!enabledStudyTypes) return notEnrolled(deckId);
+
+        return summariseDeckProgress({
+          deckId,
+          items: itemsByDeck.get(deckId) ?? [],
+          enabledStudyTypes,
+          gateLevel: CONSTITUENT_GATE_LEVEL,
+          now,
+        });
+      });
+    } catch (error) {
+      this.deps.logger.error(
+        { error, userId, deckIds },
+        "Error getting deck progress",
+      );
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to get deck progress");
     }
   }
 }

@@ -67,11 +67,11 @@
   --color-stage-blooming: var(--stage-blooming);
   --color-stage-evergreen: var(--stage-evergreen);
 
-  /* Soft card shadows */
-  --shadow-card: 0 1px 2px rgba(24, 22, 30, 0.04),
-    0 8px 24px -12px rgba(24, 22, 30, 0.14);
-  --shadow-card-hover: 0 2px 4px rgba(24, 22, 30, 0.05),
-    0 14px 32px -12px rgba(24, 22, 30, 0.18);
+  /* Soft card shadows. Indirected through :root/.dark vars — this block is
+     `@theme inline`, so a literal here would be baked into the utility and could
+     never be re-themed for dark mode. */
+  --shadow-card: var(--card-shadow);
+  --shadow-card-hover: var(--card-shadow-hover);
 
   /* Radius scale */
   --radius-sm: calc(var(--radius) - 8px);
@@ -102,6 +102,11 @@
   --type-compound: #ec4899;
   --type-sentence: #f59e0b;
   --type-component: #14b8a6;
+
+  --card-shadow: 0 1px 2px rgba(24, 22, 30, 0.04),
+    0 8px 24px -12px rgba(24, 22, 30, 0.14);
+  --card-shadow-hover: 0 2px 4px rgba(24, 22, 30, 0.05),
+    0 14px 32px -12px rgba(24, 22, 30, 0.18);
 
   --stage-none: #c9c7cf;
   --stage-seedling: #38bdf8;
@@ -172,6 +177,12 @@
   --stage-sapling: #ec4899;
   --stage-blooming: #fb923c;
   --stage-evergreen: #22c55e;
+
+  /* The light shadows are near-black on near-white and vanish on a #111014
+     background, leaving every card flat. Deepen them so elevation still reads. */
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --card-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.45),
+    0 14px 32px -12px rgba(0, 0, 0, 0.8);
 }
 
 @layer base {

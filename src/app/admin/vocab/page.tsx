@@ -24,7 +24,6 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { Mika } from "@/components/mika";
 import { useORPC } from "@/lib/orpc.client";
-import { authClient } from "@/lib/authClient";
 import { cn } from "@/lib/utils";
 import type { AdminVocabItemDto, VocabType } from "@/definitions/definitions";
 
@@ -391,54 +390,6 @@ function AdminVocabContent() {
 }
 
 export default function AdminVocabPage() {
-  const { data: session, isPending } = authClient.useSession();
-  const orpc = useORPC();
-
-  // The server re-checks on every admin endpoint, so this is presentation only —
-  // it decides what to render, never what is permitted.
-  const { data: profile, isPending: isProfilePending } = useQuery({
-    ...orpc.getProfile.queryOptions({}),
-    enabled: !isPending && !!session?.user,
-  });
-
-  if (isPending || (session?.user && isProfilePending)) {
-    return (
-      <div className="container mx-auto max-w-6xl px-4 py-8">
-        <Skeleton className="mb-8 h-10 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
-
-  if (!session?.user || !profile?.isAdmin) {
-    return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-            <Mika pose="peek" size={96} />
-            <h1 className="font-display text-2xl font-bold">
-              {session?.user ? "Admins only" : "Sign in required"}
-            </h1>
-            <p className="text-muted-foreground">
-              {session?.user
-                ? "Your account doesn't have admin access."
-                : "Sign in with an admin account to manage the vocabulary."}
-            </p>
-            <Button asChild>
-              <Link
-                href={
-                  session?.user ? "/" : "/signin?redirectUrl=admin/vocab"
-                }
-              >
-                {session?.user ? "Back home" : "Sign In"}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <div className="mb-8">

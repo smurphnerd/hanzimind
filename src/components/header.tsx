@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { authClient } from "@/lib/authClient";
 import { useORPC } from "@/lib/orpc.client";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Mika } from "@/components/mika";
 
@@ -13,6 +20,11 @@ const navLinks = [
   { href: "/decks", label: "Decks" },
   { href: "/dictionary", label: "Dictionary" },
   { href: "/profile", label: "Profile" },
+];
+
+const adminLinks = [
+  { href: "/admin/vocab", label: "Vocabulary" },
+  { href: "/admin/suggestions", label: "Suggestions" },
 ];
 
 export function Header() {
@@ -39,12 +51,7 @@ export function Header() {
 
         <nav className="ml-2 hidden items-center gap-1 sm:flex">
           {session?.user &&
-            [
-              ...navLinks,
-              ...(profile?.isAdmin
-                ? [{ href: "/admin/vocab", label: "Admin" }]
-                : []),
-            ].map((link) => (
+            navLinks.map((link) => (
               <Button
                 key={link.href}
                 asChild
@@ -55,6 +62,28 @@ export function Header() {
                 <Link href={link.href}>{link.label}</Link>
               </Button>
             ))}
+
+          {session?.user && profile?.isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Admin
+                  <ChevronDown className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {adminLinks.map((link) => (
+                  <DropdownMenuItem key={link.href} asChild>
+                    <Link href={link.href}>{link.label}</Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">

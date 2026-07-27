@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Flag, ChevronLeft, ChevronRight } from "lucide-react";
+import { ReportIssueDialog } from "@/components/report-issue-dialog";
+import type { MemoryAidDto } from "@/definitions/definitions";
 import { useORPC } from "@/lib/orpc.client";
 
 interface ViewAllMemoryAidsDialogProps {
@@ -26,6 +29,9 @@ export function ViewAllMemoryAidsDialog({
 }: ViewAllMemoryAidsDialogProps) {
   const orpc = useORPC();
   const [page, setPage] = useState(1);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  // Kept after the dialog closes so its contents don't blank out mid-animation.
+  const [reportedAid, setReportedAid] = useState<MemoryAidDto | null>(null);
   const pageSize = 20;
 
   const { data, isLoading } = useQuery(
@@ -40,13 +46,21 @@ export function ViewAllMemoryAidsDialog({
   );
 
   const memoryAids = data?.memoryAids ?? [];
-  const hasMore = memoryAids.length === pageSize;
+  // The response carries an exact total; inferring "there is more" from a full
+  // page offered a Next button onto an empty page whenever the count landed on
+  // an exact multiple of pageSize.
+  const totalPages = Math.max(
+    1,
+    Math.ceil((data?.memoryAidTotal ?? 0) / pageSize),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Memory Aids for {vocabItem}</DialogTitle>
+          <DialogTitle className="font-display text-xl font-bold tracking-tight">
+            Memory aids for <span className="hanzi">{vocabItem}</span>
+          </DialogTitle>
           <DialogDescription>
             Community-contributed memory aids to help remember this word
           </DialogDescription>
@@ -54,33 +68,44 @@ export function ViewAllMemoryAidsDialog({
 
         <div className="max-h-[60vh] overflow-y-auto">
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">
+            <div className="text-muted-foreground py-8 text-center">
               Loading...
             </div>
           ) : memoryAids.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
+            <div className="text-muted-foreground py-8 text-center">
               No memory aids found
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {memoryAids.map((mnemonic, index) => (
                 <div
                   key={mnemonic.id}
-                  className="rounded-md border border-border p-4"
+                  className="border-border rounded-xl border p-4"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <p className="mb-2 text-foreground">
-                        {(page - 1) * pageSize + index + 1}. &ldquo;
-                        {mnemonic.memoryAid}&rdquo;
+                      <p className="text-foreground mb-2">
+                        <span className="font-display text-primary mr-2 font-bold tabular-nums">
+                          {(page - 1) * pageSize + index + 1}.
+                        </span>
+                        &ldquo;{mnemonic.memoryAid}&rdquo;
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-muted-foreground text-sm">
                         Saved by {mnemonic.usageCount} users • by{" "}
                         {mnemonic.createdByUsername}
                       </p>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      <Flag className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Report this memory aid"
+                      className="text-muted-foreground hover:text-primary"
+                      onClick={() => {
+                        setReportedAid(mnemonic);
+                        setIsReportOpen(true);
+                      }}
+                    >
+                      <Flag className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -89,27 +114,40 @@ export function ViewAllMemoryAidsDialog({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t pt-4">
+        <div className="border-border flex items-center justify-between border-t pt-4">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1 || isLoading}
           >
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="size-4" />
             Previous
           </Button>
-          <span className="text-sm text-muted-foreground">Page {page}</span>
+          <span className="text-muted-foreground font-display text-sm font-bold tabular-nums">
+            Page {page} of {totalPages}
+          </span>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setPage((p) => p + 1)}
-            disabled={!hasMore || isLoading}
+            disabled={page >= totalPages || isLoading}
           >
             Next
-            <ChevronRight className="ml-1 h-4 w-4" />
+            <ChevronRight className="size-4" />
           </Button>
         </div>
+
+        {/* Nested inside the content so Radix stacks the two dismissable layers
+            in the right order — a click in the report dialog must not be read
+            as a click outside this one. */}
+        <ReportIssueDialog
+          open={isReportOpen}
+          onOpenChange={setIsReportOpen}
+          subject={reportedAid?.memoryAid ?? ""}
+          vocabItemId={data?.id ?? null}
+          memoryAidId={reportedAid?.id ?? null}
+        />
       </DialogContent>
     </Dialog>
   );

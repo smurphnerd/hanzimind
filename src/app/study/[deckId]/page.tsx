@@ -659,6 +659,13 @@ function StudyPageContent() {
         void queryClient.invalidateQueries({
           queryKey: orpc.study.nextVocabItem.queryKey({ input: { deckId } }),
         });
+        // Every figure on the /study card — the stage bar, "X of Y grown",
+        // due-now, locked — moves with this answer. Clearing a whole session
+        // inside the 60s staleTime would otherwise send the learner back to a
+        // card still advertising the reviews they just finished.
+        void queryClient.invalidateQueries({
+          queryKey: orpc.study.deckProgress.key(),
+        });
 
         const studyType = currentVocabItem?.studyType;
         // "new" is an intro card, not a graded answer: it has no level and
