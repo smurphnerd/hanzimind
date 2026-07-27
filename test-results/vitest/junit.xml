@@ -1,319 +1,325 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="151" failures="0" errors="0" time="0.029656666">
-    <testsuite name="src/server/__tests__/admin-access.test.ts" timestamp="2026-07-27T23:00:56.726Z" hostname="Seans-MacBook-Pro.local" tests="17" failures="0" errors="0" skipped="0" time="0.0024575">
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should split a comma-separated list" time="0.000772417">
+<testsuites name="vitest tests" tests="153" failures="0" errors="0" time="0.038989666">
+    <testsuite name="src/lib/__tests__/decomposition.test.ts" timestamp="2026-07-27T23:16:59.693Z" hostname="Seans-MacBook-Pro.local" tests="10" failures="0" errors="0" skipped="0" time="0.002805291">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return the component characters of a decomposition" time="0.001230625">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should trim surrounding whitespace" time="0.00009075">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip Ideographic Description Characters" time="0.000098917">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should lowercase addresses" time="0.000083708">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip the fullwidth question mark placeholder" time="0.000073459">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should drop empty entries from a trailing comma" time="0.000068375">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip the ASCII question mark placeholder" time="0.000079667">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should return nothing for an empty value" time="0.000063875">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for an atomic glyph" time="0.00006775">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should return nothing when unset" time="0.000053417">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for null" time="0.000054083">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit a listed address" time="0.000126">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for undefined" time="0.000053333">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit regardless of casing" time="0.000056708">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for an empty string" time="0.000053125">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should ignore surrounding whitespace" time="0.000055583">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should keep duplicate components" time="0.000060833">
         </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject an unlisted address" time="0.000067458">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject null" time="0.000045458">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject undefined" time="0.00003775">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject an empty address" time="0.000035792">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject a whitespace-only address" time="0.000034084">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit nobody when the list is empty" time="0.0000525">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should not match a partial address" time="0.000037375">
-        </testcase>
-        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should not match a lookalike domain" time="0.00003525">
+        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should handle components outside the Basic Multilingual Plane" time="0.000072">
         </testcase>
     </testsuite>
-    <testsuite name="src/server/__tests__/study-rules.test.ts" timestamp="2026-07-27T23:00:56.728Z" hostname="Seans-MacBook-Pro.local" tests="31" failures="0" errors="0" skipped="0" time="0.003743333">
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should allow understanding" time="0.000626042">
+    <testsuite name="src/server/__tests__/admin-access.test.ts" timestamp="2026-07-27T23:16:59.694Z" hostname="Seans-MacBook-Pro.local" tests="17" failures="0" errors="0" skipped="0" time="0.002424708">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should split a comma-separated list" time="0.000760542">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject reading even when the borrowed pinyin is present" time="0.0000785">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should trim surrounding whitespace" time="0.000088292">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject listening even when audio is present" time="0.000060583">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should lowercase addresses" time="0.000070708">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject writing, which a pinyin IME cannot produce" time="0.000067917">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should drop empty entries from a trailing comma" time="0.000081791">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject understanding when there is no gloss" time="0.000063125">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should return nothing for an empty value" time="0.0000635">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should allow reading when pinyin is present" time="0.000065">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="parseAdminEmails &gt; should return nothing when unset" time="0.000052">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject reading when pinyin merely echoes the glyph" time="0.000046916">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit a listed address" time="0.000107125">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject listening without audio" time="0.000066167">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit regardless of casing" time="0.000052209">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject understanding when the gloss is whitespace only" time="0.000055834">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should ignore surrounding whitespace" time="0.000057292">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should always allow writing" time="0.000068625">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject an unlisted address" time="0.000064709">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should reduce a component to understanding only" time="0.000329333">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject null" time="0.000043209">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should return nothing for a component with no gloss" time="0.000048916">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject undefined" time="0.000036208">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should respect the deck&apos;s enabled types" time="0.0000375">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject an empty address" time="0.000034291">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should ignore levels the item can never be quizzed on" time="0.000064542">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should reject a whitespace-only address" time="0.000036458">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should take the minimum across servable types for a character" time="0.00003925">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should admit nobody when the list is empty" time="0.000037625">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should treat a null level as zero" time="0.000038833">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should not match a partial address" time="0.000045791">
         </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should return Infinity when nothing is servable" time="0.00003275">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should return nothing for a component" time="0.0000595">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should split a character&apos;s decomposition" time="0.000178625">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should split a compound into its characters" time="0.00008575">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should unlock when a component dependency reaches the gate by understanding alone" time="0.000136375">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should stay locked while a component dependency is below the gate" time="0.000100417">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should stay locked while a dependency is unseen" time="0.000073083">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should treat a dependency with no progress row as unseen" time="0.000059208">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by a dependency outside the deck" time="0.000038166">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by an unservable dependency" time="0.00003925">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by a component when understanding is disabled deck-wide" time="0.000036041">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should require every dependency to clear the gate" time="0.000055167">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should never gate a component on anything" time="0.0000445">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should ignore a self-referential decomposition entry" time="0.000072584">
-        </testcase>
-        <testcase classname="src/server/__tests__/study-rules.test.ts" name="VOCAB_TYPE_PRIORITY &gt; should order parts before the things built from them" time="0.000113958">
+        <testcase classname="src/server/__tests__/admin-access.test.ts" name="isAdminEmail &gt; should not match a lookalike domain" time="0.000033625">
         </testcase>
     </testsuite>
-    <testsuite name="src/lib/__tests__/decomposition.test.ts" timestamp="2026-07-27T23:00:56.730Z" hostname="Seans-MacBook-Pro.local" tests="10" failures="0" errors="0" skipped="0" time="0.002794084">
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return the component characters of a decomposition" time="0.0012645">
+    <testsuite name="src/server/__tests__/study-rules.test.ts" timestamp="2026-07-27T23:16:59.695Z" hostname="Seans-MacBook-Pro.local" tests="31" failures="0" errors="0" skipped="0" time="0.005478">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should allow understanding" time="0.000658584">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip Ideographic Description Characters" time="0.000162666">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject reading even when the borrowed pinyin is present" time="0.000079833">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip the fullwidth question mark placeholder" time="0.000080208">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject listening even when audio is present" time="0.000061125">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should strip the ASCII question mark placeholder" time="0.000066334">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject writing, which a pinyin IME cannot produce" time="0.00006875">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for an atomic glyph" time="0.000065042">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; components &gt; should reject understanding when there is no gloss" time="0.000065375">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for null" time="0.000051625">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should allow reading when pinyin is present" time="0.000061958">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for undefined" time="0.000055084">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject reading when pinyin merely echoes the glyph" time="0.000054584">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should return an empty array for an empty string" time="0.000051708">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject listening without audio" time="0.000293916">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should keep duplicate components" time="0.000063208">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should reject understanding when the gloss is whitespace only" time="0.000074125">
         </testcase>
-        <testcase classname="src/lib/__tests__/decomposition.test.ts" name="filterDecomposition &gt; should handle components outside the Basic Multilingual Plane" time="0.000072667">
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="canStudy &gt; characters &gt; should always allow writing" time="0.000074292">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should reduce a component to understanding only" time="0.000983083">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should return nothing for a component with no gloss" time="0.000167833">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="servableStudyTypes &gt; should respect the deck&apos;s enabled types" time="0.000113459">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should ignore levels the item can never be quizzed on" time="0.000176917">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should take the minimum across servable types for a character" time="0.000095417">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should treat a null level as zero" time="0.00028675">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="weakestServableLevel &gt; should return Infinity when nothing is servable" time="0.000068333">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should return nothing for a component" time="0.000085666">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should split a character&apos;s decomposition" time="0.0000845">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="constituentsOf &gt; should split a compound into its characters" time="0.000044">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should unlock when a component dependency reaches the gate by understanding alone" time="0.000103083">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should stay locked while a component dependency is below the gate" time="0.000051334">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should stay locked while a dependency is unseen" time="0.000087">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should treat a dependency with no progress row as unseen" time="0.000059542">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by a dependency outside the deck" time="0.000033792">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by an unservable dependency" time="0.000036084">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should not be gated by a component when understanding is disabled deck-wide" time="0.000034541">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should require every dependency to clear the gate" time="0.000058667">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should never gate a component on anything" time="0.000036875">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="isUnlocked &gt; should ignore a self-referential decomposition entry" time="0.0000375">
+        </testcase>
+        <testcase classname="src/server/__tests__/study-rules.test.ts" name="VOCAB_TYPE_PRIORITY &gt; should order parts before the things built from them" time="0.00008575">
         </testcase>
     </testsuite>
-    <testsuite name="src/server/services/__tests__/SuggestionService.test.ts" timestamp="2026-07-27T23:00:56.730Z" hostname="Seans-MacBook-Pro.local" tests="9" failures="0" errors="0" skipped="0" time="0.004219458">
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should allow a user who has filed nothing" time="0.000686875">
+    <testsuite name="src/server/services/__tests__/SuggestionService.test.ts" timestamp="2026-07-27T23:16:59.697Z" hostname="Seans-MacBook-Pro.local" tests="9" failures="0" errors="0" skipped="0" time="0.004562625">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should allow a user who has filed nothing" time="0.000699375">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should allow the last submission inside the allowance" time="0.000086042">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should allow the last submission inside the allowance" time="0.000086">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should block once the allowance is exactly used up" time="0.000062958">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should block once the allowance is exactly used up" time="0.000064083">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should block above the allowance" time="0.000065375">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="isOverSuggestionRateLimit &gt; should block above the allowance" time="0.000069375">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should return the counted rows" time="0.000831417">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should return the counted rows" time="0.0009345">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should return 0 when the count comes back empty" time="0.000109209">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should return 0 when the count comes back empty" time="0.00011125">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should count only this user&apos;s rows inside the window" time="0.001495708">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; countRecentForUser &gt; should count only this user&apos;s rows inside the window" time="0.001683541">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; the limiter as the endpoint applies it &gt; should let the final allowed submission through" time="0.000085792">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; the limiter as the endpoint applies it &gt; should let the final allowed submission through" time="0.000097959">
         </testcase>
-        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; the limiter as the endpoint applies it &gt; should block the one after it" time="0.000097042">
-        </testcase>
-    </testsuite>
-    <testsuite name="src/server/services/__tests__/TranslationChecker.test.ts" timestamp="2026-07-27T23:00:56.731Z" hostname="Seans-MacBook-Pro.local" tests="46" failures="0" errors="0" skipped="0" time="0.005205333">
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings" time="0.000759542">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings with different casing" time="0.000085375">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 0.0 for completely different strings" time="0.000150083">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return partial similarity for overlapping words" time="0.000139416">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle semicolon-separated definitions" time="0.000102167">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should find best match among multiple semicolon parts" time="0.000102583">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle partial matches in semicolon parts" time="0.000070042">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should ignore extra whitespace" time="0.0000535">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for two empty strings" time="0.000057959">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true when similarity exceeds threshold" time="0.000084625">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return false when similarity is below threshold" time="0.000056958">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should use default threshold of 0.2" time="0.000070167">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true for close matches with default threshold" time="0.000059041">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should handle semicolon-separated definitions correctly" time="0.00005325">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept close translations" time="0.000041042">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept synonym variations" time="0.000041583">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should reject very different meanings" time="0.000166209">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle multi-word phrases" time="0.00007075">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle partial phrase matches" time="0.000064625">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should NOT filter filler words by default" time="0.000051167">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should filter filler words when enabled" time="0.000051459">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle when all words are filler words" time="0.000040208">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should improve similarity for translations with articles" time="0.000039334">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle mixed articles" time="0.000055292">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should preserve important words like prepositions" time="0.000043959">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should still differentiate completely different content words" time="0.00004525">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should work with semicolon-separated definitions" time="0.000040833">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should help with infinitive verb forms" time="0.000987625">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle multiple articles in phrase" time="0.000038291">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym that is followed by a comma" time="0.000042292">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym that follows a comma" time="0.000038042">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym after a semicolon" time="0.00003275">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept any listed meaning of a longer definition" time="0.00013525">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should ignore case and trailing punctuation" time="0.000034791">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a verb without its infinitive &apos;to&apos;" time="0.000029">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should still reject an unrelated answer" time="0.00002875">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should still reject an empty answer" time="0.000024667">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a single-character typo" time="0.000040959">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an adjacent transposition" time="0.000039792">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should reject a two-edit scramble of a short word" time="0.000052542">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a missing letter in a longer word" time="0.000041042">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a plural for a singular meaning" time="0.00004575">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an -ing form for an infinitive" time="0.000037834">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an irregular plural" time="0.000029459">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should NOT treat a short lookalike as a typo" time="0.000026375">
-        </testcase>
-        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should still reject a genuinely different word" time="0.000037667">
+        <testcase classname="src/server/services/__tests__/SuggestionService.test.ts" name="SuggestionService &gt; the limiter as the endpoint applies it &gt; should block the one after it" time="0.000097334">
         </testcase>
     </testsuite>
-    <testsuite name="src/server/services/__tests__/deck-progress.test.ts" timestamp="2026-07-27T23:00:56.733Z" hostname="Seans-MacBook-Pro.local" tests="23" failures="0" errors="0" skipped="0" time="0.003220208">
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should keep an item with no servable study type out of byStage" time="0.00079475">
+    <testsuite name="src/server/services/__tests__/TranslationChecker.test.ts" timestamp="2026-07-27T23:16:59.698Z" hostname="Seans-MacBook-Pro.local" tests="46" failures="0" errors="0" skipped="0" time="0.006882709">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings" time="0.001054292">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should report it as unstudiable" time="0.000114375">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for identical strings with different casing" time="0.000095">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should exclude it from total" time="0.000154791">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 0.0 for completely different strings" time="0.000151916">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should keep byStage summing to total" time="0.000100042">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return partial similarity for overlapping words" time="0.000143166">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should not count it as new or locked" time="0.000077708">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle semicolon-separated definitions" time="0.000224208">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should treat every item as unstudiable when no study types are enabled" time="0.000053041">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should find best match among multiple semicolon parts" time="0.000257125">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should bucket a component by its understanding level alone" time="0.000059958">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should handle partial matches in semicolon parts" time="0.000095916">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should bucket a character by its weakest level" time="0.000059667">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should ignore extra whitespace" time="0.000188083">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should ignore levels of disabled study types" time="0.000052667">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; getSimilarityScore &gt; should return 1.0 for two empty strings" time="0.000136625">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should always return six stages" time="0.000379">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true when similarity exceeds threshold" time="0.000200291">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should count an item answered wrong as seen" time="0.0000485">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return false when similarity is below threshold" time="0.000130208">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should still bucket that item as not started" time="0.000038917">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should use default threshold of 0.2" time="0.000223459">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should not count an unseen item" time="0.000037959">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should return true for close matches with default threshold" time="0.000105167">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should count a seen item whose servable type is overdue" time="0.000043208">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; checkSimilarity &gt; should handle semicolon-separated definitions correctly" time="0.000066125">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should not count a seen item with everything scheduled ahead" time="0.000035667">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept close translations" time="0.000045916">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should treat a never-scheduled type as due" time="0.000030333">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should accept synonym variations" time="0.000043875">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should ignore a due time on a type the item cannot be served for" time="0.000034375">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should reject very different meanings" time="0.000038917">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should not count unseen items" time="0.000029083">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle multi-word phrases" time="0.000049666">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should count an unseen item with no constituents as available" time="0.0000285">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; real world Chinese translation examples &gt; should handle partial phrase matches" time="0.000057125">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should count an unseen item behind an immature part as locked" time="0.00007825">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should NOT filter filler words by default" time="0.000046792">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should release it once the part reaches the gate" time="0.000093083">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should filter filler words when enabled" time="0.000049833">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should not let a part that can never be served gate its dependants" time="0.000052292">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle when all words are filler words" time="0.000037792">
         </testcase>
-        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; should return a zero shape for an empty deck" time="0.000090375">
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should improve similarity for translations with articles" time="0.000036333">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle mixed articles" time="0.000055125">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should preserve important words like prepositions" time="0.000038542">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should still differentiate completely different content words" time="0.000041833">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should work with semicolon-separated definitions" time="0.000037666">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should help with infinitive verb forms" time="0.001033">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; filler word filtering &gt; should handle multiple articles in phrase" time="0.000057333">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym that is followed by a comma" time="0.000053334">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym that follows a comma" time="0.000042792">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a synonym after a semicolon" time="0.000036708">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept any listed meaning of a longer definition" time="0.000142916">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should ignore case and trailing punctuation" time="0.000037084">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should accept a verb without its infinitive &apos;to&apos;" time="0.000032">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should still reject an unrelated answer" time="0.000031042">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; comma-separated dictionary definitions &gt; should still reject an empty answer" time="0.000026708">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a single-character typo" time="0.000042375">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an adjacent transposition" time="0.000040125">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should reject a two-edit scramble of a short word" time="0.000055125">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a missing letter in a longer word" time="0.000146375">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept a plural for a singular meaning" time="0.00004775">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an -ing form for an infinitive" time="0.000040708">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should accept an irregular plural" time="0.000032541">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should NOT treat a short lookalike as a typo" time="0.000030708">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/TranslationChecker.test.ts" name="JaccardTranslationChecker &gt; typo tolerance and stemming &gt; should still reject a genuinely different word" time="0.000049666">
         </testcase>
     </testsuite>
-    <testsuite name="src/server/database/seed/__tests__/vocab-classification.test.ts" timestamp="2026-07-27T23:00:56.735Z" hostname="Seans-MacBook-Pro.local" tests="15" failures="0" errors="0" skipped="0" time="0.00801675">
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should parse every row into a known decision" time="0.002954417">
+    <testsuite name="src/server/services/__tests__/VocabService.test.ts" timestamp="2026-07-27T23:16:59.700Z" hostname="Seans-MacBook-Pro.local" tests="2" failures="0" errors="0" skipped="0" time="0.002143875">
+        <testcase classname="src/server/services/__tests__/VocabService.test.ts" name="memoryAidOrder &gt; orders by usage only when there is no default" time="0.001201333">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should classify only glyphs that exist in the dictionary" time="0.000400625">
+        <testcase classname="src/server/services/__tests__/VocabService.test.ts" name="memoryAidOrder &gt; adds a rank term ahead of usage when a default is set" time="0.000138083">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should classify single glyphs only" time="0.000103916">
+    </testsuite>
+    <testsuite name="src/server/services/__tests__/deck-progress.test.ts" timestamp="2026-07-27T23:16:59.701Z" hostname="Seans-MacBook-Pro.local" tests="23" failures="0" errors="0" skipped="0" time="0.003424083">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should keep an item with no servable study type out of byStage" time="0.000879041">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should attribute every component to a radical" time="0.000186375">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should report it as unstudiable" time="0.000123875">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should only cite radicals within the standard 214" time="0.000115375">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should exclude it from total" time="0.000152208">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should give every disabled glyph a reason" time="0.000073375">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should keep byStage summing to total" time="0.00010625">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should keep the bound radical forms as components" time="0.000147375">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should not count it as new or locked" time="0.000080291">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should leave standalone characters unclassified" time="0.000103458">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; unstudiable items &gt; should treat every item as unstudiable when no study types are enabled" time="0.000053292">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should not disable a glyph that any character depends on entirely" time="0.002224083">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should bucket a component by its understanding level alone" time="0.00006525">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should give every component a meaning to be quizzed on" time="0.000161167">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should bucket a character by its weakest level" time="0.000062042">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should strip the reading and audio from every component" time="0.000119208">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should ignore levels of disabled study types" time="0.000054916">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should prefer the override gloss over the dictionary translation" time="0.000035583">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; bucketing &gt; should always return six stages" time="0.000422542">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should leave characters untouched" time="0.000042916">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should count an item answered wrong as seen" time="0.000066208">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should suppress audio for components and disabled glyphs alike" time="0.000080417">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should still bucket that item as not started" time="0.00004775">
         </testcase>
-        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should disable only glyphs that are unstudiable or not a radical" time="0.000442333">
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; seen &gt; should not count an unseen item" time="0.000041667">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should count a seen item whose servable type is overdue" time="0.000047584">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should not count a seen item with everything scheduled ahead" time="0.000038292">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should treat a never-scheduled type as due" time="0.000031167">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should ignore a due time on a type the item cannot be served for" time="0.000035375">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; dueNow &gt; should not count unseen items" time="0.000030625">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should count an unseen item with no constituents as available" time="0.000029959">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should count an unseen item behind an immature part as locked" time="0.000063125">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should release it once the part reaches the gate" time="0.000043417">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; new and locked &gt; should not let a part that can never be served gate its dependants" time="0.000050542">
+        </testcase>
+        <testcase classname="src/server/services/__tests__/deck-progress.test.ts" name="summariseDeckProgress &gt; should return a zero shape for an empty deck" time="0.000082334">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/server/database/seed/__tests__/vocab-classification.test.ts" timestamp="2026-07-27T23:16:59.702Z" hostname="Seans-MacBook-Pro.local" tests="15" failures="0" errors="0" skipped="0" time="0.011268375">
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should parse every row into a known decision" time="0.004810084">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should classify only glyphs that exist in the dictionary" time="0.001010459">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should classify single glyphs only" time="0.000251167">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should attribute every component to a radical" time="0.000414625">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should only cite radicals within the standard 214" time="0.000140709">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should give every disabled glyph a reason" time="0.000078167">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should keep the bound radical forms as components" time="0.000147042">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should leave standalone characters unclassified" time="0.000104125">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should not disable a glyph that any character depends on entirely" time="0.002394583">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should give every component a meaning to be quizzed on" time="0.000307375">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should strip the reading and audio from every component" time="0.00014275">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should prefer the override gloss over the dictionary translation" time="0.000041375">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should leave characters untouched" time="0.000047">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should suppress audio for components and disabled glyphs alike" time="0.000066958">
+        </testcase>
+        <testcase classname="src/server/database/seed/__tests__/vocab-classification.test.ts" name="loadVocabClassification &gt; should disable only glyphs that are unstudiable or not a radical" time="0.000536417">
         </testcase>
     </testsuite>
 </testsuites>

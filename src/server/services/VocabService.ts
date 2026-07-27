@@ -24,6 +24,26 @@ import {
   VocabItemDto,
 } from "@/definitions/definitions";
 
+/**
+ * ORDER BY terms for a memory-aid list: the starred aid first, then most-used.
+ *
+ * The default term is emitted ONLY when there is a default. A bare integer
+ * literal in ORDER BY is interpreted by Postgres as a select-column ordinal, so
+ * a `0` fallback references a non-existent column 0 and the whole query throws —
+ * which is exactly what broke every aid list that had no starred default (all of
+ * them). Exported so a test can assert the term count without a database.
+ */
+export function memoryAidOrder(defaultMemoryAidId?: string | null) {
+  const byUsage = desc(count(userVocabItems.userId));
+  if (!defaultMemoryAidId) return [byUsage];
+  return [
+    desc(
+      sql<number>`(case when ${memoryAids.id} = ${defaultMemoryAidId} then 1 else 0 end)`,
+    ),
+    byUsage,
+  ];
+}
+
 export class VocabService {
   constructor(
     private deps: {
@@ -151,12 +171,6 @@ export class VocabService {
     /** When set, this aid sorts ahead of everything else regardless of usage. */
     defaultMemoryAidId?: string | null;
   }): Promise<MemoryAidDto[]> {
-    // A CASE that is 1 for the starred aid and 0 otherwise, sorted first, so the
-    // default always lands on page 1 no matter how few people use it.
-    const isDefaultRank = args.defaultMemoryAidId
-      ? sql<number>`(case when ${memoryAids.id} = ${args.defaultMemoryAidId} then 1 else 0 end)`
-      : sql<number>`0`;
-
     const rows = await this.deps.database
       .select({
         // Select all fields from memoryAids
@@ -178,7 +192,10 @@ export class VocabService {
         }),
       )
       .groupBy(memoryAids.id, users.id)
-      .orderBy(desc(isDefaultRank), desc(count(userVocabItems.userId)))
+      // Pin the starred aid first, then order by usage. The rank term is only
+      // added when there is a default — a bare `0` here would be read as ORDER
+      // BY the 0th select column, which Postgres rejects as out of range.
+      .orderBy(...memoryAidOrder(args.defaultMemoryAidId))
       .limit(args.limit)
       .offset(args.offset);
 
@@ -243,9 +260,6 @@ export class VocabService {
     }
 
     const defaultMemoryAidId = item.defaultMemoryAidId;
-    const isDefaultRank = defaultMemoryAidId
-      ? sql<number>`(case when ${memoryAids.id} = ${defaultMemoryAidId} then 1 else 0 end)`
-      : sql<number>`0`;
 
     const rows = await this.deps.database
       .select({
@@ -260,7 +274,7 @@ export class VocabService {
       .leftJoin(userVocabItems, eq(memoryAids.id, userVocabItems.memoryAidId))
       .where(eq(memoryAids.vocabItemId, vocabItemId))
       .groupBy(memoryAids.id, users.id)
-      .orderBy(desc(isDefaultRank), desc(count(userVocabItems.userId)));
+      .orderBy(...memoryAidOrder(defaultMemoryAidId));
 
     const items = rows.map((row) => ({
       id: row.id,
