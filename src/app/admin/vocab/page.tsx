@@ -22,10 +22,12 @@ import {
 } from "@/components/ui/table";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
+import { ManageMemoryAidsDialog } from "@/components/manage-memory-aids-dialog";
 import { Mika } from "@/components/mika";
 import { useORPC } from "@/lib/orpc.client";
 import { cn } from "@/lib/utils";
-import type { AdminVocabItemDto, VocabType } from "@/definitions/definitions";
+import type { VocabType } from "@/definitions/definitions";
+import { Lightbulb } from "lucide-react";
 
 const PAGE_SIZE = 50;
 
@@ -37,28 +39,42 @@ const TYPE_FILTERS: { label: string; value: VocabType | "all" }[] = [
   { label: "Sentences", value: "sentence" },
 ];
 
-/** Editable definition cell — commits on blur or Enter, reverts on Escape. */
-function DefinitionCell({
-  item,
+/**
+ * A single-field inline editor — commits on blur or Enter, reverts on Escape.
+ *
+ * `allowEmpty` distinguishes the two columns that use it: a definition is the
+ * only thing a component can be quizzed on, so blanking it is refused and the
+ * field snaps back; a reading may legitimately be empty, so an empty commit is
+ * sent through.
+ */
+function EditableCell({
+  serverValue,
+  allowEmpty,
   onSave,
   isSaving,
+  ariaLabel,
+  placeholder,
+  inputClassName,
 }: {
-  item: AdminVocabItemDto;
-  onSave: (translation: string) => void;
+  serverValue: string;
+  allowEmpty: boolean;
+  onSave: (value: string) => void;
   isSaving: boolean;
+  ariaLabel: string;
+  placeholder: string;
+  inputClassName?: string;
 }) {
-  const [value, setValue] = useState(item.translation ?? "");
+  const [value, setValue] = useState(serverValue);
   const [isEditing, setIsEditing] = useState(false);
 
   // The row can be re-fetched under us after a save elsewhere; while the field
   // is untouched, follow the server's value rather than the stale local one.
-  const serverValue = item.translation ?? "";
   if (!isEditing && value !== serverValue) setValue(serverValue);
 
   const commit = () => {
     setIsEditing(false);
     const trimmed = value.trim();
-    if (trimmed === serverValue || trimmed.length === 0) {
+    if (trimmed === serverValue || (!allowEmpty && trimmed.length === 0)) {
       setValue(serverValue);
       return;
     }
@@ -69,7 +85,7 @@ function DefinitionCell({
     <Input
       value={value}
       disabled={isSaving}
-      aria-label={`Definition for ${item.vocabItem}`}
+      aria-label={ariaLabel}
       onChange={(event) => {
         setIsEditing(true);
         setValue(event.target.value);
@@ -83,8 +99,12 @@ function DefinitionCell({
           event.currentTarget.blur();
         }
       }}
-      className={cn("h-8 text-sm", !serverValue && "border-destructive/50")}
-      placeholder="No definition"
+      className={cn(
+        "h-8 text-sm",
+        !allowEmpty && !serverValue && "border-destructive/50",
+        inputClassName,
+      )}
+      placeholder={placeholder}
     />
   );
 }
@@ -99,6 +119,10 @@ function AdminVocabContent() {
   const [showDisabled, setShowDisabled] = useState(false);
   const [page, setPage] = useState(1);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [aidsItem, setAidsItem] = useState<{
+    id: string;
+    vocabItem: string;
+  } | null>(null);
 
   const { data: counts } = useQuery(orpc.admin.vocabCounts.queryOptions({}));
 
@@ -251,10 +275,11 @@ function AdminVocabContent() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[10%]">Glyph</TableHead>
-                <TableHead className="w-[14%]">Type</TableHead>
-                <TableHead className="w-[12%]">Reading</TableHead>
-                <TableHead className="w-[38%]">Definition</TableHead>
+                <TableHead className="w-[9%]">Glyph</TableHead>
+                <TableHead className="w-[12%]">Type</TableHead>
+                <TableHead className="w-[11%]">Reading</TableHead>
+                <TableHead className="w-[32%]">Definition</TableHead>
+                <TableHead className="w-[10%]">Aids</TableHead>
                 <TableHead className="w-[14%]">Component</TableHead>
                 <TableHead className="w-[12%]">Hidden</TableHead>
               </TableRow>
@@ -263,7 +288,7 @@ function AdminVocabContent() {
               {isPending &&
                 Array.from({ length: 8 }).map((_, index) => (
                   <TableRow key={index}>
-                    {Array.from({ length: 6 }).map((__, cell) => (
+                    {Array.from({ length: 7 }).map((__, cell) => (
                       <TableCell key={cell}>
                         <Skeleton className="h-6 w-full" />
                       </TableCell>
@@ -273,7 +298,7 @@ function AdminVocabContent() {
 
               {!isPending && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center">
+                  <TableCell colSpan={7} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Mika pose="sleep" size={64} />
                       <p className="text-muted-foreground">
@@ -308,19 +333,46 @@ function AdminVocabContent() {
                     <TableCell>
                       <ItemTypeBadge type={item.vocabType} short />
                     </TableCell>
-                    <TableCell className="hanzi text-muted-foreground text-sm">
-                      {item.pinyin || (
-                        <span className="text-xs italic">none</span>
-                      )}
+                    <TableCell>
+                      <EditableCell
+                        serverValue={item.pinyin}
+                        allowEmpty
+                        isSaving={isSaving}
+                        ariaLabel={`Reading for ${item.vocabItem}`}
+                        placeholder="No reading"
+                        inputClassName="hanzi"
+                        onSave={(pinyin) =>
+                          update(item.id, { id: item.id, pinyin })
+                        }
+                      />
                     </TableCell>
                     <TableCell>
-                      <DefinitionCell
-                        item={item}
+                      <EditableCell
+                        serverValue={item.translation ?? ""}
+                        allowEmpty={false}
                         isSaving={isSaving}
+                        ariaLabel={`Definition for ${item.vocabItem}`}
+                        placeholder="No definition"
                         onSave={(translation) =>
                           update(item.id, { id: item.id, translation })
                         }
                       />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Manage memory aids for ${item.vocabItem}`}
+                        onClick={() =>
+                          setAidsItem({
+                            id: item.id,
+                            vocabItem: item.vocabItem,
+                          })
+                        }
+                      >
+                        <Lightbulb className="size-4" />
+                        Aids
+                      </Button>
                     </TableCell>
                     <TableCell>
                       {canBeComponent ? (
@@ -385,6 +437,12 @@ function AdminVocabContent() {
           </div>
         </div>
       )}
+
+      <ManageMemoryAidsDialog
+        item={aidsItem}
+        open={aidsItem !== null}
+        onOpenChange={(open) => !open && setAidsItem(null)}
+      />
     </div>
   );
 }
@@ -397,8 +455,9 @@ export default function AdminVocabPage() {
           Vocabulary
         </h1>
         <p className="text-muted-foreground mt-2">
-          Components are taught by meaning alone, so they carry no reading —
-          marking one clears its pronunciation and audio. Hidden items disappear
+          Components are taught by meaning alone, so their reading is never used
+          in study — but it is kept, not wiped, when you mark one, and both the
+          reading and definition are editable in place. Hidden items disappear
           from decompositions, search and study everywhere.
         </p>
       </div>

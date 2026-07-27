@@ -816,6 +816,7 @@ export class StudyService {
           strokes: schema.vocabItems.strokes,
           strokeMedians: schema.vocabItems.strokeMedians,
           strokeMatches: schema.vocabItems.strokeMatches,
+          defaultMemoryAidId: schema.vocabItems.defaultMemoryAidId,
           createdAt: schema.vocabItems.createdAt,
           updatedAt: schema.vocabItems.updatedAt,
           // User info
@@ -863,6 +864,23 @@ export class StudyService {
 
       const item = result[0];
 
+      // Until a learner pins their own aid, they see the glyph's starred
+      // default. The join above only carries their pick, so fall back to the
+      // default's text with one small lookup when they have none.
+      let memoryAidId = item.memoryAidId;
+      let memoryAid = item.memoryAid;
+      if (!memoryAidId && item.defaultMemoryAidId) {
+        const fallback = await this.deps.database.query.memoryAids.findFirst({
+          columns: { id: true, memoryAid: true },
+          where: (memoryAids, { eq }) =>
+            eq(memoryAids.id, item.defaultMemoryAidId!),
+        });
+        if (fallback) {
+          memoryAidId = fallback.id;
+          memoryAid = fallback.memoryAid;
+        }
+      }
+
       return {
         id: item.id,
         vocabItem: item.vocabItem,
@@ -886,8 +904,8 @@ export class StudyService {
         listeningLevel: item.listeningLevel,
         understandingLevel: item.understandingLevel,
         writingLevel: item.writingLevel,
-        memoryAidId: item.memoryAidId,
-        memoryAid: item.memoryAid,
+        memoryAidId,
+        memoryAid,
         readingNextAt: item.readingNextAt,
         listeningNextAt: item.listeningNextAt,
         understandingNextAt: item.understandingNextAt,

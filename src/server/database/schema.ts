@@ -7,6 +7,7 @@ import {
   jsonb,
   timestamp,
   bigint,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { timestampFields } from "./databaseUtils";
 import {
@@ -114,6 +115,11 @@ export const vocabItems = pgTable("vocab_items", {
   // dictionary, search, and study selection — so they behave as if deleted.
   // Driven by seed/vocab-classification.tsv; see scripts/classify-vocab.ts.
   disabled: boolean().notNull().default(false),
+  // The curated memory aid an admin has starred for this glyph. Shown first on
+  // the dictionary and used on a learner's study card until they pin their own.
+  // Nullable, and the reference is a thunk because memoryAids is declared below
+  // and points back here — a deliberate cycle Postgres allows.
+  defaultMemoryAidId: text().references((): AnyPgColumn => memoryAids.id),
   ...timestampFields,
 });
 

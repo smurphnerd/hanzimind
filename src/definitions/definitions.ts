@@ -41,6 +41,21 @@ export const MemoryAidDto = z.object({
 });
 export type MemoryAidDto = z.infer<typeof MemoryAidDto>;
 
+/**
+ * A memory aid as the admin dashboard sees it. Unlike the learner-facing DTO it
+ * carries the moderation state an admin acts on — whether it is the starred
+ * default and whether it is public — and never hides a private one.
+ */
+export const AdminMemoryAidDto = z.object({
+  id: z.string(),
+  memoryAid: z.string(),
+  createdByUsername: z.string(),
+  usageCount: z.number().int().nonnegative(),
+  isDefault: z.boolean(),
+  isPublic: z.boolean(),
+});
+export type AdminMemoryAidDto = z.infer<typeof AdminMemoryAidDto>;
+
 export const VocabItemDto = z.object({
   id: z.string(),
   vocabItem: z.string(),
@@ -91,6 +106,8 @@ export const VocabItemDetailedDto = VocabItemDto.extend({
   memoryAids: z.array(MemoryAidDto).nullable(),
   /** Total number of memory aids visible to the viewer, not just the current page. */
   memoryAidTotal: z.number().int().nonnegative(),
+  /** The starred aid, if any — sorted to the front of `memoryAids` and shown with a star. */
+  defaultMemoryAidId: z.string().nullable(),
   constituents: z.array(z.string()).nullable(),
 });
 export type VocabItemDetailedDto = z.infer<typeof VocabItemDetailedDto>;

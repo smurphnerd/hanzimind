@@ -5,13 +5,7 @@ import type { Logger } from "pino";
 
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
-import type { TranslatorService } from "@/server/services/TranslatorService";
-import type { TTSService } from "@/server/services/TTSService";
-import {
-  AdminVocabItemDto,
-  type VocabType,
-  VocabTypeEnum,
-} from "@/definitions/definitions";
+import { AdminVocabItemDto, type VocabType } from "@/definitions/definitions";
 
 /**
  * Reads and writes the vocabulary classification for the admin screen.
@@ -26,8 +20,6 @@ export class AdminService {
     private deps: {
       logger: Logger;
       database: Drizzle;
-      translator: TranslatorService;
-      tts: TTSService;
     },
   ) {}
 
@@ -137,16 +129,19 @@ export class AdminService {
   /**
    * Applies an admin's edit.
    *
-   * Changing the type carries the reading with it, because "a component has no
-   * pronunciation" is an invariant of the data, not just of the UI — a stored
-   * reading would still surface through pinyin search. Going to `component`
-   * clears it; coming back regenerates it.
+   * The reading is edited explicitly and is never touched as a side effect of a
+   * type or hidden toggle. A component is meaning-only, but that is enforced
+   * where cards are served — canStudy gates on the type, and readingOf blanks a
+   * component's reading regardless of what is stored (see study-rules) — so a
+   * stored pinyin on a component is harmless, and silently wiping it on a toggle
+   * only destroyed data the admin then had to retype to undo the mistake.
    */
   async updateVocabItem(args: {
     id: string;
     vocabType?: VocabType;
     disabled?: boolean;
     translation?: string;
+    pinyin?: string;
   }): Promise<AdminVocabItemDto> {
     const existing = await this.deps.database.query.vocabItems.findFirst({
       where: (vocabItems, { eq }) => eq(vocabItems.id, args.id),
@@ -161,7 +156,6 @@ export class AdminService {
       disabled?: boolean;
       translation?: string;
       pinyin?: string;
-      audioUrl?: string;
     } = {};
 
     if (args.disabled !== undefined) {
@@ -181,17 +175,15 @@ export class AdminService {
       update.translation = translation;
     }
 
+    if (args.pinyin !== undefined) {
+      // An empty reading is legitimate — a bound form or a glyph with no
+      // romanisation has none, and the study rules already read "" as "no
+      // reading cards", so this does not need the definition's non-empty guard.
+      update.pinyin = args.pinyin.trim();
+    }
+
     if (args.vocabType && args.vocabType !== existing.vocabType) {
       update.vocabType = args.vocabType;
-
-      if (args.vocabType === VocabTypeEnum.enum.component) {
-        update.pinyin = "";
-        update.audioUrl = "";
-      } else if (existing.vocabType === VocabTypeEnum.enum.component) {
-        const restored = await this.restoreReading(existing.vocabItem);
-        update.pinyin = restored.pinyin;
-        update.audioUrl = restored.audioUrl;
-      }
     }
 
     if (Object.keys(update).length === 0) {
@@ -230,40 +222,6 @@ export class AdminService {
     );
 
     return updated;
-  }
-
-  /**
-   * Rebuilds the reading of an item promoted out of `component`.
-   *
-   * The stored values were blanked when it became a component, so they cannot be
-   * recovered from the row. pinyin-pro derives the reading from the glyph, and
-   * TTS regenerates the audio; a glyph with no romanisation comes back as
-   * itself, which the study rules already treat as "no reading".
-   */
-  private async restoreReading(
-    vocabItem: string,
-  ): Promise<{ pinyin: string; audioUrl: string }> {
-    const pinyin = this.deps.translator.getPinyin(vocabItem);
-
-    if (!pinyin || pinyin === vocabItem) {
-      this.deps.logger.warn(
-        { vocabItem },
-        "No reading available when restoring from component; leaving it blank",
-      );
-      return { pinyin: "", audioUrl: "" };
-    }
-
-    try {
-      return { pinyin, audioUrl: await this.deps.tts.getVocabAudio(vocabItem) };
-    } catch (error) {
-      // The reading is still worth keeping without audio — it only costs the
-      // item its listening cards, and regenerate-audio.ts can fill the gap.
-      this.deps.logger.warn(
-        { error, vocabItem },
-        "Failed to regenerate audio when restoring from component",
-      );
-      return { pinyin, audioUrl: "" };
-    }
   }
 
   /** Bulk reclassification, for fixing a batch of glyphs in one go. */

@@ -15,6 +15,7 @@ import type { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import type { TranslatorService } from "@/server/services/TranslatorService";
 import type { TTSService } from "@/server/services/TTSService";
 import {
+  type AdminMemoryAidDto,
   MemoryAidDto,
   VocabTypeEnum,
   type VocabType,
@@ -34,7 +35,11 @@ export class VocabService {
     },
   ) {}
 
-  async getVocabItem(vocabItem: string): Promise<VocabItemDto> {
+  // The whole row, so callers can read admin-only columns like
+  // defaultMemoryAidId that the learner-facing VocabItemDto omits.
+  async getVocabItem(
+    vocabItem: string,
+  ): Promise<typeof schema.vocabItems.$inferSelect> {
     const vocabItemRes = await this.deps.database.query.vocabItems.findFirst({
       // Disabled items are treated as if they did not exist, so this throws for
       // them exactly as it does for an unknown glyph.
@@ -64,6 +69,9 @@ export class VocabService {
         limit: args.memoryAidPageSize,
         offset,
         viewerId: args.viewerId,
+        // Pin the starred aid to the front, so it lands on page 1 regardless of
+        // how many people happen to use it.
+        defaultMemoryAidId: vocabItem.defaultMemoryAidId,
       }),
       this.countMemoryAids({
         vocabItemId: vocabItem.id,
@@ -90,6 +98,7 @@ export class VocabService {
       updatedAt: vocabItem.updatedAt,
       memoryAids,
       memoryAidTotal,
+      defaultMemoryAidId: vocabItem.defaultMemoryAidId,
       constituents: await this.getVocabItemParts({
         vocabItem: vocabItem.vocabItem,
         vocabType: vocabItem.vocabType,
@@ -139,7 +148,15 @@ export class VocabService {
     offset: number;
     /** When set, this user's own private aids are included alongside public ones. */
     viewerId?: string;
+    /** When set, this aid sorts ahead of everything else regardless of usage. */
+    defaultMemoryAidId?: string | null;
   }): Promise<MemoryAidDto[]> {
+    // A CASE that is 1 for the starred aid and 0 otherwise, sorted first, so the
+    // default always lands on page 1 no matter how few people use it.
+    const isDefaultRank = args.defaultMemoryAidId
+      ? sql<number>`(case when ${memoryAids.id} = ${args.defaultMemoryAidId} then 1 else 0 end)`
+      : sql<number>`0`;
+
     const rows = await this.deps.database
       .select({
         // Select all fields from memoryAids
@@ -161,7 +178,7 @@ export class VocabService {
         }),
       )
       .groupBy(memoryAids.id, users.id)
-      .orderBy(desc(count(userVocabItems.userId)))
+      .orderBy(desc(isDefaultRank), desc(count(userVocabItems.userId)))
       .limit(args.limit)
       .offset(args.offset);
 
@@ -178,6 +195,8 @@ export class VocabService {
     vocabItemId: string;
     userId: string;
     memoryAid: string;
+    /** Curated admin aids are public immediately; a learner's own start private. */
+    public?: boolean;
   }): Promise<MemoryAidDto> {
     const [memoryAidRow] = await this.deps.database
       .insert(memoryAids)
@@ -185,7 +204,7 @@ export class VocabService {
         vocabItemId: args.vocabItemId,
         createdById: args.userId,
         memoryAid: args.memoryAid,
-        public: false,
+        public: args.public ?? false,
       })
       .returning();
 
@@ -204,6 +223,89 @@ export class VocabService {
       createdByUsername: user?.name ?? "Anonymous",
       usageCount: 0,
     };
+  }
+
+  /**
+   * Every memory aid on a glyph, as an admin sees it — private ones included,
+   * each tagged with its usage, whether it is public, and whether it is the
+   * starred default. Ordered default first, then by usage.
+   */
+  async listMemoryAidsForItemAdmin(
+    vocabItemId: string,
+  ): Promise<{ items: AdminMemoryAidDto[]; defaultMemoryAidId: string | null }> {
+    const item = await this.deps.database.query.vocabItems.findFirst({
+      columns: { defaultMemoryAidId: true },
+      where: (vocabItems, { eq }) => eq(vocabItems.id, vocabItemId),
+    });
+
+    if (!item) {
+      throw new Error(`Vocab item not found: ${vocabItemId}`);
+    }
+
+    const defaultMemoryAidId = item.defaultMemoryAidId;
+    const isDefaultRank = defaultMemoryAidId
+      ? sql<number>`(case when ${memoryAids.id} = ${defaultMemoryAidId} then 1 else 0 end)`
+      : sql<number>`0`;
+
+    const rows = await this.deps.database
+      .select({
+        id: memoryAids.id,
+        memoryAid: memoryAids.memoryAid,
+        isPublic: memoryAids.public,
+        createdByUsername: users.name,
+        usageCount: count(userVocabItems.userId).as("usage_count"),
+      })
+      .from(memoryAids)
+      .leftJoin(users, eq(memoryAids.createdById, users.id))
+      .leftJoin(userVocabItems, eq(memoryAids.id, userVocabItems.memoryAidId))
+      .where(eq(memoryAids.vocabItemId, vocabItemId))
+      .groupBy(memoryAids.id, users.id)
+      .orderBy(desc(isDefaultRank), desc(count(userVocabItems.userId)));
+
+    const items = rows.map((row) => ({
+      id: row.id,
+      memoryAid: row.memoryAid,
+      createdByUsername: row.createdByUsername ?? "Anonymous",
+      usageCount: row.usageCount,
+      isPublic: row.isPublic,
+      isDefault: row.id === defaultMemoryAidId,
+    }));
+
+    return { items, defaultMemoryAidId };
+  }
+
+  /**
+   * Star an aid as the glyph's default, or clear the star with null.
+   *
+   * The aid must belong to the glyph — otherwise a stray id would set a default
+   * that the dictionary query could never surface, leaving a glyph that claims a
+   * default it never shows.
+   */
+  async setDefaultMemoryAid(args: {
+    vocabItemId: string;
+    memoryAidId: string | null;
+  }): Promise<{ defaultMemoryAidId: string | null }> {
+    if (args.memoryAidId !== null) {
+      const aid = await this.deps.database.query.memoryAids.findFirst({
+        columns: { id: true },
+        where: (memoryAids, { and, eq }) =>
+          and(
+            eq(memoryAids.id, args.memoryAidId!),
+            eq(memoryAids.vocabItemId, args.vocabItemId),
+          ),
+      });
+
+      if (!aid) {
+        throw new Error("That memory aid does not belong to this glyph");
+      }
+    }
+
+    await this.deps.database
+      .update(schema.vocabItems)
+      .set({ defaultMemoryAidId: args.memoryAidId })
+      .where(eq(schema.vocabItems.id, args.vocabItemId));
+
+    return { defaultMemoryAidId: args.memoryAidId };
   }
 
   /**

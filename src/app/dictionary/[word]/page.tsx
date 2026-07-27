@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, Flag, Lightbulb, Plus } from "lucide-react";
+import { ChevronLeft, Flag, Lightbulb, Plus, Star } from "lucide-react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import { VocabEntryDetail } from "@/components/vocab-entry";
 import { EmptyState } from "@/components/empty-state";
 import type { MemoryAidDto } from "@/definitions/definitions";
+import { cn } from "@/lib/utils";
 
 function DictionaryWordContent() {
   const orpc = useORPC();
@@ -84,22 +85,40 @@ function DictionaryWordContent() {
           {memoryAids.length > 0 ? (
             <>
               <div className="mb-6 space-y-4">
-                {memoryAids.map((mnemonic, index) => (
+                {memoryAids.map((mnemonic, index) => {
+                  const isDefault =
+                    mnemonic.id === vocabData.defaultMemoryAidId;
+                  return (
                   <div
                     key={mnemonic.id}
-                    className="border-border border-b pb-4 last:border-b-0 last:pb-0"
+                    className={cn(
+                      "border-border border-b pb-4 last:border-b-0 last:pb-0",
+                      isDefault && "bg-secondary/40 -mx-3 rounded-2xl border-b-0 px-3 py-3",
+                    )}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <p className="text-foreground mb-2">
-                          <span className="font-display text-primary mr-2 text-lg font-bold tabular-nums">
-                            {index + 1}.
-                          </span>
+                          {isDefault ? (
+                            <span className="text-primary mr-2 inline-flex translate-y-0.5">
+                              <Star className="size-5 fill-current" />
+                            </span>
+                          ) : (
+                            <span className="font-display text-primary mr-2 text-lg font-bold tabular-nums">
+                              {index + 1}.
+                            </span>
+                          )}
                           &ldquo;{mnemonic.memoryAid}&rdquo;
                         </p>
                         <p className="text-muted-foreground text-sm">
-                          Saved by {mnemonic.usageCount} users • by{" "}
-                          {mnemonic.createdByUsername}
+                          {isDefault ? (
+                            <span className="text-primary font-display font-bold">
+                              Official pick
+                            </span>
+                          ) : (
+                            <>Saved by {mnemonic.usageCount} users</>
+                          )}{" "}
+                          • by {mnemonic.createdByUsername}
                         </p>
                       </div>
                       <Button
@@ -113,7 +132,8 @@ function DictionaryWordContent() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="flex flex-wrap gap-3">
                 {vocabData.memoryAidTotal > memoryAids.length && (

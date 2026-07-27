@@ -7,7 +7,14 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Volume2, ArrowRight, BookOpen, Plus, Check } from "lucide-react";
+import {
+  Volume2,
+  ArrowRight,
+  BookOpen,
+  Plus,
+  Check,
+  Lightbulb,
+} from "lucide-react";
 import Link from "next/link";
 import pinyinTone from "pinyin-tone";
 import { toast } from "sonner";
@@ -459,6 +466,18 @@ function ResultCard({
                 </div>
                 <p className="text-lg">{userVocabItem.translation}</p>
               </div>
+
+              {userVocabItem.memoryAid && (
+                <div className="border-border border-t pt-4">
+                  <div className="text-primary mb-1 inline-flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase">
+                    <Lightbulb className="size-3.5" />
+                    Remember it
+                  </div>
+                  <p className="text-foreground">
+                    &ldquo;{userVocabItem.memoryAid}&rdquo;
+                  </p>
+                </div>
+              )}
 
               {userVocabItem.vocabType === "character" &&
                 userVocabItem.constituents.length > 0 && (
