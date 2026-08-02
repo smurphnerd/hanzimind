@@ -5,9 +5,15 @@ import type { Logger } from "pino";
 
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
+import {
+  buildDecompositionIndex,
+  extractDeckGraph,
+} from "@/server/decomposition-graph";
+import { readingOf } from "@/server/study-rules";
 import type {
   DeckDto,
   DeckDetailedDto,
+  DeckGraphDto,
   DeckTypeCountsDto,
 } from "@/definitions/definitions";
 
@@ -155,15 +161,13 @@ export class DeckService {
       eq(schema.vocabItems.disabled, false),
     );
 
-    const vocabItems = await this.deps.database
+    const rows = await this.deps.database
       .select({
         id: schema.vocabItems.id,
         vocabItem: schema.vocabItems.vocabItem,
         translation: schema.vocabItems.translation,
         vocabType: schema.vocabItems.vocabType,
-        // Both are `""` for components by design, so the preview can pronounce a
-        // row without a second round-trip and stay silent where there is nothing
-        // to say.
+        phonetic: schema.vocabItems.phonetic,
         pinyin: schema.vocabItems.pinyin,
         audioUrl: schema.vocabItems.audioUrl,
       })
@@ -178,7 +182,55 @@ export class DeckService {
       // loads of the same deck.
       .orderBy(schema.vocabItems.vocabItem);
 
+    // A component that is not phonetic has no reading of its own, but plenty of
+    // rows still store the dictionary's borrowed one. readingOf is the single
+    // place that decides, so the preview cannot pronounce 亻 as 人.
+    const vocabItems = rows.map(({ phonetic, ...row }) => ({
+      ...row,
+      ...readingOf({ ...row, phonetic, translation: row.translation }),
+    }));
+
     return { ...deck, vocabItems };
+  }
+
+  /**
+   * A deck as one graph: every item, every decomposition edge between two items of
+   * the deck, and each node's depth in the deck's unlock order.
+   *
+   * One query and no cache. Unlike the corpus-wide graph this is a few hundred rows
+   * scoped by an indexed join, and a deck's membership changes under an editor's
+   * hands, so a stale index here would show someone a deck they no longer have.
+   *
+   * Edges are deliberately confined to the deck. A part outside it cannot be
+   * learned here and so does not gate — the same rule `isUnlocked` applies — which
+   * is why the levels this produces are the deck's real teaching order rather than
+   * a projection of the corpus.
+   */
+  async getDeckGraph(args: { deckId: string }): Promise<DeckGraphDto> {
+    const rows = await this.deps.database
+      .select({
+        vocabItem: schema.vocabItems.vocabItem,
+        vocabType: schema.vocabItems.vocabType,
+        pinyin: schema.vocabItems.pinyin,
+        translation: schema.vocabItems.translation,
+        decomposition: schema.vocabItems.decomposition,
+      })
+      .from(schema.deckVocabItems)
+      .innerJoin(
+        schema.vocabItems,
+        eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+      )
+      .where(
+        and(
+          eq(schema.deckVocabItems.deckId, args.deckId),
+          // Disabled rows are absent from every read path, and because the
+          // layering below is built from this same result set, they also stop
+          // gating the characters they used to be part of.
+          eq(schema.vocabItems.disabled, false),
+        ),
+      );
+
+    return extractDeckGraph(buildDecompositionIndex(rows));
   }
 
   async getUserDecks(args: {

@@ -23,10 +23,11 @@ import {
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ManageMemoryAidsDialog } from "@/components/manage-memory-aids-dialog";
+import { ScriptBadge } from "@/components/script-badge";
 import { Mika } from "@/components/mika";
 import { useORPC } from "@/lib/orpc.client";
 import { cn } from "@/lib/utils";
-import type { VocabType } from "@/definitions/definitions";
+import type { Script, VocabType } from "@/definitions/definitions";
 import { Lightbulb } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -37,6 +38,15 @@ const TYPE_FILTERS: { label: string; value: VocabType | "all" }[] = [
   { label: "Characters", value: "character" },
   { label: "Words", value: "compound" },
   { label: "Sentences", value: "sentence" },
+];
+
+// `both` is the majority — a glyph written the same way in either script — so the
+// interesting filters are the two that name a glyph with a distinct counterpart.
+const SCRIPT_FILTERS: { label: string; value: Script | "all" }[] = [
+  { label: "Any script", value: "all" },
+  { label: "Simplified", value: "simplified" },
+  { label: "Traditional", value: "traditional" },
+  { label: "Same in both", value: "both" },
 ];
 
 /**
@@ -116,6 +126,7 @@ function AdminVocabContent() {
   const [search, setSearch] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<VocabType | "all">("component");
+  const [scriptFilter, setScriptFilter] = useState<Script | "all">("all");
   const [showDisabled, setShowDisabled] = useState(false);
   const [page, setPage] = useState(1);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -131,6 +142,7 @@ function AdminVocabContent() {
       input: {
         search: activeSearch || undefined,
         vocabType: typeFilter === "all" ? undefined : typeFilter,
+        script: scriptFilter === "all" ? undefined : scriptFilter,
         // `undefined` means "both"; the toggle narrows to just the hidden ones.
         disabled: showDisabled ? true : undefined,
         page,
@@ -254,6 +266,21 @@ function AdminVocabContent() {
             }}
           />
         </div>
+        <div className="flex flex-wrap gap-1">
+          {SCRIPT_FILTERS.map((filter) => (
+            <Button
+              key={filter.value}
+              variant={scriptFilter === filter.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setScriptFilter(filter.value);
+                setPage(1);
+              }}
+            >
+              {filter.label}
+            </Button>
+          ))}
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <Switch
             checked={showDisabled}
@@ -275,20 +302,22 @@ function AdminVocabContent() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[9%]">Glyph</TableHead>
-                <TableHead className="w-[12%]">Type</TableHead>
-                <TableHead className="w-[11%]">Reading</TableHead>
-                <TableHead className="w-[32%]">Definition</TableHead>
-                <TableHead className="w-[10%]">Aids</TableHead>
-                <TableHead className="w-[14%]">Component</TableHead>
-                <TableHead className="w-[12%]">Hidden</TableHead>
+                <TableHead className="w-[7%]">Glyph</TableHead>
+                <TableHead className="w-[9%]">Type</TableHead>
+                <TableHead className="w-[10%]">Script</TableHead>
+                <TableHead className="w-[9%]">Reading</TableHead>
+                <TableHead className="w-[25%]">Definition</TableHead>
+                <TableHead className="w-[8%]">Aids</TableHead>
+                <TableHead className="w-[11%]">Component</TableHead>
+                <TableHead className="w-[11%]">Phonetic</TableHead>
+                <TableHead className="w-[10%]">Hidden</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isPending &&
                 Array.from({ length: 8 }).map((_, index) => (
                   <TableRow key={index}>
-                    {Array.from({ length: 7 }).map((__, cell) => (
+                    {Array.from({ length: 9 }).map((__, cell) => (
                       <TableCell key={cell}>
                         <Skeleton className="h-6 w-full" />
                       </TableCell>
@@ -298,7 +327,7 @@ function AdminVocabContent() {
 
               {!isPending && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center">
+                  <TableCell colSpan={9} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Mika pose="sleep" size={64} />
                       <p className="text-muted-foreground">
@@ -332,6 +361,9 @@ function AdminVocabContent() {
                     </TableCell>
                     <TableCell>
                       <ItemTypeBadge type={item.vocabType} short />
+                    </TableCell>
+                    <TableCell>
+                      <ScriptBadge script={item.script} />
                     </TableCell>
                     <TableCell>
                       <EditableCell
@@ -385,6 +417,22 @@ function AdminVocabContent() {
                               id: item.id,
                               vocabType: checked ? "component" : "character",
                             })
+                          }
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Only a component has a reading worth *not* teaching:
+                          everything else is quizzed on its own pinyin anyway. */}
+                      {item.vocabType === "component" ? (
+                        <Switch
+                          checked={item.phonetic}
+                          disabled={isSaving}
+                          aria-label={`Teach the sound of ${item.vocabItem}`}
+                          onCheckedChange={(checked) =>
+                            update(item.id, { id: item.id, phonetic: checked })
                           }
                         />
                       ) : (
@@ -455,10 +503,14 @@ export default function AdminVocabPage() {
           Vocabulary
         </h1>
         <p className="text-muted-foreground mt-2">
-          Components are taught by meaning alone, so their reading is never used
-          in study — but it is kept, not wiped, when you mark one, and both the
-          reading and definition are editable in place. Hidden items disappear
-          from decompositions, search and study everywhere.
+          Every component is taught by meaning. <strong>Phonetic</strong> adds
+          sound: right for 艮 behind 很/跟/根, wrong for 亻, whose
+          &ldquo;rén&rdquo; is borrowed from 人. Most components store a borrowed
+          reading, so the two are separate switches — a reading is only ever
+          quizzed when Phonetic is on, and turning it off hides the reading
+          everywhere rather than deleting it. The next classification backfill
+          resets Phonetic from the seed file. Hidden items disappear from
+          decompositions, search and study everywhere.
         </p>
       </div>
 

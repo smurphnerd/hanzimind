@@ -22,10 +22,10 @@ import {
 import {
   canStudy,
   isUnlocked,
-  pronounceableType,
   readingOf,
   servableStudyTypes,
   weakestServableLevel,
+  writableType,
   VOCAB_TYPE_PRIORITY,
   type StudiableItem,
 } from "@/server/study-rules";
@@ -385,8 +385,8 @@ export class StudyService {
 
       // getNextVocabItem never offers a card the item can't answer, but the
       // client sends the study type back, so a stale tab or a crafted request
-      // could otherwise advance e.g. readingLevel on a component using the
-      // borrowed parent pinyin. Re-check server-side.
+      // could otherwise advance e.g. writingLevel on a component, which no
+      // pinyin IME can produce. Re-check server-side.
       if (
         answer.studyType !== "new" &&
         !canStudy(vocabItem, answer.studyType)
@@ -571,9 +571,13 @@ export class StudyService {
           pinyin: schema.vocabItems.pinyin,
           audioUrl: schema.vocabItems.audioUrl,
           vocabType: schema.vocabItems.vocabType,
+          phonetic: schema.vocabItems.phonetic,
+          script: schema.vocabItems.script,
           decomposition: schema.vocabItems.decomposition,
           etymologyHint: schema.vocabItems.etymologyHint,
           etymologyType: schema.vocabItems.etymologyType,
+          etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
+          etymologySemantic: schema.vocabItems.etymologySemantic,
           radical: schema.vocabItems.radical,
           strokes: schema.vocabItems.strokes,
           strokeMedians: schema.vocabItems.strokeMedians,
@@ -730,10 +734,13 @@ export class StudyService {
           translation: selectedItem.translation,
           pinyin: readingOf(selectedItem).pinyin,
           vocabType: selectedItem.vocabType,
+          script: selectedItem.script,
           audioUrl: readingOf(selectedItem).audioUrl,
           decomposition: selectedItem.decomposition,
           etymologyHint: selectedItem.etymologyHint,
           etymologyType: selectedItem.etymologyType,
+          etymologyPhonetic: selectedItem.etymologyPhonetic,
+          etymologySemantic: selectedItem.etymologySemantic,
           radical: selectedItem.radical,
           strokes: selectedItem.strokes,
           strokeMedians: selectedItem.strokeMedians,
@@ -757,14 +764,14 @@ export class StudyService {
           id: selectedItem.id,
           studyType: "reading",
           vocabItem: selectedItem.vocabItem,
-          vocabType: pronounceableType(selectedItem, studyType),
+          vocabType: selectedItem.vocabType,
         };
       } else if (studyType === "listening") {
         return {
           id: selectedItem.id,
           studyType: "listening",
           audioUrl: selectedItem.audioUrl,
-          vocabType: pronounceableType(selectedItem, studyType),
+          vocabType: selectedItem.vocabType,
         };
       } else if (studyType === "understanding") {
         return {
@@ -780,7 +787,7 @@ export class StudyService {
           id: selectedItem.id,
           studyType: "writing",
           translation: selectedItem.translation,
-          vocabType: pronounceableType(selectedItem, studyType),
+          vocabType: writableType(selectedItem, studyType),
         };
       }
     } catch (error) {
@@ -808,10 +815,14 @@ export class StudyService {
           translation: schema.vocabItems.translation,
           pinyin: schema.vocabItems.pinyin,
           vocabType: schema.vocabItems.vocabType,
+          script: schema.vocabItems.script,
           audioUrl: schema.vocabItems.audioUrl,
+          phonetic: schema.vocabItems.phonetic,
           decomposition: schema.vocabItems.decomposition,
           etymologyHint: schema.vocabItems.etymologyHint,
           etymologyType: schema.vocabItems.etymologyType,
+          etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
+          etymologySemantic: schema.vocabItems.etymologySemantic,
           radical: schema.vocabItems.radical,
           strokes: schema.vocabItems.strokes,
           strokeMedians: schema.vocabItems.strokeMedians,
@@ -887,10 +898,13 @@ export class StudyService {
         translation: item.translation,
         pinyin: readingOf(item).pinyin,
         vocabType: item.vocabType,
+        script: item.script,
         audioUrl: readingOf(item).audioUrl,
         decomposition: item.decomposition,
         etymologyHint: item.etymologyHint,
         etymologyType: item.etymologyType,
+        etymologyPhonetic: item.etymologyPhonetic,
+        etymologySemantic: item.etymologySemantic,
         radical: item.radical,
         strokes: item.strokes,
         strokeMedians: item.strokeMedians,
@@ -997,6 +1011,7 @@ export class StudyService {
           pinyin: schema.vocabItems.pinyin,
           translation: schema.vocabItems.translation,
           audioUrl: schema.vocabItems.audioUrl,
+          phonetic: schema.vocabItems.phonetic,
           decomposition: schema.vocabItems.decomposition,
           seen: schema.userVocabItems.seen,
           readingLevel: schema.userVocabItems.readingLevel,

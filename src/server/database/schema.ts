@@ -12,6 +12,7 @@ import {
 import { timestampFields } from "./databaseUtils";
 import {
   EtymologyType,
+  Script,
   SuggestionKind,
   SuggestionStatus,
   VocabType,
@@ -102,10 +103,35 @@ export const vocabItems = pgTable("vocab_items", {
   translation: text(),
   pinyin: text().notNull(),
   vocabType: text().notNull().$type<VocabType>(),
+  // Whether this component's own reading is worth teaching, because it is the
+  // SOUND part of the characters it appears in (艮 gěn -> 很 跟 根 恨). False for
+  // every other component and for everything that is not a component.
+  //
+  // Deliberately a flag rather than "has a non-empty pinyin". A bound form's
+  // dictionary reading is borrowed from the full character it abbreviates (亻
+  // gets 人's "rén"), and 97 rows in production still carry one from before the
+  // component work, so the presence of a reading says nothing about whether it
+  // should be taught. Set from vocab-classification.tsv; readingOf hides the
+  // reading of anything this is false for, so a stale value is inert.
+  phonetic: boolean().notNull().default(false),
+  // Which script this item is written in: `simplified`/`traditional` mean it has a
+  // distinct counterpart in the other script (国 <-> 國) and so does not belong in
+  // the other script's deck; `both` means the glyph is identical in both (人, 大),
+  // which is over half the dictionary. Defaults to `both` because that is the
+  // neutral answer — a row nobody has classified is hidden from no one — but the
+  // seed and the backfill both set it explicitly from script-classification.tsv.
+  script: text().notNull().$type<Script>().default("both"),
   audioUrl: text().notNull(),
   decomposition: text(), // Used for characters
   etymologyHint: text(), // Used for characters
   etymologyType: text().$type<EtymologyType>(), // Used for characters
+  // For a pictophonetic character, which of its parts supplied the sound and
+  // which supplied the meaning — 沐 is 氵 (meaning, water) + 木 (sound, mù). The
+  // dictionary names them per character, because the role belongs to the pair,
+  // not to the part: 山 is the meaning in 峰 and the sound in 仙 xiān. Null on
+  // anything that is not a pictophonetic character.
+  etymologyPhonetic: text(),
+  etymologySemantic: text(),
   radical: text(), // Used for characters
   strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
   strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes

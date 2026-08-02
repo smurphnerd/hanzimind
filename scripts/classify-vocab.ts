@@ -1,5 +1,7 @@
 /**
- * ONE-TIME MIGRATION — ALREADY RUN. Prefer the admin UI at /admin/vocab.
+ * ONE-TIME MIGRATION — ALREADY RUN. Prefer scripts/backfill-classification.ts,
+ * which brings a live database up to date with the same files ADDITIVELY, or the
+ * admin UI at /admin/vocab for a single glyph.
  *
  * Applies src/server/database/seed/vocab-classification.tsv to an existing
  * database: marks bound radical forms as `component`, hides `disabled` glyphs,
@@ -37,6 +39,19 @@ interface DictionaryEntry {
   pinyin?: string[];
 }
 
+/** dictionary.txt keyed by glyph — the source the seed reads readings from. */
+const loadDictionary = () =>
+  new Map(
+    readFileSync(
+      join(process.cwd(), "src/server/database/seed/dictionary.txt"),
+      "utf-8",
+    )
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as DictionaryEntry)
+      .map((entry) => [entry.character, entry] as const),
+  );
+
 async function main() {
   const logger = pino({ transport: { target: "pino-pretty" } });
 
@@ -57,6 +72,11 @@ async function main() {
   const components = [...classification]
     .filter(([, entry]) => entry.decision === "component")
     .map(([glyph]) => glyph);
+  // Components whose reading is their own and predicts the series they head
+  // (艮 gěn behind 很, 跟, 根). They keep the pinyin every other component loses.
+  const phonetic = [...classification]
+    .filter(([, entry]) => entry.decision === "component" && entry.phonetic)
+    .map(([glyph]) => glyph);
   const disabled = [...classification]
     .filter(([, entry]) => entry.decision === "disabled")
     .map(([glyph]) => glyph);
@@ -74,7 +94,9 @@ async function main() {
         disabled: schema.vocabItems.disabled,
       })
       .from(schema.vocabItems)
-      .where(inArray(schema.vocabItems.vocabItem, [...components, ...disabled]));
+      .where(
+        inArray(schema.vocabItems.vocabItem, [...components, ...disabled]),
+      );
 
     const toComponent = affected.filter(
       (row) => classification.get(row.vocabItem)?.decision === "component",
@@ -82,10 +104,7 @@ async function main() {
     const toDisable = affected.filter(
       (row) => classification.get(row.vocabItem)?.decision === "disabled",
     );
-    const missing =
-      components.length +
-      disabled.length -
-      affected.length;
+    const missing = components.length + disabled.length - affected.length;
 
     logger.info(
       {
@@ -129,21 +148,12 @@ async function main() {
     )
     .returning({ vocabItem: schema.vocabItems.vocabItem });
 
+  const dictionary = loadDictionary();
+
   // Demoting a glyph to `component` blanked its pinyin, audio and gloss, so
   // promoting it back has to put them there again — read them from the same
   // dictionary the seed uses, since the database no longer holds them.
   if (restoredType.length > 0) {
-    const dictionary = new Map(
-      readFileSync(
-        join(process.cwd(), "src/server/database/seed/dictionary.txt"),
-        "utf-8",
-      )
-        .split("\n")
-        .filter((line) => line.trim())
-        .map((line) => JSON.parse(line) as DictionaryEntry)
-        .map((entry) => [entry.character, entry]),
-    );
-
     for (const { vocabItem } of restoredType) {
       const entry = dictionary.get(vocabItem);
       if (!entry) {
@@ -186,15 +196,20 @@ async function main() {
       .returning({ vocabItem: schema.vocabItems.vocabItem });
     logger.info({ count: updated.length }, "Marked components");
 
-    // A component carries no reading and no audio — the dictionary's values are
-    // borrowed from its parent (亻 gets 人's "rén"), which is worse than nothing.
-    // Same transform the seed applies, so the two states match exactly.
+    // A plain component carries no reading and no audio — the dictionary's
+    // values are borrowed from its parent (亻 gets 人's "rén"), which is worse
+    // than nothing. A phonetic one is exempt: its reading is its own and is the
+    // clue to the series it heads. Same transform the seed applies, so the two
+    // states match exactly.
     const cleared = await database
       .update(schema.vocabItems)
       .set({ pinyin: "", audioUrl: "" })
       .where(
         and(
           eq(schema.vocabItems.vocabType, "component"),
+          phonetic.length > 0
+            ? notInArray(schema.vocabItems.vocabItem, phonetic)
+            : sql`true`,
           or(
             ne(schema.vocabItems.pinyin, ""),
             ne(schema.vocabItems.audioUrl, ""),
@@ -202,9 +217,44 @@ async function main() {
         ),
       )
       .returning({ vocabItem: schema.vocabItems.vocabItem });
-    logger.info({ count: cleared.length }, "Cleared component pinyin and audio");
+    logger.info(
+      { count: cleared.length },
+      "Cleared component pinyin and audio",
+    );
 
-    // Components are quizzed on meaning alone, so one with no gloss could never
+    // ...and the mirror image: a phonetic component that was blanked by an
+    // earlier run gets its reading back from the dictionary. Audio is a separate
+    // job — regenerate-audio.ts picks it up from the restored pinyin.
+    let readable = 0;
+    for (const glyph of phonetic) {
+      const reading = dictionary.get(glyph)?.pinyin?.[0];
+      if (!reading) {
+        logger.warn(
+          { glyph },
+          "Phonetic component has no dictionary reading — left blank",
+        );
+        continue;
+      }
+      const updated = await database
+        .update(schema.vocabItems)
+        .set({ pinyin: reading })
+        .where(
+          and(
+            eq(schema.vocabItems.vocabItem, glyph),
+            eq(schema.vocabItems.pinyin, ""),
+          ),
+        )
+        .returning({ vocabItem: schema.vocabItems.vocabItem });
+      readable += updated.length;
+    }
+    if (readable > 0) {
+      logger.warn(
+        { count: readable },
+        "Restored phonetic component readings — re-run the audio generation script for their audio",
+      );
+    }
+
+    // Components are always quizzed on meaning, so one with no gloss could never
     // be served. Where the dictionary has none, the TSV supplies it.
     for (const [glyph, entry] of classification) {
       if (entry.decision !== "component" || !entry.gloss) continue;
@@ -214,18 +264,13 @@ async function main() {
         .where(eq(schema.vocabItems.vocabItem, glyph));
     }
 
-    // Levels for study types a component can no longer be served for would
-    // otherwise sit in the scheduler forever. Reset them and their due dates.
-    const reset = await database
+    // Writing is unreachable for every component, and reading/listening for the
+    // meaning-only ones; levels left behind would sit in the scheduler forever.
+    // A phonetic component keeps its reading and listening progress.
+    const mute = components.filter((glyph) => !phonetic.includes(glyph));
+    const resetWriting = await database
       .update(schema.userVocabItems)
-      .set({
-        readingLevel: 0,
-        listeningLevel: 0,
-        writingLevel: 0,
-        readingNextAt: null,
-        listeningNextAt: null,
-        writingNextAt: null,
-      })
+      .set({ writingLevel: 0, writingNextAt: null })
       .from(schema.vocabItems)
       .where(
         and(
@@ -234,10 +279,31 @@ async function main() {
         ),
       )
       .returning({ userId: schema.userVocabItems.userId });
-    if (reset.length > 0) {
+
+    const resetReading = mute.length
+      ? await database
+          .update(schema.userVocabItems)
+          .set({
+            readingLevel: 0,
+            listeningLevel: 0,
+            readingNextAt: null,
+            listeningNextAt: null,
+          })
+          .from(schema.vocabItems)
+          .where(
+            and(
+              eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
+              eq(schema.vocabItems.vocabType, "component"),
+              inArray(schema.vocabItems.vocabItem, mute),
+            ),
+          )
+          .returning({ userId: schema.userVocabItems.userId })
+      : [];
+
+    if (resetWriting.length > 0 || resetReading.length > 0) {
       logger.info(
-        { count: reset.length },
-        "Reset non-understanding progress on components",
+        { writing: resetWriting.length, reading: resetReading.length },
+        "Reset unservable progress on components",
       );
     }
   }
@@ -247,7 +313,10 @@ async function main() {
       .update(schema.vocabItems)
       .set({ disabled: true })
       .where(inArray(schema.vocabItems.vocabItem, disabled))
-      .returning({ id: schema.vocabItems.id, vocabItem: schema.vocabItems.vocabItem });
+      .returning({
+        id: schema.vocabItems.id,
+        vocabItem: schema.vocabItems.vocabItem,
+      });
     logger.info({ count: hidden.length }, "Disabled items");
 
     // A disabled item is meant to behave as if deleted, so the rows that would

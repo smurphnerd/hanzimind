@@ -5,7 +5,11 @@ import type { Logger } from "pino";
 
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
-import { AdminVocabItemDto, type VocabType } from "@/definitions/definitions";
+import {
+  AdminVocabItemDto,
+  type Script,
+  type VocabType,
+} from "@/definitions/definitions";
 
 /**
  * Reads and writes the vocabulary classification for the admin screen.
@@ -51,6 +55,7 @@ export class AdminService {
     page: number;
     pageSize: number;
     vocabType?: VocabType;
+    script?: Script;
     disabled?: boolean;
     search?: string;
   }): Promise<{
@@ -65,6 +70,9 @@ export class AdminService {
     const filters = [];
     if (args.vocabType) {
       filters.push(eq(schema.vocabItems.vocabType, args.vocabType));
+    }
+    if (args.script) {
+      filters.push(eq(schema.vocabItems.script, args.script));
     }
     if (args.disabled !== undefined) {
       filters.push(eq(schema.vocabItems.disabled, args.disabled));
@@ -97,7 +105,9 @@ export class AdminService {
           translation: schema.vocabItems.translation,
           pinyin: schema.vocabItems.pinyin,
           vocabType: schema.vocabItems.vocabType,
+          script: schema.vocabItems.script,
           disabled: schema.vocabItems.disabled,
+          phonetic: schema.vocabItems.phonetic,
           decomposition: schema.vocabItems.decomposition,
           radical: schema.vocabItems.radical,
         })
@@ -129,12 +139,20 @@ export class AdminService {
   /**
    * Applies an admin's edit.
    *
-   * The reading is edited explicitly and is never touched as a side effect of a
-   * type or hidden toggle. A component is meaning-only, but that is enforced
-   * where cards are served — canStudy gates on the type, and readingOf blanks a
-   * component's reading regardless of what is stored (see study-rules) — so a
-   * stored pinyin on a component is harmless, and silently wiping it on a toggle
-   * only destroyed data the admin then had to retype to undo the mistake.
+   * `pinyin` and `phonetic` are separate fields on purpose. Almost every
+   * component stores a reading borrowed from the character it abbreviates (亻
+   * holds 人's "rén"), so the presence of one says nothing about whether it
+   * should be taught — `phonetic` is the flag `canStudy` and `readingOf` gate on.
+   * Toggling it never touches the reading, and editing the reading never
+   * implies the flag.
+   *
+   * Nothing here is a side effect of anything else: a type or hidden toggle
+   * leaves both alone, because silently wiping a reading only ever destroyed
+   * data the admin then had to retype.
+   *
+   * The next `backfill-classification.ts` run resets `phonetic` to whatever
+   * vocab-classification.tsv says, so an edit here is provisional — record it in
+   * the file to make it stick.
    */
   async updateVocabItem(args: {
     id: string;
@@ -142,6 +160,7 @@ export class AdminService {
     disabled?: boolean;
     translation?: string;
     pinyin?: string;
+    phonetic?: boolean;
   }): Promise<AdminVocabItemDto> {
     const existing = await this.deps.database.query.vocabItems.findFirst({
       where: (vocabItems, { eq }) => eq(vocabItems.id, args.id),
@@ -156,6 +175,7 @@ export class AdminService {
       disabled?: boolean;
       translation?: string;
       pinyin?: string;
+      phonetic?: boolean;
     } = {};
 
     if (args.disabled !== undefined) {
@@ -169,7 +189,7 @@ export class AdminService {
       const translation = args.translation.trim();
       if (translation.length === 0) {
         throw new Error(
-          `Refusing to clear the definition of ${existing.vocabItem}: it is the only thing a component can be quizzed on`,
+          `Refusing to clear the definition of ${existing.vocabItem}: every component is quizzed on its meaning`,
         );
       }
       update.translation = translation;
@@ -180,6 +200,10 @@ export class AdminService {
       // romanisation has none, and the study rules already read "" as "no
       // reading cards", so this does not need the definition's non-empty guard.
       update.pinyin = args.pinyin.trim();
+    }
+
+    if (args.phonetic !== undefined) {
+      update.phonetic = args.phonetic;
     }
 
     if (args.vocabType && args.vocabType !== existing.vocabType) {
@@ -195,7 +219,9 @@ export class AdminService {
         translation: existing.translation,
         pinyin: existing.pinyin,
         vocabType: existing.vocabType,
+        script: existing.script,
         disabled: existing.disabled,
+        phonetic: existing.phonetic,
         decomposition: existing.decomposition,
         radical: existing.radical,
       };
@@ -211,7 +237,9 @@ export class AdminService {
         translation: schema.vocabItems.translation,
         pinyin: schema.vocabItems.pinyin,
         vocabType: schema.vocabItems.vocabType,
+        script: schema.vocabItems.script,
         disabled: schema.vocabItems.disabled,
+        phonetic: schema.vocabItems.phonetic,
         decomposition: schema.vocabItems.decomposition,
         radical: schema.vocabItems.radical,
       });

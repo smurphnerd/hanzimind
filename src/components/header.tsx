@@ -39,7 +39,7 @@ export function Header() {
   });
 
   return (
-    <header className="bg-surface/85 sticky top-0 z-40 border-b border-border backdrop-blur-md backdrop-saturate-150">
+    <header className="sticky top-0 z-40 border-b border-border bg-surface/85 backdrop-blur-md backdrop-saturate-150">
       <div className="container mx-auto flex h-16 items-center gap-3 px-4">
         <Link
           href="/"
@@ -93,7 +93,7 @@ export function Header() {
               href="/profile"
               aria-label="Your profile"
               title={session.user.name ?? session.user.email ?? "Profile"}
-              className="bg-accent/15 text-accent hover:bg-accent/25 flex size-9 items-center justify-center rounded-full font-display text-sm font-bold uppercase transition-colors"
+              className="flex size-9 items-center justify-center rounded-full bg-accent/15 font-display text-sm font-bold text-accent uppercase transition-colors hover:bg-accent/25"
             >
               {(session.user.name ?? session.user.email ?? "?")
                 .charAt(0)

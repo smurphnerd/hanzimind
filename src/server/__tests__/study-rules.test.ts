@@ -5,6 +5,7 @@ import {
   canStudy,
   constituentsOf,
   isUnlocked,
+  readingOf,
   servableStudyTypes,
   weakestServableLevel,
   VOCAB_TYPE_PRIORITY,
@@ -25,6 +26,7 @@ function item(overrides: Partial<StudiableItem> = {}): StudiableItem {
     pinyin: "rén",
     translation: "man, person; people",
     audioUrl: "audio/4eba.mp3",
+    phonetic: false,
     decomposition: "？",
     seen: true,
     readingLevel: 0,
@@ -35,14 +37,33 @@ function item(overrides: Partial<StudiableItem> = {}): StudiableItem {
   };
 }
 
+/**
+ * The ordinary case. Note the borrowed reading is PRESENT — the dictionary gives
+ * 亻 the same "rén" as 人, and 97 production rows still carry theirs — because
+ * `phonetic`, not an empty pinyin, is what must keep it out of a card.
+ */
 const component = (overrides: Partial<StudiableItem> = {}) =>
   item({
     vocabItem: "亻",
     vocabType: "component",
-    // The dictionary copies the parent's reading onto the bound form. Present in
-    // the data, meaningless as a prompt — the rules must ignore it.
     pinyin: "rén",
+    audioUrl: "audio/4ebb.mp3",
+    phonetic: false,
     translation: "man, person; people",
+    ...overrides,
+  });
+
+/**
+ * A component whose reading is its own and predicts the series it heads — 艮 gěn
+ * behind 很, 跟, 根, 恨 — so it is quizzed on sound as well as meaning.
+ */
+const phonetic = (overrides: Partial<StudiableItem> = {}) =>
+  component({
+    vocabItem: "艮",
+    pinyin: "gěn",
+    audioUrl: "audio/33390.mp3",
+    phonetic: true,
+    translation: "blunt; tough, chewy",
     ...overrides,
   });
 
@@ -52,14 +73,18 @@ describe("canStudy", () => {
       expect(canStudy(component(), "understanding")).toBe(true);
     });
 
-    it("should reject reading even when the borrowed pinyin is present", () => {
-      expect(canStudy(component({ pinyin: "rén" }), "reading")).toBe(false);
+    it("should reject reading despite a borrowed pinyin being stored", () => {
+      // The regression this whole flag exists for: production carries 人's "rén"
+      // on 亻, and gating on "is there a pinyin" would quiz it.
+      expect(canStudy(component(), "reading")).toBe(false);
     });
 
-    it("should reject listening even when audio is present", () => {
-      expect(canStudy(component({ audioUrl: "audio/4ebb.mp3" }), "listening")).toBe(
-        false,
-      );
+    it("should reject listening despite stored audio", () => {
+      expect(canStudy(component(), "listening")).toBe(false);
+    });
+
+    it("should hide the borrowed reading on the way out", () => {
+      expect(readingOf(component())).toEqual({ pinyin: "", audioUrl: "" });
     });
 
     it("should reject writing, which a pinyin IME cannot produce", () => {
@@ -70,6 +95,37 @@ describe("canStudy", () => {
       expect(canStudy(component({ translation: null }), "understanding")).toBe(
         false,
       );
+    });
+  });
+
+  describe("phonetic components", () => {
+    it("should allow reading, which is the whole point of keeping one", () => {
+      expect(canStudy(phonetic(), "reading")).toBe(true);
+    });
+
+    it("should allow listening once audio exists", () => {
+      expect(canStudy(phonetic(), "listening")).toBe(true);
+    });
+
+    it("should reject listening while the audio is still missing", () => {
+      // The backfill restores the pinyin; audio is a separate job, so reading is
+      // servable before listening is.
+      expect(canStudy(phonetic({ audioUrl: "" }), "listening")).toBe(false);
+    });
+
+    it("should still reject writing — no component can be typed", () => {
+      expect(canStudy(phonetic(), "writing")).toBe(false);
+    });
+
+    it("should still allow understanding", () => {
+      expect(canStudy(phonetic(), "understanding")).toBe(true);
+    });
+
+    it("should expose its reading rather than blanking it", () => {
+      expect(readingOf(phonetic())).toEqual({
+        pinyin: "gěn",
+        audioUrl: "audio/33390.mp3",
+      });
     });
   });
 
@@ -102,8 +158,16 @@ describe("canStudy", () => {
 });
 
 describe("servableStudyTypes", () => {
-  it("should reduce a component to understanding only", () => {
+  it("should reduce a meaning-only component to understanding", () => {
     expect(servableStudyTypes(component(), ALL_TYPES)).toEqual([
+      "understanding",
+    ]);
+  });
+
+  it("should give a phonetic component everything but writing", () => {
+    expect(servableStudyTypes(phonetic(), ALL_TYPES)).toEqual([
+      "reading",
+      "listening",
       "understanding",
     ]);
   });
@@ -189,6 +253,26 @@ describe("isUnlocked", () => {
       writingLevel: 0,
     });
     expect(isUnlocked(target, deps(mature), ALL_TYPES, GATE)).toBe(true);
+  });
+
+  it("should gate on a phonetic component's weakest servable type, not understanding alone", () => {
+    // 艮 is servable for reading and listening too, so knowing only its meaning
+    // is no longer enough to introduce what is built on it.
+    const built = item({ vocabItem: "很", decomposition: "⿰彳艮" });
+    const half = phonetic({
+      seen: true,
+      understandingLevel: GATE,
+      readingLevel: GATE - 1,
+    });
+    expect(isUnlocked(built, deps(half), ALL_TYPES, GATE)).toBe(false);
+
+    const whole = phonetic({
+      seen: true,
+      understandingLevel: GATE,
+      readingLevel: GATE,
+      listeningLevel: GATE,
+    });
+    expect(isUnlocked(built, deps(whole), ALL_TYPES, GATE)).toBe(true);
   });
 
   it("should stay locked while a component dependency is below the gate", () => {

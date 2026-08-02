@@ -46,7 +46,12 @@ interface DictionaryEntry {
   definition?: string;
   pinyin?: string[];
   decomposition?: string;
-  etymology?: { type: string; hint: string };
+  etymology?: {
+    type: string;
+    hint: string;
+    phonetic?: string;
+    semantic?: string;
+  };
   radical?: string;
   matches?: (number[] | null)[];
 }
@@ -170,6 +175,8 @@ async function main() {
       decomposition: entry?.decomposition ?? null,
       etymologyHint: entry?.etymology?.hint ?? null,
       etymologyType: (entry?.etymology?.type as EtymologyType) ?? null,
+      etymologyPhonetic: entry?.etymology?.phonetic ?? null,
+      etymologySemantic: entry?.etymology?.semantic ?? null,
       radical: entry?.radical ?? null,
       strokes: graphics?.strokes ?? null,
       strokeMedians: (graphics?.medians as [number, number][][]) ?? null,

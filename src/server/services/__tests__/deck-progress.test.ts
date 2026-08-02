@@ -26,6 +26,7 @@ function item(overrides: Partial<ProgressRollupItem> = {}): ProgressRollupItem {
     pinyin: "rén",
     translation: "man, person; people",
     audioUrl: "audio/4eba.mp3",
+    phonetic: false,
     decomposition: "？",
     seen: false,
     readingLevel: 0,
@@ -40,13 +41,17 @@ function item(overrides: Partial<ProgressRollupItem> = {}): ProgressRollupItem {
   };
 }
 
-/** A bound form: no reading, no audio — meaning is the only thing askable. */
+/**
+ * A bound form. The borrowed reading is present, as it is on 97 production rows;
+ * `phonetic: false` is what makes meaning the only thing askable.
+ */
 const component = (overrides: Partial<ProgressRollupItem> = {}) =>
   item({
     vocabItem: "亻",
     vocabType: "component",
-    pinyin: "",
-    audioUrl: "",
+    pinyin: "rén",
+    audioUrl: "audio/4ebb.mp3",
+    phonetic: false,
     translation: "person radical",
     decomposition: null,
     ...overrides,

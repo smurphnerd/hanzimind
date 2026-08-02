@@ -15,6 +15,10 @@ import { join } from "node:path";
  *     to quiz against, so they can never produce an answerable card.
  *   - Everything else is a `character` and is absent from the file.
  *
+ * Orthogonal to the decision, a component may be marked `phonetic`: its reading
+ * is its own rather than borrowed, and it predicts the reading of the characters
+ * it appears in, so it is stored with pinyin and audio and quizzed on those too.
+ *
  * Anything not listed is a character, so the file only carries the exceptions.
  */
 export type VocabClassificationDecision = "component" | "disabled";
@@ -25,10 +29,17 @@ export interface VocabClassificationEntry {
   reason: string;
   /**
    * Overrides the dictionary translation. Set where the dictionary has no gloss
-   * at all — a component is quizzed on meaning alone, so one without a meaning
+   * at all — every component is quizzed on meaning, so one without a meaning
    * could never be served, and an unservable part stalls everything built on it.
    */
   gloss: string;
+  /**
+   * Whether this component's own reading predicts the reading of the characters
+   * it appears in — 艮 gěn gives 很, 跟, 根, 恨. Those keep their pinyin and audio
+   * and are served for reading and listening; every other component has its
+   * dictionary reading stripped, because it is borrowed from a parent glyph.
+   */
+  phonetic: boolean;
 }
 
 /**
@@ -36,29 +47,37 @@ export interface VocabClassificationEntry {
  * this so the two can never drift — a fresh seed must land in exactly the state
  * the backfill produces.
  *
- * Components carry no reading and no audio: a bound form has no pronunciation of
- * its own, and the dictionary's value for one is borrowed from its parent (亻
- * gets 人's "rén"), which is worse than nothing. `pinyin` and `audioUrl` are NOT
- * NULL, so the empty string is the no-reading sentinel.
+ * `phonetic` is the load-bearing output: it is what `canStudy` and `readingOf`
+ * gate on, so a stale reading on a row is inert whatever the columns say. The
+ * blanking below is belt-and-braces for freshly inserted rows — a bound form has
+ * no pronunciation of its own and the dictionary's value for one is borrowed
+ * from the full character it abbreviates (亻 gets 人's "rén"), so there is no
+ * reason to store it. `pinyin` and `audioUrl` are NOT NULL; `""` is the sentinel.
  */
 export function applyClassification(
   entry: VocabClassificationEntry | undefined,
   raw: { pinyin: string; audioUrl: string; translation: string | null },
-): { pinyin: string; audioUrl: string; translation: string | null } {
-  if (entry?.decision !== "component") return raw;
+): {
+  pinyin: string;
+  audioUrl: string;
+  translation: string | null;
+  phonetic: boolean;
+} {
+  if (entry?.decision !== "component") return { ...raw, phonetic: false };
 
-  return {
-    pinyin: "",
-    audioUrl: "",
-    translation: entry.gloss || raw.translation,
-  };
+  const translation = entry.gloss || raw.translation;
+  if (entry.phonetic) return { ...raw, translation, phonetic: true };
+
+  return { pinyin: "", audioUrl: "", translation, phonetic: false };
 }
 
 /** Whether this glyph should never have audio generated for it. */
 export function suppressesAudio(
   entry: VocabClassificationEntry | undefined,
 ): boolean {
-  return entry?.decision === "component" || entry?.decision === "disabled";
+  if (entry?.decision === "disabled") return true;
+
+  return entry?.decision === "component" && !entry.phonetic;
 }
 
 const CLASSIFICATION_PATH = join(
@@ -75,7 +94,8 @@ export function loadVocabClassification(): Map<string, VocabClassificationEntry>
       continue;
     }
 
-    const [glyph, , decision, reason, , , , , gloss] = line.split("\t");
+    const [glyph, , decision, reason, , , , , gloss, phonetic] =
+      line.split("\t");
     if (decision !== "component" && decision !== "disabled") {
       throw new Error(
         `Unknown decision "${decision}" for ${glyph} in vocab-classification.tsv`,
@@ -86,6 +106,7 @@ export function loadVocabClassification(): Map<string, VocabClassificationEntry>
       decision,
       reason: reason ?? "",
       gloss: (gloss ?? "").trim(),
+      phonetic: (phonetic ?? "").trim() === "phonetic",
     });
   }
 

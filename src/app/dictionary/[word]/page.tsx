@@ -51,7 +51,7 @@ function DictionaryWordContent() {
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <Link
         href="/dictionary"
-        className="text-muted-foreground hover:text-primary mb-6 inline-flex items-center gap-1 text-sm transition-colors"
+        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
       >
         <ChevronLeft className="size-4" />
         Back to Dictionary
@@ -64,7 +64,7 @@ function DictionaryWordContent() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground hover:text-primary -ml-3"
+            className="-ml-3 text-muted-foreground hover:text-primary"
             onClick={() => openReport(null)}
           >
             <Flag className="size-3.5" />
@@ -77,7 +77,7 @@ function DictionaryWordContent() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl tracking-tight">
-            <Lightbulb className="text-primary size-5" />
+            <Lightbulb className="size-5 text-primary" />
             Memory Aids
           </CardTitle>
         </CardHeader>
@@ -89,49 +89,50 @@ function DictionaryWordContent() {
                   const isDefault =
                     mnemonic.id === vocabData.defaultMemoryAidId;
                   return (
-                  <div
-                    key={mnemonic.id}
-                    className={cn(
-                      "border-border border-b pb-4 last:border-b-0 last:pb-0",
-                      isDefault && "bg-secondary/40 -mx-3 rounded-2xl border-b-0 px-3 py-3",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <p className="text-foreground mb-2">
-                          {isDefault ? (
-                            <span className="text-primary mr-2 inline-flex translate-y-0.5">
-                              <Star className="size-5 fill-current" />
-                            </span>
-                          ) : (
-                            <span className="font-display text-primary mr-2 text-lg font-bold tabular-nums">
-                              {index + 1}.
-                            </span>
-                          )}
-                          &ldquo;{mnemonic.memoryAid}&rdquo;
-                        </p>
-                        <p className="text-muted-foreground text-sm">
-                          {isDefault ? (
-                            <span className="text-primary font-display font-bold">
-                              Official pick
-                            </span>
-                          ) : (
-                            <>Saved by {mnemonic.usageCount} users</>
-                          )}{" "}
-                          • by {mnemonic.createdByUsername}
-                        </p>
+                    <div
+                      key={mnemonic.id}
+                      className={cn(
+                        "border-b border-border pb-4 last:border-b-0 last:pb-0",
+                        isDefault &&
+                          "-mx-3 rounded-2xl border-b-0 bg-secondary/40 px-3 py-3",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="mb-2 text-foreground">
+                            {isDefault ? (
+                              <span className="mr-2 inline-flex translate-y-0.5 text-primary">
+                                <Star className="size-5 fill-current" />
+                              </span>
+                            ) : (
+                              <span className="mr-2 font-display text-lg font-bold text-primary tabular-nums">
+                                {index + 1}.
+                              </span>
+                            )}
+                            &ldquo;{mnemonic.memoryAid}&rdquo;
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {isDefault ? (
+                              <span className="font-display font-bold text-primary">
+                                Official pick
+                              </span>
+                            ) : (
+                              <>Saved by {mnemonic.usageCount} users</>
+                            )}{" "}
+                            • by {mnemonic.createdByUsername}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Report this memory aid"
+                          className="text-muted-foreground hover:text-primary"
+                          onClick={() => openReport(mnemonic)}
+                        >
+                          <Flag className="size-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="Report this memory aid"
-                        className="text-muted-foreground hover:text-primary"
-                        onClick={() => openReport(mnemonic)}
-                      >
-                        <Flag className="size-4" />
-                      </Button>
                     </div>
-                  </div>
                   );
                 })}
               </div>

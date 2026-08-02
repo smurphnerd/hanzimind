@@ -3,11 +3,12 @@ import { toast } from "sonner";
 /**
  * Play a vocab item's audio, tolerating the rows that legitimately have none.
  *
- * `audioUrl` is NOT NULL in the database and uses `""` as its sentinel: every
- * component carries one by design (a bound form has no reading of its own), and
- * any item whose TTS generation failed carries one too. `new Audio("")` resolves
- * against the current page and makes `play()` reject with NotSupportedError, so
- * an unguarded call turns a silent-by-design row into an error toast.
+ * `audioUrl` is NOT NULL in the database and uses `""` as its sentinel: most
+ * components carry one by design (a bound form has no reading of its own — only
+ * a phonetic like 艮 keeps its own), and any item whose TTS generation failed
+ * carries one too. `new Audio("")` resolves against the current page and makes
+ * `play()` reject with NotSupportedError, so an unguarded call turns a
+ * silent-by-design row into an error toast.
  *
  * Returns false when there was nothing to play, so callers can also use it to
  * decide whether to render a control at all — prefer `canPlayAudio` for that.

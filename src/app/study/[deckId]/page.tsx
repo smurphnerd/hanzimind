@@ -30,7 +30,7 @@ import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ConfettiBurst } from "@/components/confetti-burst";
 import { Mika } from "@/components/mika";
 import { VocabEntryDetail } from "@/components/vocab-entry";
-import { playAudio } from "@/lib/audio";
+import { canPlayAudio, playAudio } from "@/lib/audio";
 import { cn } from "@/lib/utils";
 import { vocabTypeMeta } from "@/lib/vocab-type";
 import { playAnswerSound } from "@/lib/sounds";
@@ -259,9 +259,10 @@ function StudyCard({
                   className="size-32"
                   textClassName="text-6xl"
                 />
-                {/* The prompt is the glyph alone for a component — there is no
-                    audio to offer alongside it. */}
-                {vocabItem.vocabType !== "component" && (
+                {/* A meaning-only component has no audio to offer alongside the
+                    glyph, so branch on what is stored rather than on the type —
+                    a phonetic component does. */}
+                {canPlayAudio(vocabItem.audioUrl) && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -441,21 +442,22 @@ function ResultCard({
                 />
                 <div className="flex flex-1 flex-col items-start gap-2">
                   <ItemTypeBadge type={userVocabItem.vocabType} />
-                  {/* Components carry no reading — see VocabOverview. */}
-                  {userVocabItem.vocabType !== "component" && (
-                    <>
-                      <div className="hanzi text-accent text-2xl">
-                        {userVocabItem.pinyin}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => playAudio(userVocabItem.audioUrl)}
-                      >
-                        <Volume2 className="size-4" />
-                        Play
-                      </Button>
-                    </>
+                  {/* A meaning-only component is stored with no reading, a
+                      phonetic one keeps it — branch on the data. */}
+                  {userVocabItem.pinyin && (
+                    <div className="hanzi text-accent text-2xl">
+                      {userVocabItem.pinyin}
+                    </div>
+                  )}
+                  {canPlayAudio(userVocabItem.audioUrl) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => playAudio(userVocabItem.audioUrl)}
+                    >
+                      <Volume2 className="size-4" />
+                      Play
+                    </Button>
                   )}
                 </div>
               </div>

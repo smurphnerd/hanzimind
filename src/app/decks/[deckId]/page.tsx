@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronLeft,
   Layers,
+  List,
+  Network,
   User,
   Users,
   Volume2,
@@ -33,6 +35,11 @@ import {
 } from "@/components/deck-settings-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
+import { DeckGraphPanel } from "@/components/deck-graph-panel";
+import {
+  SegmentedToggle,
+  type SegmentedOption,
+} from "@/components/segmented-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
@@ -53,11 +60,36 @@ import type {
  * hundred characters still scan as a block, while eight sentences already fill a
  * screen.
  */
-const GROUPS: Array<{ type: VocabType; label: string; previewLimit: number }> = [
-  { type: "component", label: "Components", previewLimit: 60 },
-  { type: "character", label: "Characters", previewLimit: 60 },
-  { type: "compound", label: "Words", previewLimit: 48 },
-  { type: "sentence", label: "Sentences", previewLimit: 8 },
+const GROUPS: Array<{ type: VocabType; label: string; previewLimit: number }> =
+  [
+    { type: "component", label: "Components", previewLimit: 60 },
+    { type: "character", label: "Characters", previewLimit: 60 },
+    { type: "compound", label: "Words", previewLimit: 48 },
+    { type: "sentence", label: "Sentences", previewLimit: 8 },
+  ];
+
+/** List / graph switch for the deck's contents. */
+type DeckView = "standard" | "graph";
+
+const DECK_VIEWS: ReadonlyArray<SegmentedOption<DeckView>> = [
+  {
+    value: "standard",
+    label: (
+      <>
+        <List />
+        List
+      </>
+    ),
+  },
+  {
+    value: "graph",
+    label: (
+      <>
+        <Network />
+        Graph
+      </>
+    ),
+  },
 ];
 
 /** `translation` is nullable, and a chip with a blank line reads as a bug. */
@@ -67,8 +99,8 @@ function translationOf(item: DeckVocabItemSummaryDto): string {
 
 function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
   const meta = vocabTypeMeta(item.vocabType);
-  // A component is a bound form with no reading of its own, so its gloss is the
-  // only thing worth putting under the glyph.
+  // A meaning-only component has no reading of its own, so its gloss is the only
+  // thing worth putting under the glyph; a phonetic one falls through to pinyin.
   const subtitle = item.pinyin || translationOf(item);
 
   return (
@@ -83,10 +115,10 @@ function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
         title={translationOf(item)}
         className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
       >
-        <span className="hanzi text-foreground text-xl leading-tight break-words">
+        <span className="hanzi text-xl leading-tight break-words text-foreground">
           {item.vocabItem}
         </span>
-        <span className="text-muted-foreground truncate text-xs">
+        <span className="truncate text-xs text-muted-foreground">
           {subtitle}
         </span>
       </Link>
@@ -127,7 +159,7 @@ function GlyphGroup({
         <CardTitle className="flex items-center gap-2 text-lg tracking-tight">
           <span className={cn("size-2.5 rounded-full", meta.fillClass)} />
           {label}
-          <span className="text-muted-foreground text-sm tabular-nums">
+          <span className="text-sm text-muted-foreground tabular-nums">
             {items.length}
           </span>
         </CardTitle>
@@ -152,7 +184,7 @@ function GlyphGroup({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-primary mt-3 rounded-full"
+                  className="mt-3 rounded-full text-muted-foreground hover:text-primary"
                 >
                   <ChevronDown
                     className={cn(
@@ -191,7 +223,7 @@ function CompositionBar({
   return (
     <div
       className={cn(
-        "bg-muted flex h-2.5 w-full overflow-hidden rounded-full",
+        "flex h-2.5 w-full overflow-hidden rounded-full bg-muted",
         className,
       )}
       role="img"
@@ -217,6 +249,7 @@ function DeckOverviewContent() {
   const deckId = params.deckId as string;
   const orpc = useORPC();
   const queryClient = useQueryClient();
+  const [view, setView] = useState<DeckView>("standard");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveSettings, setSaveSettings] = useState<DeckSettings>({
     readingEnabled: true,
@@ -264,11 +297,20 @@ function DeckOverviewContent() {
     items: deck.vocabItems.filter((item) => item.vocabType === group.type),
   })).filter((group) => group.items.length > 0);
 
+  const showingGraph = view === "graph";
+
   return (
-    <div className="container mx-auto max-w-4xl px-4 py-8">
+    // The graph earns the extra width: 398 nodes banded into 7 rows need room
+    // across, and at max-w-4xl the widest band wraps into an unreadable pile.
+    <div
+      className={cn(
+        "container mx-auto px-4 py-8",
+        showingGraph ? "max-w-7xl" : "max-w-4xl",
+      )}
+    >
       <Link
         href="/decks"
-        className="text-muted-foreground hover:text-primary mb-6 inline-flex items-center gap-1 text-sm transition-colors"
+        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
       >
         <ChevronLeft className="size-4" />
         Back to Decks
@@ -294,24 +336,34 @@ function DeckOverviewContent() {
           {deck.itemCount} {deck.itemCount === 1 ? "item" : "items"}
         </InlineStat>
         <InlineStat icon={<Users className="size-4" />}>
-          {deck.numLearners}{" "}
-          {deck.numLearners === 1 ? "learner" : "learners"}
+          {deck.numLearners} {deck.numLearners === 1 ? "learner" : "learners"}
         </InlineStat>
       </div>
 
       <CompositionBar typeCounts={deck.typeCounts} className="mb-8" />
 
-      <div className="mb-4">
-        <h2 className="font-display text-2xl font-bold tracking-tight">
-          What&apos;s inside
-        </h2>
-        {/* Constituents are always part of a deck, so say so: the counts here are
-            larger than the word list the deck was created from, and that is the
-            deck the learner actually gets. */}
-        <p className="text-muted-foreground text-sm">
-          Smallest pieces first, the way you&apos;ll learn them. Every part a
-          character is built from is included.
-        </p>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold tracking-tight">
+            What&apos;s inside
+          </h2>
+          {/* Constituents are always part of a deck, so say so: the counts here are
+              larger than the word list the deck was created from, and that is the
+              deck the learner actually gets. */}
+          <p className="text-sm text-muted-foreground">
+            {showingGraph
+              ? "How the deck is built: every part points at what it helps build."
+              : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
+          </p>
+        </div>
+        {groups.length > 0 && (
+          <SegmentedToggle
+            options={DECK_VIEWS}
+            value={view}
+            onChange={setView}
+            label="Deck view"
+          />
+        )}
       </div>
 
       {groups.length === 0 ? (
@@ -324,6 +376,8 @@ function DeckOverviewContent() {
             </Button>
           }
         />
+      ) : showingGraph ? (
+        <DeckGraphPanel deckId={deckId} />
       ) : (
         <div className="space-y-6">
           {groups.map((group) => (

@@ -10,6 +10,7 @@ import {
   MemoryAidDto,
   SuggestionCountDto,
   SuggestionStatusEnum,
+  ScriptEnum,
   VocabTypeEnum,
 } from "@/definitions/definitions";
 
@@ -24,6 +25,7 @@ const adminMemoryAidsOutput = z.object({
 const listVocabItemsSchema = z.object({
   search: z.string().optional(),
   vocabType: VocabTypeEnum.optional(),
+  script: ScriptEnum.optional(),
   disabled: z.boolean().optional(),
   page: z.number().int().positive().optional().default(1),
   pageSize: z.number().int().positive().max(200).optional().default(50),
@@ -70,6 +72,10 @@ export const adminRouter = {
           // Unlike the definition this may be empty: a bound form or an
           // unromanisable glyph legitimately has no reading.
           pinyin: z.string().max(200).optional(),
+          // Separate from `pinyin`: a component's stored reading is usually
+          // borrowed from the character it abbreviates, so having one and
+          // teaching one are different facts. See AdminService.updateVocabItem.
+          phonetic: z.boolean().optional(),
         })
         // A request that changes nothing is a client bug, not a no-op worth
         // hiding — surface it rather than reporting success.
@@ -78,7 +84,8 @@ export const adminRouter = {
             input.vocabType !== undefined ||
             input.disabled !== undefined ||
             input.translation !== undefined ||
-            input.pinyin !== undefined,
+            input.pinyin !== undefined ||
+            input.phonetic !== undefined,
           { message: "Nothing to update" },
         ),
     )

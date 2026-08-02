@@ -20,6 +20,12 @@ export interface QuizzableItem {
   pinyin: string;
   translation: string | null;
   audioUrl: string;
+  /**
+   * Only meaningful on a component: whether its reading is its own and worth
+   * teaching. See the column comment in schema.ts for why this is a flag rather
+   * than "the pinyin is non-empty".
+   */
+  phonetic: boolean;
 }
 
 /** Adds the decomposition and per-learner progress that the gating rules read. */
@@ -42,28 +48,37 @@ const hasTranslation = (item: QuizzableItem) =>
   !!item.translation && item.translation.trim().length > 0;
 
 /**
+ * Whether a component's reading is one the learner should be taught.
+ *
+ * Most bound forms are semantic determinatives whose dictionary pinyin is
+ * borrowed from the full character they abbreviate — 亻 is given 人's "rén" — and
+ * plenty of rows still carry one, so the reading being present proves nothing.
+ * Only the classification file's verdict does.
+ */
+const hasOwnReading = (item: QuizzableItem) =>
+  item.vocabType !== "component" || item.phonetic;
+
+/**
  * Whether this item can produce an answerable card of the given type.
  *
- * Components are meaning-only. A bound form has no pronunciation of its own —
- * the dictionary gives 亻 the same "rén" as 人 — so reading and listening cards
- * are unanswerable, and you cannot type 亻 on a pinyin IME, so writing is out
- * too. What is left is recognising the shape and knowing what it means.
+ * A phonetic component (艮 gěn behind 很, 跟, 根, 恨) is quizzed on reading and
+ * listening like any character, because knowing its sound is the clue to the
+ * whole series. Every other component is meaning-only.
+ *
+ * Writing is out for all of them either way: no component can be produced on a
+ * pinyin IME.
  */
 export function canStudy(item: QuizzableItem, type: StudyType): boolean {
-  if (item.vocabType === "component") {
-    return type === "understanding" && hasTranslation(item);
-  }
-
   switch (type) {
     case "reading":
-      return hasPinyin(item);
+      return hasOwnReading(item) && hasPinyin(item);
     case "listening":
-      return hasPinyin(item) && !!item.audioUrl;
+      return hasOwnReading(item) && hasPinyin(item) && !!item.audioUrl;
     case "understanding":
       return hasTranslation(item);
     case "writing":
-      // You type the characters, which every non-component item has.
-      return true;
+      // The answer is typed on a pinyin IME, which cannot produce a bound form.
+      return item.vocabType !== "component";
   }
 }
 
@@ -79,9 +94,9 @@ export function servableStudyTypes(
  * The item's weakest level across the types it can actually be quizzed on.
  *
  * Only servable types count. Taking the minimum over every *enabled* type
- * instead is what caused the deadlock: a component can never be served for
- * reading, so its readingLevel is pinned at 0, and a gate reading that minimum
- * never opens no matter how much the learner studies.
+ * instead is what caused the deadlock: a meaning-only component can never be
+ * served for reading, so its readingLevel is pinned at 0, and a gate reading
+ * that minimum never opens no matter how much the learner studies.
  *
  * An item with nothing servable returns Infinity — it cannot be studied, so it
  * must never hold anything back. Callers should generally reject such items
@@ -144,7 +159,6 @@ export function isUnlocked(
       // No progress row yet counts as unseen.
       if (!dep.seen) return false;
 
-
       return weakestServableLevel(dep, enabledStudyTypes) >= gateLevel;
     });
 }
@@ -152,34 +166,39 @@ export function isUnlocked(
 /**
  * The reading to expose for an item.
  *
- * Components have none — the database stores them blank — but blanking here too
- * means a row that predates the backfill, or one added by hand, still cannot
- * leak a borrowed pronunciation to the client.
+ * A component that is not phonetic has no reading of its own, but plenty of rows
+ * still store one — the dictionary's, borrowed from the full character the form
+ * abbreviates. Blanking here means such a row cannot leak 人's "rén" onto 亻
+ * through a card, a deck preview or the dictionary, whatever is in the column.
+ *
+ * This is the counterpart of gating `canStudy` on the flag rather than on the
+ * pinyin being present: the flag decides, and everything downstream sees a value
+ * consistent with that decision.
  */
 export function readingOf(item: QuizzableItem): {
   pinyin: string;
   audioUrl: string;
 } {
-  if (item.vocabType === "component") return { pinyin: "", audioUrl: "" };
+  if (!hasOwnReading(item)) return { pinyin: "", audioUrl: "" };
 
   return { pinyin: item.pinyin, audioUrl: item.audioUrl };
 }
 
 /**
- * Narrows an item's type for a card that depends on pronunciation or writing.
+ * Narrows an item's type for a card the learner answers by typing the glyphs.
  *
- * canStudy already restricts components to `understanding`, so reaching here
- * with one means the selection logic regressed. Throwing makes that loud instead
- * of shipping an unanswerable card, and it gives the DTOs the narrower type they
- * now require.
+ * canStudy already refuses `writing` for a component — a pinyin IME cannot
+ * produce 亻 — so reaching here with one means the selection logic regressed.
+ * Throwing makes that loud instead of shipping an unanswerable card, and it
+ * gives the writing DTO the narrower type it requires.
  */
-export function pronounceableType(
+export function writableType(
   item: QuizzableItem,
   studyType: StudyType | "new",
 ): Exclude<VocabType, "component"> {
   if (item.vocabType === "component") {
     throw new Error(
-      `A ${studyType} card was selected for component ${item.vocabItem}, which has no reading`,
+      `A ${studyType} card was selected for component ${item.vocabItem}, which cannot be typed`,
     );
   }
 

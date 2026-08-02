@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, inArray, desc, count, eq, ilike, or, sql } from "drizzle-orm";
+import { and, inArray, desc, count, eq, ilike, ne, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import { filterDecomposition } from "@/lib/decomposition";
+import { readingOf } from "@/server/study-rules";
 import type { Drizzle } from "@/server/database/database";
 import {
   memoryAids,
@@ -15,7 +16,14 @@ import type { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import type { TranslatorService } from "@/server/services/TranslatorService";
 import type { TTSService } from "@/server/services/TTSService";
 import {
+  buildDecompositionIndex,
+  extractNeighbourhood,
+  type DecompositionIndex,
+  type GraphGlyph,
+} from "@/server/decomposition-graph";
+import {
   type AdminMemoryAidDto,
+  type DecompositionGraphDto,
   MemoryAidDto,
   VocabTypeEnum,
   type VocabType,
@@ -23,6 +31,14 @@ import {
   VocabItemDetailedDto,
   VocabItemDto,
 } from "@/definitions/definitions";
+
+/**
+ * The corpus only changes when an admin edits vocabulary, so the index is built
+ * once and reused. Five minutes is short enough that a disable takes effect
+ * without a deploy and long enough that clicking through the graph does not
+ * re-scan the table on every hop.
+ */
+const DECOMPOSITION_INDEX_TTL_MS = 5 * 60_000;
 
 /**
  * ORDER BY terms for a memory-aid list: the starred aid first, then most-used.
@@ -104,12 +120,15 @@ export class VocabService {
       id: vocabItem.id,
       vocabItem: vocabItem.vocabItem,
       translation: vocabItem.translation,
-      pinyin: vocabItem.pinyin,
+      pinyin: readingOf(vocabItem).pinyin,
       vocabType: vocabItem.vocabType,
-      audioUrl: vocabItem.audioUrl,
+      script: vocabItem.script,
+      audioUrl: readingOf(vocabItem).audioUrl,
       decomposition: vocabItem.decomposition,
       etymologyHint: vocabItem.etymologyHint,
       etymologyType: vocabItem.etymologyType,
+      etymologyPhonetic: vocabItem.etymologyPhonetic,
+      etymologySemantic: vocabItem.etymologySemantic,
       radical: vocabItem.radical,
       strokes: vocabItem.strokes,
       strokeMedians: vocabItem.strokeMedians,
@@ -594,5 +613,91 @@ export class VocabService {
 
     const hiddenSet = new Set(hidden.map((row) => row.vocabItem));
     return parts.filter((part) => !hiddenSet.has(part));
+  }
+
+  private indexCache?: { builtAt: number; index: Promise<DecompositionIndex> };
+
+  /**
+   * One hop of the decomposition graph around a glyph, uncapped.
+   *
+   * The traversal itself lives in @/server/decomposition-graph — this method owns
+   * only the freshness rules that need the database.
+   */
+  async getDecompositionGraph(
+    vocabItem: string,
+  ): Promise<DecompositionGraphDto> {
+    // Authoritative existence check, so an unknown or disabled glyph fails the
+    // same way it does on every other read path instead of returning an empty
+    // graph, and so a brand-new glyph is never hidden by a stale index.
+    const focus = await this.getVocabItem(vocabItem);
+    if (focus.vocabType === "sentence") {
+      throw new Error(
+        `Sentences decompose by segmentation, not by glyph, and have no decomposition graph: ${vocabItem}`,
+      );
+    }
+
+    let index = await this.decompositionIndex();
+    if (!index.glyphs.has(focus.vocabItem)) {
+      // The row exists but the cached index predates it. Rebuild rather than
+      // report an empty neighbourhood for a glyph we just confirmed is live.
+      this.indexCache = undefined;
+      index = await this.decompositionIndex();
+    }
+
+    return {
+      focus: focus.vocabItem,
+      ...extractNeighbourhood(index, focus.vocabItem),
+    };
+  }
+
+  private decompositionIndex(): Promise<DecompositionIndex> {
+    const now = Date.now();
+    const cached = this.indexCache;
+    if (cached && now - cached.builtAt < DECOMPOSITION_INDEX_TTL_MS) {
+      return cached.index;
+    }
+
+    const entry = { builtAt: now, index: this.buildDecompositionIndex() };
+    // A rejected build must not be cached for the whole TTL, or one transient
+    // database error breaks the view for five minutes.
+    entry.index.catch(() => {
+      if (this.indexCache === entry) this.indexCache = undefined;
+    });
+    this.indexCache = entry;
+
+    return entry.index;
+  }
+
+  /**
+   * The one query behind the graph: every teachable, non-sentence row.
+   *
+   * Both exclusions are load-bearing and documented on buildDecompositionIndex —
+   * `disabled` rows must be absent so hidden parts cannot leak in as edges, and
+   * sentences decompose by segmentation rather than by glyph.
+   */
+  private async buildDecompositionIndex(): Promise<DecompositionIndex> {
+    const rows: GraphGlyph[] = await this.deps.database
+      .select({
+        vocabItem: schema.vocabItems.vocabItem,
+        vocabType: schema.vocabItems.vocabType,
+        pinyin: schema.vocabItems.pinyin,
+        translation: schema.vocabItems.translation,
+        decomposition: schema.vocabItems.decomposition,
+      })
+      .from(schema.vocabItems)
+      .where(
+        and(
+          eq(schema.vocabItems.disabled, false),
+          ne(schema.vocabItems.vocabType, "sentence"),
+        ),
+      );
+
+    const index = buildDecompositionIndex(rows);
+    this.deps.logger.debug(
+      { glyphs: index.glyphs.size, composed: index.children.size },
+      "Built decomposition index",
+    );
+
+    return index;
   }
 }

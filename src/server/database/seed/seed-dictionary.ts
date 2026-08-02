@@ -10,6 +10,10 @@ import {
   loadVocabClassification,
   suppressesAudio,
 } from "@/server/database/seed/vocab-classification";
+import {
+  classifyScript,
+  loadScriptClassification,
+} from "@/server/database/seed/script-classification";
 import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
 
 interface SeedCradle {
@@ -34,6 +38,9 @@ interface DictionaryEntry {
   etymology?: {
     type: string;
     hint: string;
+    /** Only on `pictophonetic`, and either may be absent. */
+    phonetic?: string;
+    semantic?: string;
   };
   radical?: string;
   matches?: (number[] | null)[];
@@ -116,6 +123,9 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
   // so a fresh seed lands in the same state the backfill produces — re-seeding
   // must not reintroduce a disabled glyph as a studiable character.
   const classification = loadVocabClassification();
+  // Same reasoning for the script: derived from a reviewable file rather than the
+  // column default, so a fresh seed and the backfill agree on all three values.
+  const scriptClassification = loadScriptClassification();
 
   const buildRow = async (entry: DictionaryEntry) => {
     const graphics = graphicsMap.get(entry.character);
@@ -127,9 +137,10 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
         ? entry.pinyin[0]
         : cradle.translator.getPinyin(entry.character);
 
-    // Components and disabled glyphs are never pronounced in the app, so skip
-    // the TTS round-trip for them entirely — that is ~156 fewer network calls
-    // per seed, and it stops a fresh seed reintroducing audio the app hides.
+    // A meaning-only component is never pronounced in the app and a disabled
+    // glyph is hidden everywhere, so skip the TTS round-trip for them entirely —
+    // ~150 fewer network calls per seed, and it stops a fresh seed reintroducing
+    // audio the app hides. A phonetic component is pronounced, so it goes ahead.
     let audioUrl = "";
     if (rawPinyin && !suppressesAudio(classified)) {
       try {
@@ -157,6 +168,8 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
         classified?.decision === "component"
           ? VocabTypeEnum.enum.component
           : VocabTypeEnum.enum.character,
+      phonetic: stored.phonetic,
+      script: classifyScript(entry.character, scriptClassification),
       disabled: classified?.decision === "disabled",
       audioUrl: stored.audioUrl,
       decomposition: entry.decomposition || null,
@@ -164,6 +177,8 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       etymologyType: entry.etymology?.type
         ? (entry.etymology.type as EtymologyType)
         : null,
+      etymologyPhonetic: entry.etymology?.phonetic || null,
+      etymologySemantic: entry.etymology?.semantic || null,
       radical: entry.radical || null,
       strokes: graphics?.strokes ?? null,
       strokeMedians: (graphics?.medians as [number, number][][] | null) ?? null,

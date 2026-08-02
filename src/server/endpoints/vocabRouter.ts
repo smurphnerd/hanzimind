@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/client";
 
 import { authProcedure, commonProcedure } from "@/server/endpoints/procedure";
 import {
+  DecompositionGraphDto,
   MemoryAidDto,
   SearchLanguageEnum,
   VocabItemDetailedDto,
@@ -55,6 +56,30 @@ export const vocabRouter = {
     .input(searchVocabItemsSchema)
     .handler(async ({ input, context }) => {
       return await context.cradle.vocabService.searchVocabItems(input);
+    }),
+
+  /**
+   * One hop of the decomposition graph around a glyph, with every connection.
+   *
+   * Uncapped by design — a partial list of a glyph's direct relationships cannot
+   * be told apart from a complete one, so sampling would misinform. Degree keeps
+   * it bounded: the widest node in the corpus is 口 at 488.
+   */
+  graph: commonProcedure
+    .input(z.object({ vocabItem: z.string().min(1) }))
+    .output(DecompositionGraphDto)
+    .handler(async ({ input, context }) => {
+      try {
+        return await context.cradle.vocabService.getDecompositionGraph(
+          input.vocabItem,
+        );
+      } catch (error) {
+        throw new ORPCError("NOT_FOUND", {
+          message:
+            error instanceof Error ? error.message : "Vocab item not found",
+          cause: error,
+        });
+      }
     }),
 
   createMemoryAid: authProcedure

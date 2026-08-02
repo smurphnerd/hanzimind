@@ -24,6 +24,15 @@ const searchLanguageValues = ["chinese", "english"] as const;
 export const SearchLanguageEnum = z.enum(searchLanguageValues);
 export type SearchLanguage = z.infer<typeof SearchLanguageEnum>;
 
+// Which script a glyph belongs to. `both` is not a fallback for "unknown" — it is
+// the positive, and most common, case: over half the dictionary is written
+// identically in both scripts (人, 大, 一). `simplified` and `traditional` mean the
+// glyph has a distinct counterpart in the other script (国 <-> 國), which is what
+// makes it unsuitable for a learner studying the other one.
+const scriptValues = ["simplified", "traditional", "both"] as const;
+export const ScriptEnum = z.enum(scriptValues);
+export type Script = z.infer<typeof ScriptEnum>;
+
 const etymologyTypeValues = [
   "ideographic",
   "pictographic",
@@ -62,10 +71,20 @@ export const VocabItemDto = z.object({
   translation: z.string().nullable(),
   pinyin: z.string(),
   vocabType: z.enum(vocabTypeValues),
+  script: ScriptEnum,
   audioUrl: z.string(),
   decomposition: z.string().nullable(),
   etymologyHint: z.string().nullable(),
   etymologyType: z.string().nullable(),
+  /**
+   * For a pictophonetic character, which part supplied the sound and which
+   * supplied the meaning. Both are glyphs that should appear in `decomposition`;
+   * the client tags the parts by matching against them. The role belongs to the
+   * pair, not the part — 山 is the meaning in 峰 and the sound in 仙 — so it can
+   * only be read off the character being looked at.
+   */
+  etymologyPhonetic: z.string().nullable(),
+  etymologySemantic: z.string().nullable(),
   radical: z.string().nullable(),
   strokes: z.array(z.string()).nullable(), // Array of SVG path strings
   strokeMedians: z.array(z.array(z.tuple([z.number(), z.number()]))).nullable(), // Array of coordinate pairs for each stroke
@@ -88,10 +107,17 @@ export const AdminVocabItemDto = VocabItemDto.pick({
   translation: true,
   pinyin: true,
   vocabType: true,
+  script: true,
   decomposition: true,
   radical: true,
 }).extend({
   disabled: z.boolean(),
+  /**
+   * Only meaningful on a component: whether its own reading is taught. A stored
+   * pinyin does not imply this — most components carry one borrowed from the
+   * character they abbreviate — so the admin screen edits the two separately.
+   */
+  phonetic: z.boolean(),
 });
 export type AdminVocabItemDto = z.infer<typeof AdminVocabItemDto>;
 
@@ -113,26 +139,107 @@ export const VocabItemDetailedDto = VocabItemDto.extend({
 export type VocabItemDetailedDto = z.infer<typeof VocabItemDetailedDto>;
 
 /**
- * Components are meaning-only — they have no reading of their own and cannot be
- * typed — so reading, listening and writing cards are unreachable for them.
- * Narrowing the vocabType here makes the API reject one rather than trusting
- * every producer to remember. See canStudy in @/server/study-rules.
+ * One glyph in a decomposition graph.
+ *
+ * `degree` is the node's degree across the WHOLE corpus, not within this
+ * response. It is what makes hub components visibly large and tells the viewer
+ * that 口 is shared by hundreds of characters, most of which are one hop further
+ * out than this graph reaches.
  */
-const quizzableByPronunciation = z.enum(["sentence", "compound", "character"]);
+export const GraphNodeDto = z.object({
+  vocabItem: z.string(),
+  vocabType: VocabTypeEnum,
+  pinyin: z.string(),
+  translation: z.string().nullable(),
+  degree: z.number().int().nonnegative(),
+});
+export type GraphNodeDto = z.infer<typeof GraphNodeDto>;
+
+/**
+ * A decomposition edge, kept directed on the wire (`parent` is built FROM
+ * `child`) even though the view renders it undirected — the direction is what
+ * lets the client tell "is made of" from "is used in" without a second lookup,
+ * and cycles are harmless because the traversal is visited-set guarded.
+ */
+export const GraphEdgeDto = z.object({
+  parent: z.string(),
+  child: z.string(),
+});
+export type GraphEdgeDto = z.infer<typeof GraphEdgeDto>;
+
+/**
+ * The focus glyph, everything one hop from it, and every edge among that set.
+ *
+ * One hop and uncapped, which is what keeps it honest: this is the complete set
+ * of a glyph's direct relationships, not a sample of them. It stays bounded
+ * because degree does — the widest node in the corpus is 口 at 488, so the worst
+ * case is a few hundred nodes rather than the 9.5k single component the graph
+ * dissolves into at two hops or more.
+ */
+export const DecompositionGraphDto = z.object({
+  focus: z.string(),
+  nodes: z.array(GraphNodeDto),
+  edges: z.array(GraphEdgeDto),
+});
+export type DecompositionGraphDto = z.infer<typeof DecompositionGraphDto>;
+
+/**
+ * One glyph in a deck graph: a corpus node plus its depth in the deck's unlock
+ * order.
+ *
+ * `degree` is local to the deck here, unlike the one-hop view — the question a
+ * deck answers is what it is shaped like, so a component used by three hundred
+ * characters but four of *these* should be drawn the size it is here.
+ */
+export const DeckGraphNodeDto = GraphNodeDto.extend({
+  /**
+   * Levels below this glyph in the deck. 0 is a component, or a character whose
+   * parts are not in this deck; anything higher is one past its deepest
+   * prerequisite. See layerByPrerequisites in @/server/decomposition-graph.
+   */
+  level: z.number().int().nonnegative(),
+});
+export type DeckGraphNodeDto = z.infer<typeof DeckGraphNodeDto>;
+
+/**
+ * A whole deck as one graph, every node tagged with its unlock depth.
+ *
+ * Uncapped, because a deck is already bounded and curated — a few hundred rows —
+ * and because the depth control is the way this view is narrowed. Filtering to
+ * level <= N client-side is safe by construction: a prerequisite always sits on a
+ * strictly lower level than the thing it gates, so no cut ever hides a part of
+ * something it still shows.
+ */
+export const DeckGraphDto = z.object({
+  nodes: z.array(DeckGraphNodeDto),
+  edges: z.array(GraphEdgeDto),
+  /** Deepest level present, so the client can size its depth control. */
+  maxLevel: z.number().int().nonnegative(),
+});
+export type DeckGraphDto = z.infer<typeof DeckGraphDto>;
+
+/**
+ * A component cannot be typed on a pinyin IME, so a writing card is unreachable
+ * for one. Narrowing the vocabType here makes the API reject it rather than
+ * trusting every producer to remember. Reading and listening are *not* narrowed:
+ * a phonetic component (艮 gěn behind 很, 跟, 根) keeps its own reading and is
+ * quizzed on it. See canStudy in @/server/study-rules.
+ */
+const writable = z.enum(["sentence", "compound", "character"]);
 
 const VocabItemStudyReadingDto = VocabItemDto.pick({
   id: true,
   vocabItem: true,
+  vocabType: true,
 }).extend({
-  vocabType: quizzableByPronunciation,
   studyType: z.literal("reading"),
 });
 
 const VocabItemStudyListeningDto = VocabItemDto.pick({
   id: true,
   audioUrl: true,
+  vocabType: true,
 }).extend({
-  vocabType: quizzableByPronunciation,
   studyType: z.literal("listening"),
 });
 
@@ -149,7 +256,7 @@ const VocabItemStudyWritingDto = VocabItemDto.pick({
   id: true,
   translation: true,
 }).extend({
-  vocabType: quizzableByPronunciation,
+  vocabType: writable,
   studyType: z.literal("writing"),
 });
 
@@ -172,14 +279,16 @@ export const VocabItemStudyDto = z.discriminatedUnion("studyType", [
 ]);
 export type VocabItemStudyDto = z.infer<typeof VocabItemStudyDto>;
 
-export const StudyAnswerDto = z.object({
-  vocabItemId: z.string(),
-}).extend({
-  userId: z.string(),
-  deckId: z.string(),
-  studyType: z.enum([...studyTypeValues, "new"]),
-  answer: z.string(),
-});
+export const StudyAnswerDto = z
+  .object({
+    vocabItemId: z.string(),
+  })
+  .extend({
+    userId: z.string(),
+    deckId: z.string(),
+    studyType: z.enum([...studyTypeValues, "new"]),
+    answer: z.string(),
+  });
 export type StudyAnswerDto = z.infer<typeof StudyAnswerDto>;
 
 /** How many non-disabled items a deck holds, split by type. */
@@ -213,8 +322,9 @@ export type DeckDto = z.infer<typeof DeckDto>;
 
 /**
  * `pinyin` and `audioUrl` are carried so the deck preview can pronounce a row
- * without a second round-trip. Both are `""` for components by design — they are
- * meaning-only — so every consumer must treat empty as "no audio", not as a bug.
+ * without a second round-trip. Both are `""` for a meaning-only component by
+ * design — a phonetic one keeps its reading — so every consumer must treat empty
+ * as "no audio", not as a bug.
  */
 export const DeckVocabItemSummaryDto = VocabItemDto.pick({
   id: true,

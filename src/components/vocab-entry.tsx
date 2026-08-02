@@ -1,16 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Sparkles, Volume2 } from "lucide-react";
+import { Network, Sparkles, Volume2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CharacterStrokes } from "@/components/character-strokes";
+import { DecompositionGraphPanel } from "@/components/decomposition-graph-panel";
 import { ItemTypeBadge } from "@/components/item-type-badge";
+import {
+  SegmentedToggle,
+  type SegmentedOption,
+} from "@/components/segmented-toggle";
 import type { VocabType } from "@/definitions/definitions";
 import { canPlayAudio, playAudio } from "@/lib/audio";
 import { vocabTypeMeta } from "@/lib/vocab-type";
 import { cn } from "@/lib/utils";
+
+type EntryView = "standard" | "graph";
 
 /**
  * Type sizes for a run of glyphs, indexed by how many glyphs it has to hold.
@@ -68,6 +76,20 @@ const ETYMOLOGY_LABEL: Record<string, string> = {
 };
 
 /**
+ * What a part does in the character it sits in. A pictophonetic character is
+ * built from one part that supplied the sound and one that supplied the meaning
+ * — 沐 mù is 氵 "water" plus 木 mù — and knowing which is which is most of the
+ * value of seeing the decomposition at all.
+ */
+type PartRole = "sound" | "meaning" | "sound + meaning";
+
+const PART_ROLE_CLASS: Record<PartRole, string> = {
+  sound: "text-accent",
+  meaning: "text-primary",
+  "sound + meaning": "text-accent",
+};
+
+/**
  * The fields any screen needs to present one vocabulary entry. Deliberately a
  * structural type rather than one of the DTOs: the dictionary passes a
  * VocabItemDetailedDto and the study intro a VocabItemStudyDto, and they agree
@@ -83,6 +105,13 @@ export interface VocabEntryData {
   strokeMedians: [number, number][][] | null;
   etymologyHint: string | null;
   etymologyType: string | null;
+  /**
+   * The parts that supplied this character's sound and meaning. Matched against
+   * `constituents` to label the tiles — the role belongs to the pair, not to the
+   * part, so it can only be read off the entry being shown.
+   */
+  etymologyPhonetic: string | null;
+  etymologySemantic: string | null;
   radical: string | null;
   /** Resolved server-side with disabled parts already dropped. Never re-split `decomposition`. */
   constituents: string[] | null;
@@ -168,6 +197,23 @@ export function VocabEntryDetail({
 
   const parts = entry.constituents ?? [];
 
+  // Which part did which job. Read off this entry rather than looked up on the
+  // part, because the role is a property of the pair: 山 is the meaning in 峰 and
+  // the sound in 仙 xiān. About 4% of pictophonetic characters name a part that
+  // is not in the top-level decomposition (冒's sound is 冃, but it splits ⿱日目),
+  // and those simply go unlabelled rather than getting a tile they do not have.
+  const roleOf = (part: string): PartRole | null => {
+    const sound = part === entry.etymologyPhonetic;
+    const meaning = part === entry.etymologySemantic;
+    if (sound && meaning) return "sound + meaning";
+    if (sound) return "sound";
+    if (meaning) return "meaning";
+    return null;
+  };
+  // Reserve the caption line on every tile once any part has one, so the tiles
+  // stay the same height and the + between them stays on the same line.
+  const showRoles = parts.some((part) => roleOf(part) !== null);
+
   // Only a single glyph is written stroke by stroke; a word or sentence would
   // fall through to an empty "no stroke data" box.
   const showStrokes = isSingleGlyph && (entry.strokes?.length ?? 0) > 0;
@@ -178,6 +224,14 @@ export function VocabEntryDetail({
     isSingleGlyph &&
     Boolean(entry.etymologyHint || entry.etymologyType || entry.radical);
   const visualCards = (showStrokes ? 1 : 0) + (showParts || hasOrigin ? 1 : 0);
+
+  const [view, setView] = useState<EntryView>("standard");
+  // Sentences decompose by segmentation rather than by glyph, which is a
+  // different relation from the one the graph draws, so they have no graph view.
+  // A component does: it has no parts, but the characters built from it are the
+  // interesting half.
+  const canShowGraph = entry.vocabType !== "sentence";
+  const showingGraph = canShowGraph && view === "graph";
 
   return (
     <div className={cn("space-y-6", className)}>
@@ -206,19 +260,26 @@ export function VocabEntryDetail({
             </div>
             <div className="flex min-w-0 flex-col items-start gap-3">
               <ItemTypeBadge type={entry.vocabType} />
-              {/* A component is a bound form — it is never pronounced on its
-                  own, so it is stored with no reading and no audio. Explain the
-                  absence rather than showing a blank line and a dead button. */}
-              {entry.vocabType === "component" ? (
+              {/* Most components are bound forms with no pronunciation of their
+                  own, stored with no reading and no audio; a phonetic one (艮
+                  behind 很, 跟, 根) keeps its reading because that sound is the
+                  clue it carries. Branch on the reading, not the type. */}
+              {entry.vocabType === "component" && !entry.pinyin ? (
                 <p className="text-muted-foreground text-sm">
-                  A part used to build other characters — it has no pronunciation
-                  of its own.
+                  A part used to build other characters — it has no
+                  pronunciation of its own.
                 </p>
               ) : (
                 <>
                   <div className={cn("hanzi text-3xl", meta.colorClass)}>
                     {entry.pinyin}
                   </div>
+                  {entry.vocabType === "component" && (
+                    <p className="text-muted-foreground text-sm">
+                      A part used to build other characters — its sound is a
+                      clue to how they are said.
+                    </p>
+                  )}
                   {canPlayAudio(entry.audioUrl) && (
                     <Button
                       variant="outline"
@@ -235,24 +296,54 @@ export function VocabEntryDetail({
         </CardContent>
       </Card>
 
-      {/* Definition */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl tracking-tight">Definition</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {entry.translation ? (
-            <p className="text-foreground text-lg">{entry.translation}</p>
-          ) : (
-            <p className="text-muted-foreground text-lg">
-              No definition yet for this entry.
-            </p>
-          )}
-          {definitionFooter}
-        </CardContent>
-      </Card>
+      {canShowGraph && (
+        <div className="flex justify-end">
+          <SegmentedToggle
+            options={ENTRY_VIEWS}
+            value={view}
+            onChange={setView}
+            label="Entry view"
+          />
+        </div>
+      )}
 
-      {visualCards > 0 && (
+      {showingGraph && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl tracking-tight">
+              Connections
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DecompositionGraphPanel
+              vocabItem={entry.vocabItem}
+              linkable={partsLinkable}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Definition. Hidden in graph view, where every node carries its own gloss
+          on hover and the point is the structure rather than the prose. */}
+      {!showingGraph && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl tracking-tight">Definition</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {entry.translation ? (
+              <p className="text-foreground text-lg">{entry.translation}</p>
+            ) : (
+              <p className="text-muted-foreground text-lg">
+                No definition yet for this entry.
+              </p>
+            )}
+            {definitionFooter}
+          </CardContent>
+        </Card>
+      )}
+
+      {!showingGraph && visualCards > 0 && (
         <div
           // items-start so a short card (an Origin note) sits at its own height
           // instead of stretching to match the stroke animation beside it.
@@ -307,6 +398,8 @@ export function VocabEntryDetail({
                             glyphSize(part, PART_GLYPH_SIZES),
                           )}
                           linkable={partsLinkable}
+                          role={roleOf(part)}
+                          showRole={showRoles}
                         />
                       </div>
                     ))}
@@ -335,10 +428,14 @@ function PartTile({
   part,
   className,
   linkable,
+  role,
+  showRole,
 }: {
   part: string;
   className?: string;
   linkable: boolean;
+  role: PartRole | null;
+  showRole: boolean;
 }) {
   const tile = (
     <div
@@ -352,11 +449,52 @@ function PartTile({
     </div>
   );
 
-  if (!linkable) return tile;
+  const labelled = showRole ? (
+    <div className="flex flex-col items-center gap-1.5">
+      {tile}
+      {/* Rendered even when empty so every tile is the same height — see
+          showRoles. A part with no role is silent rather than "unknown": the
+          dictionary simply did not name it, which is not a fact about the part. */}
+      <span
+        className={cn(
+          "text-[0.65rem] font-bold tracking-wider uppercase",
+          role ? PART_ROLE_CLASS[role] : "invisible",
+        )}
+      >
+        {role ?? "—"}
+      </span>
+    </div>
+  ) : (
+    tile
+  );
+
+  if (!linkable) return labelled;
 
   return (
     <Link href={`/dictionary/${encodeURIComponent(part)}`} className="group">
-      {tile}
+      {labelled}
     </Link>
   );
 }
+
+/** Standard / graph switch for one entry. */
+const ENTRY_VIEWS: ReadonlyArray<SegmentedOption<EntryView>> = [
+  {
+    value: "standard",
+    label: (
+      <>
+        <Sparkles />
+        Details
+      </>
+    ),
+  },
+  {
+    value: "graph",
+    label: (
+      <>
+        <Network />
+        Graph
+      </>
+    ),
+  },
+];

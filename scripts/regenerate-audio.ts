@@ -18,7 +18,7 @@
  */
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { pino } from "pino";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 
 import { getDatabase } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
@@ -54,7 +54,9 @@ async function main() {
   console.log(`\nBucket:    ${env.S3_OPTIONS.bucketName}`);
   console.log(`Endpoint:  ${env.S3_OPTIONS.endpoint}`);
   console.log(`Public:    ${publicUrl}`);
-  console.log(`Mode:      ${dryRun ? "DRY RUN" : force ? "force regenerate" : "fill gaps"}\n`);
+  console.log(
+    `Mode:      ${dryRun ? "DRY RUN" : force ? "force regenerate" : "fill gaps"}\n`,
+  );
 
   // ---- What's already in the destination -------------------------------
   const s3 = new S3Client({
@@ -84,9 +86,12 @@ async function main() {
   console.log(`Objects already in audio/: ${present.size}`);
 
   // ---- What the database expects ---------------------------------------
-  // Components have no pronunciation of their own and disabled items are hidden
-  // everywhere, so neither should ever get audio — without this filter a run
-  // here would put back exactly what the classification strips out.
+  // A row with nothing to pronounce gets no audio: no reading at all, or a
+  // component whose reading is borrowed from the character it abbreviates and so
+  // is never served (see readingOf). A *phonetic* component (艮, 隹, 虍) does
+  // belong here — its sound is the clue to the series it heads. Disabled items
+  // are hidden everywhere. Without this filter a run would put back exactly what
+  // the classification keeps out.
   const items = await database
     .select({
       id: schema.vocabItems.id,
@@ -96,8 +101,12 @@ async function main() {
     .from(schema.vocabItems)
     .where(
       and(
-        ne(schema.vocabItems.vocabType, "component"),
+        ne(schema.vocabItems.pinyin, ""),
         eq(schema.vocabItems.disabled, false),
+        or(
+          ne(schema.vocabItems.vocabType, "component"),
+          eq(schema.vocabItems.phonetic, true),
+        ),
       ),
     );
 

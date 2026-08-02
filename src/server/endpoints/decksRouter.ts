@@ -4,7 +4,11 @@ import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
 import { schema } from "@/server/database/schema";
-import { DeckDto, DeckDetailedDto } from "@/definitions/definitions";
+import {
+  DeckDto,
+  DeckDetailedDto,
+  DeckGraphDto,
+} from "@/definitions/definitions";
 
 const browseDecksSchema = z.object({
   search: z.string().optional(),
@@ -55,7 +59,8 @@ export const decksRouter = {
         await context.cradle.vocabService.getStoredVocabItems(vocabList);
 
       const requestedVocabList = vocabList.filter(
-        (item) => !storedVocabItems.includes(item) || usableVocabItems.includes(item),
+        (item) =>
+          !storedVocabItems.includes(item) || usableVocabItems.includes(item),
       );
 
       // Find missing vocab items
@@ -177,6 +182,22 @@ export const decksRouter = {
           cause: error,
         });
       }
+    }),
+
+  /**
+   * A deck as one graph, uncapped, with every node's unlock depth.
+   *
+   * Separate from `getById` rather than folded into it: the graph needs each item's
+   * `decomposition`, which the preview does not, and it is only fetched when a
+   * viewer switches to that view.
+   */
+  graph: authProcedure
+    .input(z.object({ deckId: z.string() }))
+    .output(DeckGraphDto)
+    .handler(async ({ input, context }) => {
+      return await context.cradle.deckService.getDeckGraph({
+        deckId: input.deckId,
+      });
     }),
 
   getUserDecks: authProcedure
