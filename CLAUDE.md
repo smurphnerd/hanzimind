@@ -171,6 +171,26 @@ Toggling one never touches the other, and the next `backfill-classification.ts`
 run resets Phonetic from the TSV — so an admin edit is provisional until it is
 recorded in the file.
 
+**Saying it out loud in the dictionary**
+`ComponentRoleBadge` states which it is — "Meaning only" or "Meaning + sound" —
+on the entry header and in the search table, next to the type badge. The two
+states are additive on purpose: every component is quizzed on meaning (the
+generator refuses to emit one without a gloss), and a phonetic is quizzed on
+sound _as well_. There is no component taught by sound alone, so the badge never
+reads just "Sound".
+
+It takes `phonetic` straight from the DTO. Do not re-derive it from an empty
+`pinyin`: `readingOf` has already blanked the borrowed ones, which makes "has no
+reading" and "has one we hide" identical on the client.
+
+**`toVocabItemDto` is the only way a row becomes a dictionary DTO**
+Both paths must go through it. They drifted once: `getVocabItemDetailed` mapped
+field by field through `readingOf` while `searchVocabItems` returned the raw
+`select()`, so 亻 was silent on its own page and offered a working play button
+for 人's audio in the results table — and shipped that way. The mapper also drops
+the admin-only columns (`disabled`, `defaultMemoryAidId`) that a bare `select()`
+otherwise puts on the wire. Pinned by `VocabService.test.ts`.
+
 **The gating rule that goes with it**
 `weakestServableLevel` must only consider study types `canStudy` permits for that
 item. Taking the minimum over every _deck-enabled_ type instead pins a

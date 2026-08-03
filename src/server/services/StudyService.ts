@@ -728,14 +728,16 @@ export class StudyService {
 
       // Return the full vocab item if this is the first time studying this item
       if (!selectedItem.seen) {
+        const reading = readingOf(selectedItem);
         return {
           id: selectedItem.id,
           vocabItem: selectedItem.vocabItem,
           translation: selectedItem.translation,
-          pinyin: readingOf(selectedItem).pinyin,
+          pinyin: reading.pinyin,
           vocabType: selectedItem.vocabType,
           script: selectedItem.script,
-          audioUrl: readingOf(selectedItem).audioUrl,
+          audioUrl: reading.audioUrl,
+          phonetic: selectedItem.phonetic,
           decomposition: selectedItem.decomposition,
           etymologyHint: selectedItem.etymologyHint,
           etymologyType: selectedItem.etymologyType,
@@ -892,14 +894,16 @@ export class StudyService {
         }
       }
 
+      const reading = readingOf(item);
       return {
         id: item.id,
         vocabItem: item.vocabItem,
         translation: item.translation,
-        pinyin: readingOf(item).pinyin,
+        pinyin: reading.pinyin,
         vocabType: item.vocabType,
         script: item.script,
-        audioUrl: readingOf(item).audioUrl,
+        audioUrl: reading.audioUrl,
+        phonetic: item.phonetic,
         decomposition: item.decomposition,
         etymologyHint: item.etymologyHint,
         etymologyType: item.etymologyType,

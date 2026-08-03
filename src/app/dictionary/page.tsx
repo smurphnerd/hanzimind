@@ -19,6 +19,7 @@ import { useORPC } from "@/lib/orpc.client";
 import type { SearchLanguage } from "@/definitions/definitions";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
+import { ComponentRoleBadge } from "@/components/component-role-badge";
 import { Mika } from "@/components/mika";
 
 function DictionaryContent() {
@@ -181,7 +182,12 @@ function DictionaryContent() {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <ItemTypeBadge type={result.vocabType} short />
+                      <div className="flex flex-col items-start gap-1">
+                        <ItemTypeBadge type={result.vocabType} short />
+                        {result.vocabType === "component" && (
+                          <ComponentRoleBadge phonetic={result.phonetic} />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

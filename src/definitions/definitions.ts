@@ -73,6 +73,14 @@ export const VocabItemDto = z.object({
   vocabType: z.enum(vocabTypeValues),
   script: ScriptEnum,
   audioUrl: z.string(),
+  /**
+   * Only meaningful on a component: whether its reading is its own and worth
+   * teaching. False is the common case, and `pinyin`/`audioUrl` above have
+   * already been blanked by `readingOf` for those — so this is what tells the
+   * difference between "no reading to show" and "a reading we are hiding".
+   * Always false for a character or compound, whose reading is never in doubt.
+   */
+  phonetic: z.boolean(),
   decomposition: z.string().nullable(),
   etymologyHint: z.string().nullable(),
   etymologyType: z.string().nullable(),

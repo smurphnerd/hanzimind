@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CharacterStrokes } from "@/components/character-strokes";
 import { DecompositionGraphPanel } from "@/components/decomposition-graph-panel";
 import { ItemTypeBadge } from "@/components/item-type-badge";
+import { ComponentRoleBadge } from "@/components/component-role-badge";
 import {
   SegmentedToggle,
   type SegmentedOption,
@@ -100,6 +101,12 @@ export interface VocabEntryData {
   vocabType: VocabType;
   pinyin: string;
   audioUrl: string;
+  /**
+   * Component only: whether its reading is its own and taught. `pinyin` and
+   * `audioUrl` above are already blanked when this is false, so they cannot be
+   * used to recover it — a blank reading and a hidden one look identical here.
+   */
+  phonetic: boolean;
   translation: string | null;
   strokes: string[] | null;
   strokeMedians: [number, number][][] | null;
@@ -259,12 +266,18 @@ export function VocabEntryDetail({
               </span>
             </div>
             <div className="flex min-w-0 flex-col items-start gap-3">
-              <ItemTypeBadge type={entry.vocabType} />
-              {/* Most components are bound forms with no pronunciation of their
-                  own, stored with no reading and no audio; a phonetic one (艮
-                  behind 很, 跟, 根) keeps its reading because that sound is the
-                  clue it carries. Branch on the reading, not the type. */}
-              {entry.vocabType === "component" && !entry.pinyin ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <ItemTypeBadge type={entry.vocabType} />
+                {entry.vocabType === "component" && (
+                  <ComponentRoleBadge phonetic={entry.phonetic} />
+                )}
+              </div>
+              {/* Branch on the flag, never on the reading. Most components hold
+                  a reading borrowed from the character they abbreviate (亻 has
+                  人's "rén"); `readingOf` blanks it server-side, so an empty
+                  pinyin here cannot tell "has no sound" from "we hid it", and
+                  either way the answer is the flag. */}
+              {entry.vocabType === "component" && !entry.phonetic ? (
                 <p className="text-muted-foreground text-sm">
                   A part used to build other characters — it has no
                   pronunciation of its own.

@@ -41,6 +41,43 @@ import {
 const DECOMPOSITION_INDEX_TTL_MS = 5 * 60_000;
 
 /**
+ * One vocab row as the learner-facing dictionary sees it.
+ *
+ * The single place a row becomes a DTO, because the two call sites drifted once
+ * already: the entry page blanked a component's borrowed reading and the search
+ * list returned the raw row, so 亻 was silent on one screen and said 人's "rén"
+ * on the other. It also drops the admin-only columns a `select()` sweeps up.
+ *
+ * Exported so a test can pin that blanking without a database.
+ */
+export function toVocabItemDto(
+  row: typeof schema.vocabItems.$inferSelect,
+): VocabItemDto {
+  const reading = readingOf(row);
+  return {
+    id: row.id,
+    vocabItem: row.vocabItem,
+    translation: row.translation,
+    pinyin: reading.pinyin,
+    vocabType: row.vocabType,
+    script: row.script,
+    audioUrl: reading.audioUrl,
+    phonetic: row.phonetic,
+    decomposition: row.decomposition,
+    etymologyHint: row.etymologyHint,
+    etymologyType: row.etymologyType,
+    etymologyPhonetic: row.etymologyPhonetic,
+    etymologySemantic: row.etymologySemantic,
+    radical: row.radical,
+    strokes: row.strokes,
+    strokeMedians: row.strokeMedians,
+    strokeMatches: row.strokeMatches,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+/**
  * ORDER BY terms for a memory-aid list: the starred aid first, then most-used.
  *
  * The default term is emitted ONLY when there is a default. A bare integer
@@ -115,26 +152,8 @@ export class VocabService {
       }),
     ]);
 
-    // Transform to VocabItemDto
-    const vocabItemDto: VocabItemDetailedDto = {
-      id: vocabItem.id,
-      vocabItem: vocabItem.vocabItem,
-      translation: vocabItem.translation,
-      pinyin: readingOf(vocabItem).pinyin,
-      vocabType: vocabItem.vocabType,
-      script: vocabItem.script,
-      audioUrl: readingOf(vocabItem).audioUrl,
-      decomposition: vocabItem.decomposition,
-      etymologyHint: vocabItem.etymologyHint,
-      etymologyType: vocabItem.etymologyType,
-      etymologyPhonetic: vocabItem.etymologyPhonetic,
-      etymologySemantic: vocabItem.etymologySemantic,
-      radical: vocabItem.radical,
-      strokes: vocabItem.strokes,
-      strokeMedians: vocabItem.strokeMedians,
-      strokeMatches: vocabItem.strokeMatches,
-      createdAt: vocabItem.createdAt,
-      updatedAt: vocabItem.updatedAt,
+    return {
+      ...toVocabItemDto(vocabItem),
       memoryAids,
       memoryAidTotal,
       defaultMemoryAidId: vocabItem.defaultMemoryAidId,
@@ -144,8 +163,6 @@ export class VocabService {
         decomposition: vocabItem.decomposition,
       }),
     };
-
-    return vocabItemDto;
   }
 
   /**
@@ -512,7 +529,7 @@ export class VocabService {
     const totalPages = Math.ceil(total / args.pageSize);
 
     return {
-      items,
+      items: items.map(toVocabItemDto),
       total,
       page: args.page,
       pageSize: args.pageSize,
