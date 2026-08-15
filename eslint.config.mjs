@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Other agents' git worktrees are separate checkouts of this same repo:
+    // linting them from here reports every problem twice.
+    ".claude/**",
   ]),
 ]);
 

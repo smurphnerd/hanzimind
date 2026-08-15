@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# test output — vitest.config.ts writes junit.xml here on every run
+/test-results
+
+# agent worktrees — separate checkouts of this repo, never part of a commit here
+/.claude/worktrees

@@ -1,0 +1,12 @@
+# Build and dependency output
+.next
+node_modules
+*.tsbuildinfo
+
+# Generated: rewriting these serves nothing and risks the install
+pnpm-lock.yaml
+test-results
+
+# Other agents' git worktrees are separate checkouts of this same repo —
+# formatting them from here rewrites files a different session is editing.
+.claude
