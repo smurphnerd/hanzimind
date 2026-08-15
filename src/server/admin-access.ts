@@ -1,8 +1,9 @@
 /**
- * Admin rights come from the ADMIN_EMAILS environment variable rather than a
- * column, so they cannot be granted from inside the app — there is no endpoint
- * that could be tricked into promoting someone, and a compromised account cannot
- * escalate itself. Changing the list is a deploy, which is the intended friction.
+ * ADMIN_EMAILS seeds who starts out an admin. The runtime source of truth is
+ * now `users.role` (Better Auth admin plugin), which travels on the session and
+ * can be granted in-app; this env list only bootstraps the first admins, via
+ * scripts/backfill-admin-roles.ts. These helpers exist for that backfill — they
+ * are no longer consulted on the request path.
  */
 
 /** Splits the raw ADMIN_EMAILS value into comparable addresses. */

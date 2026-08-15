@@ -1,6 +1,4 @@
-import { env } from "@/env";
-import { isAdminEmail, parseAdminEmails } from "@/server/admin-access";
-import { authMiddleware, commonProcedure } from "@/server/endpoints/procedure";
+import { commonProcedure } from "@/server/endpoints/procedure";
 import { adminRouter } from "@/server/endpoints/adminRouter";
 import { decksRouter } from "@/server/endpoints/decksRouter";
 import { suggestionsRouter } from "@/server/endpoints/suggestionsRouter";
@@ -9,17 +7,9 @@ import { studyRouter } from "@/server/endpoints/studyRouter";
 
 export const appRouter = {
   ping: commonProcedure.handler(() => "pong"),
-  getProfile: commonProcedure.use(authMiddleware).handler(({ context }) => ({
-    email: context.user.email,
-    // ADMIN_EMAILS is server-only, so the client learns its own admin status
-    // here rather than by comparing addresses itself. This only ever reveals
-    // whether *you* are an admin — the list itself never leaves the server, and
-    // every admin endpoint re-checks regardless of what the client believes.
-    isAdmin: isAdminEmail(
-      context.user.email,
-      parseAdminEmails(env.ADMIN_EMAILS),
-    ),
-  })),
+  // Admin status now travels on the session as `user.role` (Better Auth admin
+  // plugin), so the client reads it from useSession() rather than a getProfile
+  // round trip. Every admin endpoint still re-checks the role server-side.
   admin: adminRouter,
   decks: decksRouter,
   vocab: vocabRouter,

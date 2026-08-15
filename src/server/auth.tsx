@@ -2,6 +2,7 @@ import "server-only";
 
 import { betterAuth, type Logger as BetterAuthLogger } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { admin } from "better-auth/plugins";
 import { nanoid } from "nanoid";
 import type { Logger } from "pino";
 
@@ -50,6 +51,16 @@ export const getAuth = (
         });
       },
     },
+    plugins: [
+      // Puts `role` on the session user so admin status travels with the session
+      // — no extra round trip to learn it. New accounts default to "user";
+      // "admin" is the only elevated role. Existing admins are seeded from
+      // ADMIN_EMAILS by scripts/backfill-admin-roles.ts.
+      admin({
+        defaultRole: "user",
+        adminRoles: ["admin"],
+      }),
+    ],
     secret: options.authSecret,
     logger: getLogger(deps.logger),
   });

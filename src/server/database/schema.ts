@@ -28,6 +28,13 @@ export const users = pgTable("users", {
   email: text().notNull().unique(),
   emailVerified: boolean().notNull().default(false),
   image: text(),
+  // Better Auth admin-plugin fields. `role` is the runtime source of truth for
+  // admin access (seeded from ADMIN_EMAILS by scripts/backfill-admin-roles.ts);
+  // the plugin also manages banning.
+  role: text().default("user"),
+  banned: boolean().default(false),
+  banReason: text(),
+  banExpires: timestamp(),
   ...timestampFields,
 });
 
@@ -58,6 +65,8 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp().notNull(),
   ipAddress: text(),
   userAgent: text(),
+  // Better Auth admin-plugin field: set while an admin impersonates this user.
+  impersonatedBy: text(),
   ...timestampFields,
 });
 

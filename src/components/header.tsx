@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { authClient } from "@/lib/authClient";
-import { useORPC } from "@/lib/orpc.client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,14 +27,10 @@ const adminLinks = [
 
 export function Header() {
   const { data: session } = authClient.useSession();
-  const orpc = useORPC();
 
-  // Whether *you* are an admin, decided server-side — ADMIN_EMAILS never reaches
-  // the client. Hiding the link is cosmetic; the endpoints enforce access.
-  const { data: profile } = useQuery({
-    ...orpc.getProfile.queryOptions({}),
-    enabled: !!session?.user,
-  });
+  // Admin status rides on the session as `user.role`. Hiding the link is
+  // cosmetic; the endpoints enforce access regardless.
+  const isAdmin = session?.user?.role === "admin";
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/85 backdrop-blur-md backdrop-saturate-150">
@@ -63,7 +57,7 @@ export function Header() {
               </Button>
             ))}
 
-          {session?.user && profile?.isAdmin && (
+          {session?.user && isAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

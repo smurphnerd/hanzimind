@@ -8,12 +8,14 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { authClient } from "@/lib/authClient";
 import { useORPC } from "@/lib/orpc.client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DictionaryWordLoading } from "@/components/dictionary-word-loading";
 import { CreateMemoryAidDialog } from "@/components/create-memory-aid-dialog";
 import { ViewAllMemoryAidsDialog } from "@/components/view-all-memory-aids-dialog";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
+import { AdminVocabEditor } from "@/components/admin-vocab-editor";
 import { VocabEntryDetail } from "@/components/vocab-entry";
 import { EmptyState } from "@/components/empty-state";
 import type { MemoryAidDto } from "@/definitions/definitions";
@@ -39,6 +41,12 @@ function DictionaryWordContent() {
       },
     }),
   );
+
+  // Admins get inline edit controls on the entry itself. Admin status rides on
+  // the session; the server re-checks every admin edit, so this only decides
+  // what to render.
+  const { data: session } = authClient.useSession();
+  const isAdmin = session?.user?.role === "admin";
 
   const memoryAids = vocabData.memoryAids ?? [];
 
@@ -72,6 +80,8 @@ function DictionaryWordContent() {
           </Button>
         }
       />
+
+      {isAdmin && <AdminVocabEditor entry={vocabData} />}
 
       {/* Memory Aids */}
       <Card>

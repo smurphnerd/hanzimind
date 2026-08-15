@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mika } from "@/components/mika";
 import { authClient } from "@/lib/authClient";
-import { useORPC } from "@/lib/orpc.client";
 
 /**
  * The gate for every admin screen.
@@ -23,17 +21,14 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { data: session, isPending } = authClient.useSession();
-  const orpc = useORPC();
   // Sent back without its leading slash: the sign-in page appends it to the base
   // URL itself, to keep the callback from becoming an open redirect.
   const returnTo = usePathname().replace(/^\//, "");
 
-  const { data: profile, isPending: isProfilePending } = useQuery({
-    ...orpc.getProfile.queryOptions({}),
-    enabled: !isPending && !!session?.user,
-  });
+  // Admin status rides on the session now, so there is nothing extra to wait on.
+  const isAdmin = session?.user?.role === "admin";
 
-  if (isPending || (session?.user && isProfilePending)) {
+  if (isPending) {
     return (
       <div className="container mx-auto max-w-6xl px-4 py-8">
         <Skeleton className="mb-8 h-10 w-64" />
@@ -42,7 +37,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!session?.user || !profile?.isAdmin) {
+  if (!session?.user || !isAdmin) {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
         <Card>
