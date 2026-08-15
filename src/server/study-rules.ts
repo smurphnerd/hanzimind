@@ -65,8 +65,12 @@ const hasOwnReading = (item: QuizzableItem) =>
  * listening like any character, because knowing its sound is the clue to the
  * whole series. Every other component is meaning-only.
  *
- * Writing is out for all of them either way: no component can be produced on a
- * pinyin IME.
+ * Writing is out for every component either way: no component can be produced
+ * on a pinyin IME. It also needs a gloss, because the gloss *is* the prompt —
+ * a writing card shows the English and asks for the characters, so a row
+ * without one renders an empty question. 53 characters in the corpus have no
+ * translation; none is in a deck today, which is the only reason this has never
+ * been seen.
  */
 export function canStudy(item: QuizzableItem, type: StudyType): boolean {
   switch (type) {
@@ -78,7 +82,7 @@ export function canStudy(item: QuizzableItem, type: StudyType): boolean {
       return hasTranslation(item);
     case "writing":
       // The answer is typed on a pinyin IME, which cannot produce a bound form.
-      return item.vocabType !== "component";
+      return item.vocabType !== "component" && hasTranslation(item);
   }
 }
 

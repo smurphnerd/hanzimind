@@ -146,13 +146,24 @@ describe("canStudy", () => {
     });
 
     it("should reject understanding when the gloss is whitespace only", () => {
-      expect(canStudy(item({ translation: "   " }), "understanding")).toBe(false);
+      expect(canStudy(item({ translation: "   " }), "understanding")).toBe(
+        false,
+      );
     });
 
-    it("should always allow writing", () => {
-      expect(canStudy(item({ translation: null, pinyin: "" }), "writing")).toBe(
+    it("should allow writing without a reading - the prompt is the gloss", () => {
+      expect(canStudy(item({ pinyin: "", audioUrl: "" }), "writing")).toBe(
         true,
       );
+    });
+
+    it("should reject writing with no gloss, which would prompt with nothing", () => {
+      // A writing card shows the English and asks for the characters. 53 corpus
+      // characters (侌, 倠, 兓 …) have no translation, so this would render an
+      // empty question. None is in a deck yet - the gate is what keeps it that
+      // way if one is ever added.
+      expect(canStudy(item({ translation: null }), "writing")).toBe(false);
+      expect(canStudy(item({ translation: "   " }), "writing")).toBe(false);
     });
   });
 });
@@ -173,9 +184,9 @@ describe("servableStudyTypes", () => {
   });
 
   it("should return nothing for a component with no gloss", () => {
-    expect(servableStudyTypes(component({ translation: "" }), ALL_TYPES)).toEqual(
-      [],
-    );
+    expect(
+      servableStudyTypes(component({ translation: "" }), ALL_TYPES),
+    ).toEqual([]);
   });
 
   it("should respect the deck's enabled types", () => {
@@ -207,7 +218,9 @@ describe("weakestServableLevel", () => {
   });
 
   it("should treat a null level as zero", () => {
-    expect(weakestServableLevel(item({ readingLevel: null }), ALL_TYPES)).toBe(0);
+    expect(weakestServableLevel(item({ readingLevel: null }), ALL_TYPES)).toBe(
+      0,
+    );
   });
 
   it("should return Infinity when nothing is servable", () => {
@@ -306,7 +319,12 @@ describe("isUnlocked", () => {
     // still be studiable rather than locking every character that has a part.
     const stuck = component({ seen: false });
     expect(
-      isUnlocked(target, deps(stuck), ["reading", "listening", "writing"], GATE),
+      isUnlocked(
+        target,
+        deps(stuck),
+        ["reading", "listening", "writing"],
+        GATE,
+      ),
     ).toBe(true);
   });
 
