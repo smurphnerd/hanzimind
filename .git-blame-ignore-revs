@@ -1,0 +1,9 @@
+# Revisions to skip when running git blame — bulk mechanical reformats that
+# would otherwise claim authorship of every line in the repo.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub picks this file up automatically.
+
+# style: format the codebase with the prettier config it already ships
+02490be5c15f076d0377de7dbcd2dab3dec8e16c
