@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Mika the red panda">
+  <!-- arm (wave) -->
+  <path d="M92 60c7-1 12-6 13-14" fill="none" stroke="#c65a2e" stroke-width="7" stroke-linecap="round" />
+  <circle cx="107" cy="42" r="6.5" fill="#e0692f" />
+
+  <!-- ears -->
+  <path d="M28 34c-6-14-2-24 8-24 6 0 9 6 9 15Z" fill="#c65a2e" />
+  <path d="M92 34c6-14 2-24-8-24-6 0-9 6-9 15Z" fill="#c65a2e" />
+  <path d="M31 30c-3-8-1-14 4-14 3 0 5 4 5 9Z" fill="#fbefe6" />
+  <path d="M89 30c3-8 1-14-4-14-3 0-5 4-5 9Z" fill="#fbefe6" />
+
+  <!-- face -->
+  <ellipse cx="60" cy="60" rx="42" ry="38" fill="#e0692f" />
+  <path d="M60 44c18 0 30 9 30 22 0 15-14 24-30 24S30 81 30 66c0-13 12-22 30-22Z" fill="#fbefe6" />
+  <ellipse cx="30" cy="58" rx="12" ry="14" fill="#fbefe6" />
+  <ellipse cx="90" cy="58" rx="12" ry="14" fill="#fbefe6" />
+  <ellipse cx="44" cy="46" rx="10" ry="8" fill="#fbefe6" />
+  <ellipse cx="76" cy="46" rx="10" ry="8" fill="#fbefe6" />
+
+  <!-- eyes -->
+  <circle cx="45" cy="56" r="7" fill="#2b2130" />
+  <circle cx="75" cy="56" r="7" fill="#2b2130" />
+  <circle cx="47" cy="54" r="2.4" fill="#fff" />
+  <circle cx="77" cy="54" r="2.4" fill="#fff" />
+
+  <!-- tear marks -->
+  <path d="M45 63c-2 6-4 9-9 12" stroke="#c65a2e" stroke-width="4" fill="none" stroke-linecap="round" />
+  <path d="M75 63c2 6 4 9 9 12" stroke="#c65a2e" stroke-width="4" fill="none" stroke-linecap="round" />
+
+  <!-- nose + smile -->
+  <path d="M56 66h8l-4 5Z" fill="#2b2130" />
+  <path d="M60 71c0 4 4 6 8 5" stroke="#2b2130" stroke-width="2.6" fill="none" stroke-linecap="round" />
+  <path d="M60 71c0 4-4 6-8 5" stroke="#2b2130" stroke-width="2.6" fill="none" stroke-linecap="round" />
+</svg>
