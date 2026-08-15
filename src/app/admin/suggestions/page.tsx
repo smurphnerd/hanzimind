@@ -77,27 +77,27 @@ function SuggestionRow({
           {suggestion.vocabItem ? (
             <Link
               href={`/dictionary/${encodeURIComponent(suggestion.vocabItem)}`}
-              className="hanzi hover:text-primary text-3xl transition-colors"
+              className="hanzi text-3xl transition-colors hover:text-primary"
             >
               {suggestion.vocabItem}
             </Link>
           ) : (
-            <span className="text-muted-foreground font-display font-bold">
+            <span className="font-display font-bold text-muted-foreground">
               General feedback
             </span>
           )}
-          <span className="text-muted-foreground mr-auto text-sm">
+          <span className="mr-auto text-sm text-muted-foreground">
             {suggestion.translation ?? "No definition"}
           </span>
           {suggestion.vocabType && (
             <ItemTypeBadge type={suggestion.vocabType} short />
           )}
-          <span className="bg-muted text-muted-foreground font-display rounded-full px-2.5 py-1 text-xs font-bold">
+          <span className="rounded-full bg-muted px-2.5 py-1 font-display text-xs font-bold text-muted-foreground">
             {KIND_LABELS[suggestion.kind]}
           </span>
           <span
             className={cn(
-              "font-display rounded-full px-2.5 py-1 text-xs font-bold capitalize",
+              "rounded-full px-2.5 py-1 font-display text-xs font-bold capitalize",
               STATUS_CLASSES[suggestion.status],
             )}
           >
@@ -108,12 +108,12 @@ function SuggestionRow({
         <p className="text-sm whitespace-pre-wrap">{suggestion.body}</p>
 
         {suggestion.memoryAid && (
-          <p className="border-border text-muted-foreground border-l-2 pl-3 text-sm italic">
+          <p className="border-l-2 border-border pl-3 text-sm text-muted-foreground italic">
             {suggestion.memoryAid}
           </p>
         )}
 
-        <p className="text-muted-foreground text-xs">
+        <p className="text-xs text-muted-foreground">
           {suggestion.createdByUsername} ({suggestion.createdByEmail}) ·{" "}
           {formatFiledAt(suggestion.createdAt)}
         </p>
@@ -303,7 +303,7 @@ function AdminSuggestionsContent() {
 
       {paging && paging.total > 0 && (
         <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm tabular-nums">
+          <p className="text-sm text-muted-foreground tabular-nums">
             {(paging.page - 1) * paging.pageSize + 1}–
             {Math.min(paging.page * paging.pageSize, paging.total)} of{" "}
             {paging.total}

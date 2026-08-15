@@ -84,9 +84,7 @@ if (process.env.NODE_ENV !== "test") {
         systemEmailFrom: env.SYSTEM_EMAIL_FROM,
       }),
     ),
-    storage: asFunction(
-      () => new S3StorageAdapter(env.S3_OPTIONS),
-    ).singleton(),
+    storage: asFunction(() => new S3StorageAdapter(env.S3_OPTIONS)).singleton(),
     email:
       env.EMAIL_CONNECTION_URL === "ses"
         ? asClass(SESEmailAdapter).singleton()

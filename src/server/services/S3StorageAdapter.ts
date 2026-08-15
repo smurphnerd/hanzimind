@@ -54,7 +54,9 @@ export class S3StorageAdapter {
         eTag: response.ETag,
       };
     } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to get metadata");
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to get metadata");
     }
   }
 
@@ -146,7 +148,9 @@ export class S3StorageAdapter {
       }
       return Buffer.from(await response.Body.transformToByteArray());
     } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to download file");
+      throw error instanceof Error
+        ? error
+        : new Error("Failed to download file");
     }
   }
 

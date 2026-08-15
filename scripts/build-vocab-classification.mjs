@@ -30,47 +30,196 @@ const radicalOf = new Map();
 for (const line of radLines) {
   const [num, primary, variants] = line.split("|");
   radicalOf.set(primary, +num);
-  if (variants) for (const v of variants.split(",")) if (v) radicalOf.set(v, +num);
+  if (variants)
+    for (const v of variants.split(",")) if (v) radicalOf.set(v, +num);
 }
 
 // Variant/bound forms the archchinese page omits, plus the traditional halves of
 // the simplified radicals it displays. All are canonical members of the 214 — the
 // page just shows one form per row. Keyed to their radical number.
 const EXTRA_FORMS = {
-  "⺀": 15, "冫": 15, "⺈": 18, "⺊": 25, "⺌": 42, "⺍": 42, "⺗": 61, "⺮": 118,
-  "⺳": 122, "⺼": 130, "氺": 85, "耂": 125, "肀": 129, "歺": 78, "㔾": 26,
-  "丬": 90, "罓": 122, "襾": 146, "艸": 140, "辵": 162, "訁": 149, "糸": 120,
-  "糹": 120, "釒": 167, "金": 167, "镸": 168, "飠": 184, "龴": 28,
+  "⺀": 15,
+  冫: 15,
+  "⺈": 18,
+  "⺊": 25,
+  "⺌": 42,
+  "⺍": 42,
+  "⺗": 61,
+  "⺮": 118,
+  "⺳": 122,
+  "⺼": 130,
+  氺: 85,
+  耂: 125,
+  肀: 129,
+  歺: 78,
+  㔾: 26,
+  丬: 90,
+  罓: 122,
+  襾: 146,
+  艸: 140,
+  辵: 162,
+  訁: 149,
+  糸: 120,
+  糹: 120,
+  釒: 167,
+  金: 167,
+  镸: 168,
+  飠: 184,
+  龴: 28,
   // traditional forms of radicals the page lists in simplified
-  "見": 147, "貝": 154, "車": 159, "長": 168, "門": 169, "韋": 178, "頁": 181,
-  "風": 182, "飛": 183, "馬": 187, "鹵": 197, "麥": 199, "黃": 201, "黽": 205,
-  "齊": 210, "齒": 211, "龍": 212, "龜": 213, "魚": 195, "鳥": 196, "言": 149,
-  "靑": 174, "虎": 141, "網": 122,
+  見: 147,
+  貝: 154,
+  車: 159,
+  長: 168,
+  門: 169,
+  韋: 178,
+  頁: 181,
+  風: 182,
+  飛: 183,
+  馬: 187,
+  鹵: 197,
+  麥: 199,
+  黃: 201,
+  黽: 205,
+  齊: 210,
+  齒: 211,
+  龍: 212,
+  龜: 213,
+  魚: 195,
+  鳥: 196,
+  言: 149,
+  靑: 174,
+  虎: 141,
+  網: 122,
 };
-for (const [g, n] of Object.entries(EXTRA_FORMS)) if (!radicalOf.has(g)) radicalOf.set(g, n);
+for (const [g, n] of Object.entries(EXTRA_FORMS))
+  if (!radicalOf.has(g)) radicalOf.set(g, n);
 
 // --- glyphs that are not usually typed on their own ---------------------------
 // Curated. A glyph belongs here if a learner would never type it as a word — it
 // only ever appears as a graphical part of another character.
 const NOT_TYPED = new Set([
   // strokes and frames
-  "丨", "丶", "丿", "乀", "乁", "乚", "乛", "亅", "亠", "冂", "冖", "冫",
-  "凵", "勹", "匚", "匸", "囗", "卩", "㔾", "厶", "夂", "夊", "宀", "尢", "尣",
-  "屮", "巛", "巜", "幺", "廴", "廾", "弋", "彐", "彑", "彡", "彳", "丷", "龴",
+  "丨",
+  "丶",
+  "丿",
+  "乀",
+  "乁",
+  "乚",
+  "乛",
+  "亅",
+  "亠",
+  "冂",
+  "冖",
+  "冫",
+  "凵",
+  "勹",
+  "匚",
+  "匸",
+  "囗",
+  "卩",
+  "㔾",
+  "厶",
+  "夂",
+  "夊",
+  "宀",
+  "尢",
+  "尣",
+  "屮",
+  "巛",
+  "巜",
+  "幺",
+  "廴",
+  "廾",
+  "弋",
+  "彐",
+  "彑",
+  "彡",
+  "彳",
+  "丷",
+  "龴",
   // NB: 乙 is deliberately absent — it is radical 5, but also an ordinary typed
   // character (甲乙丙丁, 乙醇, 乙方). Its bound variants 乚 and 乛 are above.
   // bound forms of standalone characters
-  "亻", "刂", "忄", "扌", "攵", "攴", "氵", "氺", "灬", "爫", "牜", "犭", "礻",
-  "衤", "罒", "罓", "耂", "肀", "艹", "艸", "辶", "辵", "阝", "讠", "訁", "纟",
-  "糹", "糸", "钅", "釒", "饣", "飠", "覀", "襾", "镸", "丬", "爿", "毋",
+  "亻",
+  "刂",
+  "忄",
+  "扌",
+  "攵",
+  "攴",
+  "氵",
+  "氺",
+  "灬",
+  "爫",
+  "牜",
+  "犭",
+  "礻",
+  "衤",
+  "罒",
+  "罓",
+  "耂",
+  "肀",
+  "艹",
+  "艸",
+  "辶",
+  "辵",
+  "阝",
+  "讠",
+  "訁",
+  "纟",
+  "糹",
+  "糸",
+  "钅",
+  "釒",
+  "饣",
+  "飠",
+  "覀",
+  "襾",
+  "镸",
+  "丬",
+  "爿",
+  "毋",
   // CJK Radicals Supplement block — all bound by construction
-  "⺀", "⺈", "⺊", "⺌", "⺍", "⺗", "⺮", "⺳", "⺼",
+  "⺀",
+  "⺈",
+  "⺊",
+  "⺌",
+  "⺍",
+  "⺗",
+  "⺮",
+  "⺳",
+  "⺼",
   // radical shapes that are technically characters but effectively never typed
-  "禸", "疋", "疒", "癶", "殳", "耒", "舛", "艮", "虍", "豸", "釆", "髟", "鬯",
-  "鬲", "黹", "黾", "黽", "龠", "彐", "戈", "隹", "爻", "臼",
+  "禸",
+  "疋",
+  "疒",
+  "癶",
+  "殳",
+  "耒",
+  "舛",
+  "艮",
+  "虍",
+  "豸",
+  "釆",
+  "髟",
+  "鬯",
+  "鬲",
+  "黹",
+  "黾",
+  "黽",
+  "龠",
+  "彐",
+  "戈",
+  "隹",
+  "爻",
+  "臼",
   // bound forms outside the 214 — see BOUND_NON_RADICAL below. Confirmed as
   // components by hand on the live database before being recorded here.
-  "龹", "㐆", "㐌", "丄", "丩",
+  "龹",
+  "㐆",
+  "㐌",
+  "丄",
+  "丩",
 ]);
 // Deliberately NOT here, despite being radicals: 尸 (尸体), 卜 (萝卜), 皿 (器皿) —
 // all three are ordinary typed words in modern simplified Chinese.
@@ -92,12 +241,23 @@ const GLOSS_OVERRIDES = {
   "⺊": "divination; the left of 上, 卓 and 占",
   "⺌": "small; the top of 光, 尚 and 当",
   "⺍": "small; the top of 学, 兴 and 觉",
-  "氺": "water; the foot of 求, 泰 and 录",
+  氺: "water; the foot of 求, 泰 and 录",
 };
 
 // Debatable calls worth a human eye — surfaced in the report, not treated
 // differently by the generator.
-const DEBATABLE = new Set(["幺", "戈", "臼", "毋", "弋", "隹", "爻", "殳", "艮", "疋"]);
+const DEBATABLE = new Set([
+  "幺",
+  "戈",
+  "臼",
+  "毋",
+  "弋",
+  "隹",
+  "爻",
+  "殳",
+  "艮",
+  "疋",
+]);
 
 // --- load the dictionary ------------------------------------------------------
 const entries = readFileSync(join(SEED, "dictionary.txt"), "utf-8")
@@ -109,7 +269,10 @@ const componentsOf = (d) =>
   !d
     ? []
     : Array.from(d).filter(
-        (c) => c !== "？" && c !== "?" && !(codepoint(c) >= 0x2ff0 && codepoint(c) <= 0x2fff),
+        (c) =>
+          c !== "？" &&
+          c !== "?" &&
+          !(codepoint(c) >= 0x2ff0 && codepoint(c) <= 0x2fff),
       );
 
 const uses = new Map();
@@ -157,11 +320,16 @@ const PHONETIC_MIN_RIME = 0.4;
 const PHONETIC_INCLUDE = new Set(["隹"]);
 
 const toneless = (s) =>
-  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ü/g, "v").toLowerCase();
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ü/g, "v")
+    .toLowerCase();
 /** The syllable minus its initial — the part a phonetic series actually shares. */
 const rimeOf = (s) => {
   const b = toneless(s);
-  for (const initial of ["zh", "ch", "sh"]) if (b.startsWith(initial)) return b.slice(2);
+  for (const initial of ["zh", "ch", "sh"])
+    if (b.startsWith(initial)) return b.slice(2);
   return /^[bpmfdtnlgkhjqxrzcsyw]/.test(b) ? b.slice(1) : b;
 };
 
@@ -173,8 +341,10 @@ const meaningFor = new Map();
 for (const e of entries) {
   const ety = e.etymology;
   if (ety?.type !== "pictophonetic") continue;
-  if (ety.phonetic) soundFor.set(ety.phonetic, [...(soundFor.get(ety.phonetic) ?? []), e]);
-  if (ety.semantic) meaningFor.set(ety.semantic, [...(meaningFor.get(ety.semantic) ?? []), e]);
+  if (ety.phonetic)
+    soundFor.set(ety.phonetic, [...(soundFor.get(ety.phonetic) ?? []), e]);
+  if (ety.semantic)
+    meaningFor.set(ety.semantic, [...(meaningFor.get(ety.semantic) ?? []), e]);
 }
 
 /**
@@ -188,7 +358,8 @@ const scorePhonetic = (forms) => {
   const meaning = forms.flatMap((g) => meaningFor.get(g) ?? []);
   const reading = forms.map((g) => byGlyph.get(g)?.pinyin?.[0]).find(Boolean);
   const rhyming = reading
-    ? sound.filter((e) => e.pinyin?.some((p) => rimeOf(p) === rimeOf(reading))).length
+    ? sound.filter((e) => e.pinyin?.some((p) => rimeOf(p) === rimeOf(reading)))
+        .length
     : 0;
   const withReading = sound.filter((e) => e.pinyin?.length).length;
 
@@ -242,12 +413,16 @@ for (const e of entries) {
 }
 
 rows.sort((a, b) =>
-  a.decision === b.decision ? b.uses - a.uses : a.decision.localeCompare(b.decision),
+  a.decision === b.decision
+    ? b.uses - a.uses
+    : a.decision.localeCompare(b.decision),
 );
 
 // Group the components by radical number so variant forms are scored together;
 // a bound-non-radical has no number and stands alone.
-const componentGlyphs = rows.filter((r) => r.decision === "component").map((r) => r.glyph);
+const componentGlyphs = rows
+  .filter((r) => r.decision === "component")
+  .map((r) => r.glyph);
 const componentGroups = new Map();
 for (const g of componentGlyphs) {
   const key = radicalOf.has(g) ? `r${radicalOf.get(g)}` : g;
@@ -269,7 +444,8 @@ const phoneticGlyphs = new Set(
     )
     .flatMap((s) => s.forms),
 );
-for (const r of rows) r.phonetic = phoneticGlyphs.has(r.glyph) ? "phonetic" : "";
+for (const r of rows)
+  r.phonetic = phoneticGlyphs.has(r.glyph) ? "phonetic" : "";
 
 const header =
   "glyph\tcodepoint\tdecision\treason\tuses\tpinyin\tdefinition\treview\tgloss\tphonetic";
@@ -284,14 +460,22 @@ const tsv =
     "#           (艮 -> 很 跟 根 恨), so it keeps its pinyin and audio and is served",
     "#           for reading and listening too. Blank means the dictionary's pinyin",
     "#           is borrowed from the full character the form abbreviates (亻 gets",
-    "#           人's \"rén\") and is stripped on the way into the database.",
+    '#           人\'s "rén") and is stripped on the way into the database.',
     "# The definition column is informational; pinyin is stored only for a phonetic.",
     "# Anything absent from this file stays vocabType=character.",
     header,
     ...rows.map((r) =>
       [
-        r.glyph, r.cp, r.decision, r.reason, r.uses, r.pinyin, r.definition,
-        r.review, r.gloss, r.phonetic,
+        r.glyph,
+        r.cp,
+        r.decision,
+        r.reason,
+        r.uses,
+        r.pinyin,
+        r.definition,
+        r.review,
+        r.gloss,
+        r.phonetic,
       ].join("\t"),
     ),
   ].join("\n") + "\n";
@@ -301,16 +485,39 @@ writeFileSync(join(SEED, "vocab-classification.tsv"), tsv);
 // --- report -------------------------------------------------------------------
 const comps = rows.filter((r) => r.decision === "component");
 const dis = rows.filter((r) => r.decision === "disabled");
-console.log(`components: ${comps.length}   disabled: ${dis.length}   characters: ${entries.length - rows.length}`);
-console.log(`\ndisabled, not-a-radical (${dis.filter((r) => r.reason === "not-typed-not-a-radical").length}):`);
-console.log(dis.filter((r) => r.reason === "not-typed-not-a-radical").map((r) => `${r.glyph}(${r.uses})`).join(" "));
-console.log(`\ndisabled, no-gloss (${dis.filter((r) => r.reason === "no-gloss").length}):`);
-console.log(dis.filter((r) => r.reason === "no-gloss").map((r) => `${r.glyph}(${r.uses})`).join(" "));
-console.log(`\nflagged for review: ${rows.filter((r) => r.review).map((r) => `${r.glyph}=${r.decision}`).join(" ")}`);
+console.log(
+  `components: ${comps.length}   disabled: ${dis.length}   characters: ${entries.length - rows.length}`,
+);
+console.log(
+  `\ndisabled, not-a-radical (${dis.filter((r) => r.reason === "not-typed-not-a-radical").length}):`,
+);
+console.log(
+  dis
+    .filter((r) => r.reason === "not-typed-not-a-radical")
+    .map((r) => `${r.glyph}(${r.uses})`)
+    .join(" "),
+);
+console.log(
+  `\ndisabled, no-gloss (${dis.filter((r) => r.reason === "no-gloss").length}):`,
+);
+console.log(
+  dis
+    .filter((r) => r.reason === "no-gloss")
+    .map((r) => `${r.glyph}(${r.uses})`)
+    .join(" "),
+);
+console.log(
+  `\nflagged for review: ${rows
+    .filter((r) => r.review)
+    .map((r) => `${r.glyph}=${r.decision}`)
+    .join(" ")}`,
+);
 
 // The whole scoring table, so the next person to move a threshold can see what
 // moves with it rather than guessing.
-console.log(`\nphonetic scoring (>= ${PHONETIC_MIN_USES} sound uses, >= ${PHONETIC_MIN_PURITY * 100}% pure, >= ${PHONETIC_MIN_RIME * 100}% still rhyming):`);
+console.log(
+  `\nphonetic scoring (>= ${PHONETIC_MIN_USES} sound uses, >= ${PHONETIC_MIN_PURITY * 100}% pure, >= ${PHONETIC_MIN_RIME * 100}% still rhyming):`,
+);
 for (const s of phoneticScores.filter((s) => s.sound > 0)) {
   const kept = s.forms.some((g) => phoneticGlyphs.has(g));
   const why = s.forms.some((g) => PHONETIC_INCLUDE.has(g))
@@ -347,11 +554,17 @@ const badPhonetic = [...phoneticGlyphs].filter((g) => {
   return row?.decision !== "component" || !row.pinyin || row.pinyin === g;
 });
 if (badPhonetic.length > 0) {
-  throw new Error(`Phonetic components with no usable reading: ${badPhonetic.join(" ")}`);
+  throw new Error(
+    `Phonetic components with no usable reading: ${badPhonetic.join(" ")}`,
+  );
 }
-const deadOverride = [...PHONETIC_INCLUDE].filter((g) => !phoneticGlyphs.has(g));
+const deadOverride = [...PHONETIC_INCLUDE].filter(
+  (g) => !phoneticGlyphs.has(g),
+);
 if (deadOverride.length > 0) {
-  throw new Error(`PHONETIC_INCLUDE names a non-component: ${deadOverride.join(" ")}`);
+  throw new Error(
+    `PHONETIC_INCLUDE names a non-component: ${deadOverride.join(" ")}`,
+  );
 }
 
 // --- integrity check: what breaks in decompositions? --------------------------
@@ -367,4 +580,6 @@ for (const e of entries) {
   }
 }
 console.log(`\ncharacters whose decomposition loses a part: ${affected}`);
-console.log(`characters that lose their ENTIRE decomposition: ${worst.length} ${worst.slice(0, 40).join(" ")}`);
+console.log(
+  `characters that lose their ENTIRE decomposition: ${worst.length} ${worst.slice(0, 40).join(" ")}`,
+);

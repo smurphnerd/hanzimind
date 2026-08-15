@@ -85,7 +85,10 @@ const CLASSIFICATION_PATH = join(
   "src/server/database/seed/vocab-classification.tsv",
 );
 
-export function loadVocabClassification(): Map<string, VocabClassificationEntry> {
+export function loadVocabClassification(): Map<
+  string,
+  VocabClassificationEntry
+> {
   const contents = readFileSync(CLASSIFICATION_PATH, "utf-8");
   const classification = new Map<string, VocabClassificationEntry>();
 

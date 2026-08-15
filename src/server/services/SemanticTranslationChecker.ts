@@ -158,7 +158,9 @@ export class CompositeTranslationChecker implements ITranslationChecker {
     groundTruth: string,
     threshold?: number,
   ): Promise<boolean> {
-    if (await this.primary.checkSimilarity(userAnswer, groundTruth, threshold)) {
+    if (
+      await this.primary.checkSimilarity(userAnswer, groundTruth, threshold)
+    ) {
       return true;
     }
     return this.fallback.checkSimilarity(userAnswer, groundTruth);

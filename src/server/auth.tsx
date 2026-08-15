@@ -64,7 +64,6 @@ function getLogger(pino: Logger): BetterAuthLogger {
   };
   return {
     log: (level, message, ...args) => {
-       
       methodMap[level].bind(childLogger)(message, ...args);
     },
   };
@@ -73,4 +72,3 @@ function getLogger(pino: Logger): BetterAuthLogger {
 export type Auth = ReturnType<typeof getAuth>;
 export type AuthUser = Auth["$Infer"]["Session"]["user"];
 export type Session = Auth["$Infer"]["Session"];
-

@@ -18,12 +18,10 @@ export default function PrivacyPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Privacy</CardTitle>
-          <CardDescription>
-            How HanziMind handles your data.
-          </CardDescription>
+          <CardDescription>How HanziMind handles your data.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             A full privacy policy is on the way. In short: your study data is
             used only to power your learning experience.
           </p>

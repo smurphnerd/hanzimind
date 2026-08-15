@@ -18,7 +18,7 @@ export default function VerifiedPage() {
         <CardContent className="flex flex-col items-center gap-4 py-8 text-center">
           <Mika pose="cheer" size={96} />
 
-          <div className="text-success flex items-center gap-2">
+          <div className="flex items-center gap-2 text-success">
             <CheckCircle2 className="size-5" />
             <span className="font-display text-sm font-bold tracking-wide uppercase">
               Email verified
@@ -28,7 +28,7 @@ export default function VerifiedPage() {
           <h1 className="font-display text-2xl font-extrabold tracking-tight">
             You&apos;re all set!
           </h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {signedIn
               ? "Your account is verified and you're signed in. Time to grow your first sprout."
               : "Your email address has been confirmed. Sign in to start learning."}

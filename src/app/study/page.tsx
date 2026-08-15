@@ -56,11 +56,7 @@ interface StudyDeckCardProps {
   onOpenSettings: () => void;
 }
 
-function StudyDeckCard({
-  deck,
-  progress,
-  onOpenSettings,
-}: StudyDeckCardProps) {
+function StudyDeckCard({ deck, progress, onOpenSettings }: StudyDeckCardProps) {
   const byStage = progress?.byStage ?? EMPTY_STAGES;
   const total = progress?.total ?? 0;
   const dueNow = progress?.dueNow ?? 0;
@@ -82,7 +78,7 @@ function StudyDeckCard({
       <CardHeader>
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <CardTitle className="group-hover:text-primary truncate text-xl transition-colors">
+            <CardTitle className="truncate text-xl transition-colors group-hover:text-primary">
               {deck.deckName}
             </CardTitle>
             <CardDescription className="text-xs">
@@ -93,7 +89,7 @@ function StudyDeckCard({
             variant="ghost"
             size="icon"
             aria-label={`Study settings for ${deck.deckName}`}
-            className="text-muted-foreground hover:text-primary -mt-1 -mr-2 shrink-0"
+            className="-mt-1 -mr-2 shrink-0 text-muted-foreground hover:text-primary"
             onClick={onOpenSettings}
           >
             <Settings className="size-4" />
@@ -102,7 +98,7 @@ function StudyDeckCard({
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col gap-4">
-        <p className="text-muted-foreground line-clamp-2 text-sm">
+        <p className="line-clamp-2 text-sm text-muted-foreground">
           {deck.description}
         </p>
 
@@ -110,7 +106,7 @@ function StudyDeckCard({
           <div className="flex items-baseline justify-between gap-3">
             <span className="font-display text-sm font-bold tabular-nums">
               {grown}
-              <span className="text-muted-foreground font-sans font-normal">
+              <span className="font-sans font-normal text-muted-foreground">
                 {" "}
                 of {total} grown
               </span>
@@ -131,21 +127,21 @@ function StudyDeckCard({
 
         <div className="mt-auto flex flex-col items-start gap-3">
           {dueNow > 0 ? (
-            <span className="bg-secondary text-primary font-display inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-display text-sm font-bold text-primary">
               <Sparkles className="size-4" />
               <span className="tabular-nums">{dueNow}</span> ready to review
             </span>
           ) : newAvailable > 0 ? (
-            <InlineStat icon={<Sprout className="text-success size-4" />}>
+            <InlineStat icon={<Sprout className="size-4 text-success" />}>
               {newAvailable} new to plant
             </InlineStat>
           ) : total > 0 ? (
-            <span className="text-success inline-flex items-center gap-1.5 text-sm font-medium">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
               <Check className="size-4" />
               All caught up
             </span>
           ) : (
-            <span className="text-muted-foreground text-sm">
+            <span className="text-sm text-muted-foreground">
               Nothing to study here yet
             </span>
           )}
@@ -185,7 +181,9 @@ function StudyContent() {
     }),
   );
 
-  const progressByDeck = new Map(progress.map((entry) => [entry.deckId, entry]));
+  const progressByDeck = new Map(
+    progress.map((entry) => [entry.deckId, entry]),
+  );
 
   const updateSettingsMutation = useMutation(
     orpc.study.updateDeckSettings.mutationOptions({

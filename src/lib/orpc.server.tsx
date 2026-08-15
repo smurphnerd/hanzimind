@@ -26,4 +26,3 @@ export function HydrateClient(props: { children: ReactNode }) {
     </HydrationBoundary>
   );
 }
-

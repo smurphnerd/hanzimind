@@ -60,7 +60,9 @@ describe("toVocabItemDto", () => {
   });
 
   it("leaves a character alone", () => {
-    const dto = toVocabItemDto(row({ vocabItem: "人", vocabType: "character" }));
+    const dto = toVocabItemDto(
+      row({ vocabItem: "人", vocabType: "character" }),
+    );
     expect(dto.pinyin).toBe("rén");
     expect(dto.audioUrl).not.toBe("");
   });

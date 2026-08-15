@@ -6,7 +6,7 @@ import { defineConfig } from "drizzle-kit";
 const projectDir = process.cwd();
 loadEnvConfig(
   projectDir,
-   
+
   process.env.NODE_ENV === "development" || process.env.NODE_ENV === undefined,
 );
 
@@ -19,4 +19,3 @@ export default defineConfig({
   },
   casing: "snake_case",
 });
-

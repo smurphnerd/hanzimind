@@ -37,10 +37,10 @@ export default function NewDeckPage() {
             <div className="mb-6 flex justify-center">
               <Mika pose="peek" size={96} />
             </div>
-            <h1 className="font-display text-foreground mb-4 text-2xl font-bold tracking-tight">
+            <h1 className="mb-4 font-display text-2xl font-bold tracking-tight text-foreground">
               Authentication Required
             </h1>
-            <p className="text-muted-foreground mb-6">
+            <p className="mb-6 text-muted-foreground">
               You must be logged in to create a deck.
             </p>
             <Button asChild size="lg">
@@ -55,7 +55,7 @@ export default function NewDeckPage() {
   return (
     <div className="container mx-auto max-w-2xl py-10">
       <div className="mb-8 text-center">
-        <h1 className="font-display text-foreground mb-4 text-4xl font-extrabold tracking-tight">
+        <h1 className="mb-4 font-display text-4xl font-extrabold tracking-tight text-foreground">
           Create New Deck
         </h1>
         <p className="text-muted-foreground">

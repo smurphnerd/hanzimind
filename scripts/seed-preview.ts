@@ -19,12 +19,66 @@ import type { EtymologyType } from "@/definitions/definitions";
 
 // Common HSK1-level characters worth studying.
 const CHARACTERS = [
-  "人", "大", "小", "上", "下", "中", "口", "日", "月", "水",
-  "火", "山", "女", "子", "好", "我", "你", "他", "她", "们",
-  "不", "是", "有", "在", "会", "说", "看", "听", "吃", "喝",
-  "来", "去", "买", "学", "写", "读", "家", "国", "天", "年",
-  "今", "明", "多", "少", "很", "太", "白", "黑", "红", "马",
-  "妈", "字", "安", "吗", "林", "明", "河", "什", "么", "书",
+  "人",
+  "大",
+  "小",
+  "上",
+  "下",
+  "中",
+  "口",
+  "日",
+  "月",
+  "水",
+  "火",
+  "山",
+  "女",
+  "子",
+  "好",
+  "我",
+  "你",
+  "他",
+  "她",
+  "们",
+  "不",
+  "是",
+  "有",
+  "在",
+  "会",
+  "说",
+  "看",
+  "听",
+  "吃",
+  "喝",
+  "来",
+  "去",
+  "买",
+  "学",
+  "写",
+  "读",
+  "家",
+  "国",
+  "天",
+  "年",
+  "今",
+  "明",
+  "多",
+  "少",
+  "很",
+  "太",
+  "白",
+  "黑",
+  "红",
+  "马",
+  "妈",
+  "字",
+  "安",
+  "吗",
+  "林",
+  "明",
+  "河",
+  "什",
+  "么",
+  "书",
 ];
 
 // Multi-character words built from the characters above.
@@ -62,11 +116,17 @@ interface GraphicsEntry {
 }
 
 async function main() {
-  const env = envSchema.parse({ ...process.env, NODE_ENV: process.env.NODE_ENV });
+  const env = envSchema.parse({
+    ...process.env,
+    NODE_ENV: process.env.NODE_ENV,
+  });
   const logger = pino({ level: "warn" });
   const database = getDatabase(logger, env.DATABASE_URL);
   const storage = new S3StorageAdapter(env.S3_OPTIONS);
-  const translator = new TranslatorService({ logger }, { deeplApiKey: env.DEEPL_API_KEY });
+  const translator = new TranslatorService(
+    { logger },
+    { deeplApiKey: env.DEEPL_API_KEY },
+  );
   const tts = new TTSService(
     { logger, storage, ttsProvider: new GoogleTTSAPIProvider(logger) },
     {
@@ -78,7 +138,10 @@ async function main() {
 
   const seedDir = join(process.cwd(), "src/server/database/seed");
   const dict = new Map<string, DictionaryEntry>();
-  for (const line of readFileSync(join(seedDir, "dictionary.txt"), "utf-8").split("\n")) {
+  for (const line of readFileSync(
+    join(seedDir, "dictionary.txt"),
+    "utf-8",
+  ).split("\n")) {
     if (!line.trim()) continue;
     try {
       const e = JSON.parse(line) as DictionaryEntry;
@@ -86,7 +149,9 @@ async function main() {
     } catch {}
   }
   const gfx = new Map<string, GraphicsEntry>();
-  for (const line of readFileSync(join(seedDir, "graphics.txt"), "utf-8").split("\n")) {
+  for (const line of readFileSync(join(seedDir, "graphics.txt"), "utf-8").split(
+    "\n",
+  )) {
     if (!line.trim()) continue;
     try {
       const e = JSON.parse(line) as GraphicsEntry;
@@ -153,7 +218,10 @@ async function main() {
     const existing = await database.query.vocabItems.findFirst({
       where: (v, { eq }) => eq(v.vocabItem, char),
     });
-    if (existing) { done++; continue; }
+    if (existing) {
+      done++;
+      continue;
+    }
 
     const entry = dict.get(char);
     const graphics = gfx.get(char);
@@ -215,7 +283,14 @@ async function main() {
     });
   }
 
-  fs.writeFileSync("/tmp/seed-membership.json", JSON.stringify({ base: [...base], constituents: [...constituentOnly], compounds: COMPOUNDS.map((c) => c.word) }));
+  fs.writeFileSync(
+    "/tmp/seed-membership.json",
+    JSON.stringify({
+      base: [...base],
+      constituents: [...constituentOnly],
+      compounds: COMPOUNDS.map((c) => c.word),
+    }),
+  );
   const total = await database.select().from(schema.vocabItems);
   console.log(`Done. vocab_items rows: ${total.length}`);
   process.exit(0);

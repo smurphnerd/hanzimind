@@ -8,8 +8,8 @@
 # all work from the prebuilt binaries these packages ship. Flip an entry to
 # true if a package turns out to need its native build step on your platform.
 allowBuilds:
-  '@parcel/watcher': false
-  '@swc/core': false
+  "@parcel/watcher": false
+  "@swc/core": false
   bufferutil: false
   cpu-features: false
   esbuild: false

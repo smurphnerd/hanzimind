@@ -148,15 +148,15 @@ function OriginDetails({
       {(formation || radical) && (
         <div className="flex flex-wrap items-center gap-2">
           {formation && (
-            <span className="bg-secondary text-primary font-display inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-display text-xs font-bold text-primary">
               <Sparkles className="size-3.5" />
               {formation}
             </span>
           )}
           {radical && (
-            <span className="bg-muted text-muted-foreground font-display inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-display text-xs font-bold text-muted-foreground">
               Radical
-              <span className="hanzi text-foreground text-sm">{radical}</span>
+              <span className="hanzi text-sm text-foreground">{radical}</span>
             </span>
           )}
         </div>
@@ -246,7 +246,10 @@ export function VocabEntryDetail({
       <Card>
         <CardContent>
           <div
-            className={cn("flex gap-6", isLongForm ? "flex-col" : "items-center")}
+            className={cn(
+              "flex gap-6",
+              isLongForm ? "flex-col" : "items-center",
+            )}
           >
             <div
               className={cn(
@@ -257,7 +260,7 @@ export function VocabEntryDetail({
             >
               <span
                 className={cn(
-                  "hanzi text-foreground text-center",
+                  "hanzi text-center text-foreground",
                   glyphSize(entry.vocabItem, HEADER_GLYPH_SIZES),
                   isLongForm ? "leading-relaxed" : "whitespace-nowrap",
                 )}
@@ -278,7 +281,7 @@ export function VocabEntryDetail({
                   pinyin here cannot tell "has no sound" from "we hid it", and
                   either way the answer is the flag. */}
               {entry.vocabType === "component" && !entry.phonetic ? (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   A part used to build other characters — it has no
                   pronunciation of its own.
                 </p>
@@ -288,7 +291,7 @@ export function VocabEntryDetail({
                     {entry.pinyin}
                   </div>
                   {entry.vocabType === "component" && (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                       A part used to build other characters — its sound is a
                       clue to how they are said.
                     </p>
@@ -345,9 +348,9 @@ export function VocabEntryDetail({
           </CardHeader>
           <CardContent className="space-y-2">
             {entry.translation ? (
-              <p className="text-foreground text-lg">{entry.translation}</p>
+              <p className="text-lg text-foreground">{entry.translation}</p>
             ) : (
-              <p className="text-muted-foreground text-lg">
+              <p className="text-lg text-muted-foreground">
                 No definition yet for this entry.
               </p>
             )}
@@ -399,7 +402,7 @@ export function VocabEntryDetail({
                         {/* Only a character is genuinely the sum of its parts;
                             a sentence's words simply read left to right. */}
                         {index > 0 && entry.vocabType === "character" && (
-                          <span className="text-muted-foreground font-display text-xl font-bold">
+                          <span className="font-display text-xl font-bold text-muted-foreground">
                             +
                           </span>
                         )}
@@ -420,7 +423,9 @@ export function VocabEntryDetail({
                 )}
 
                 {hasOrigin && (
-                  <div className={cn(showParts && "border-border border-t pt-6")}>
+                  <div
+                    className={cn(showParts && "border-t border-border pt-6")}
+                  >
                     <OriginDetails
                       hint={entry.etymologyHint}
                       etymologyType={entry.etymologyType}
@@ -453,7 +458,7 @@ function PartTile({
   const tile = (
     <div
       className={cn(
-        "hanzi border-border flex h-20 min-w-20 items-center justify-center rounded-2xl border px-3 whitespace-nowrap transition-all",
+        "hanzi flex h-20 min-w-20 items-center justify-center rounded-2xl border border-border px-3 whitespace-nowrap transition-all",
         linkable && "group-hover:border-current group-hover:shadow-card-hover",
         className,
       )}

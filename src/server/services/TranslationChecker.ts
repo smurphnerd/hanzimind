@@ -38,8 +38,7 @@ export interface ITranslationChecker {
  * Computes word-level Jaccard similarity, handling semicolon-separated definitions.
  */
 export class JaccardTranslationChecker implements ITranslationChecker {
-  private readonly defaultThreshold =
-    TRANSLATION_SIMILARITY_THRESHOLDS.JACCARD;
+  private readonly defaultThreshold = TRANSLATION_SIMILARITY_THRESHOLDS.JACCARD;
 
   /**
    * @param options.filterFillerWords - Whether to filter out common filler words (stop words)
@@ -107,7 +106,10 @@ export class JaccardTranslationChecker implements ITranslationChecker {
     }
 
     const matchesLoosely = (a: string, b: string) =>
-      a === b || stem(a) === stem(b) || isTypoOf(a, b) || isTypoOf(stem(a), stem(b));
+      a === b ||
+      stem(a) === stem(b) ||
+      isTypoOf(a, b) ||
+      isTypoOf(stem(a), stem(b));
 
     const unmatched = new Set(set2);
     let shared = 0;

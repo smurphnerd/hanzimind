@@ -38,7 +38,10 @@ async function main() {
   if (!databaseUrl) throw new Error("DATABASE_URL is not set");
   const database = getDatabase(logger, databaseUrl);
 
-  const roles = new Map<string, { phonetic: string | null; semantic: string | null }>();
+  const roles = new Map<
+    string,
+    { phonetic: string | null; semantic: string | null }
+  >();
   for (const line of readFileSync(
     join(process.cwd(), "src/server/database/seed/dictionary.txt"),
     "utf-8",
@@ -87,7 +90,9 @@ async function main() {
       {
         sample: stale
           .slice(0, 12)
-          .map((r) => `${r.vocabItem}=${r.semantic ?? "?"}+${r.phonetic ?? "?"}`),
+          .map(
+            (r) => `${r.vocabItem}=${r.semantic ?? "?"}+${r.phonetic ?? "?"}`,
+          ),
       },
       "First few",
     );
@@ -120,7 +125,10 @@ async function main() {
     updated += written.length;
   }
 
-  logger.info({ updated, pairs: byPair.size }, "Etymology role backfill complete");
+  logger.info(
+    { updated, pairs: byPair.size },
+    "Etymology role backfill complete",
+  );
 }
 
 main()

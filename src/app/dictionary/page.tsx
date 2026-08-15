@@ -76,7 +76,9 @@ function DictionaryContent() {
       <h1 className="mb-2 text-center font-display text-4xl font-extrabold tracking-tight text-foreground">
         Dictionary
       </h1>
-      <p className="hanzi mb-8 text-center text-xl text-muted-foreground">词典</p>
+      <p className="hanzi mb-8 text-center text-xl text-muted-foreground">
+        词典
+      </p>
 
       <form onSubmit={handleSearch} className="mb-10">
         <div className="mb-4 flex justify-center gap-4">
@@ -118,7 +120,7 @@ function DictionaryContent() {
 
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-16">
-          <Loader2 className="text-primary size-10 animate-spin" />
+          <Loader2 className="size-10 animate-spin text-primary" />
           <p className="mt-4 text-muted-foreground">Searching...</p>
         </div>
       )}
@@ -138,7 +140,7 @@ function DictionaryContent() {
                 : "Something went wrong. Please try again."}
             </p>
             <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="size-4 mr-2" />
+              <RefreshCw className="mr-2 size-4" />
               Try Again
             </Button>
           </CardContent>
@@ -151,10 +153,18 @@ function DictionaryContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[25%] font-display text-muted-foreground">Character</TableHead>
-                  <TableHead className="w-[45%] font-display text-muted-foreground">Translation</TableHead>
-                  <TableHead className="w-[15%] font-display text-muted-foreground">Audio</TableHead>
-                  <TableHead className="w-[15%] font-display text-muted-foreground">Type</TableHead>
+                  <TableHead className="w-[25%] font-display text-muted-foreground">
+                    Character
+                  </TableHead>
+                  <TableHead className="w-[45%] font-display text-muted-foreground">
+                    Translation
+                  </TableHead>
+                  <TableHead className="w-[15%] font-display text-muted-foreground">
+                    Audio
+                  </TableHead>
+                  <TableHead className="w-[15%] font-display text-muted-foreground">
+                    Type
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,7 +176,7 @@ function DictionaryContent() {
                       window.location.href = `/dictionary/${encodeURIComponent(result.vocabItem)}`;
                     }}
                   >
-                    <TableCell className="hanzi text-foreground text-xl">
+                    <TableCell className="hanzi text-xl text-foreground">
                       {result.vocabItem}
                     </TableCell>
                     <TableCell>{result.translation}</TableCell>
@@ -221,8 +231,9 @@ function DictionaryContent() {
             <div className="mb-6 flex justify-center">
               <Mika pose="peek" size={112} />
             </div>
-            <p className="text-muted-foreground text-lg">
-              Search for Chinese characters or English translations to get started
+            <p className="text-lg text-muted-foreground">
+              Search for Chinese characters or English translations to get
+              started
             </p>
           </CardContent>
         </Card>

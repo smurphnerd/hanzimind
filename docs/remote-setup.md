@@ -28,6 +28,7 @@ move at the same time as the database.
 
    Use the pooled endpoint for the app. If a task opens a long transaction or
    uses `LISTEN/NOTIFY`, use the direct (non-pooler) string for that task.
+
 3. Set it in Doppler as `DATABASE_URL`.
 
 Notes:

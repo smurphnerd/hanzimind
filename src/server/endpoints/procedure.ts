@@ -68,7 +68,9 @@ export const authProcedure = commonProcedure.use(authMiddleware);
  */
 export const adminProcedure = authProcedure.use(
   async ({ context, next, errors }) => {
-    if (!isAdminEmail(context.user?.email, parseAdminEmails(env.ADMIN_EMAILS))) {
+    if (
+      !isAdminEmail(context.user?.email, parseAdminEmails(env.ADMIN_EMAILS))
+    ) {
       context.cradle.logger.warn(
         { userId: context.user?.id },
         "Non-admin attempted to reach an admin endpoint",

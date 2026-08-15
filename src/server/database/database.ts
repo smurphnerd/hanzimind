@@ -34,7 +34,9 @@ function createPool(logger: Logger, connectionString: string): Pool {
     max: 10,
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 10_000,
-    ...(isLocal || hasExplicitSslMode ? {} : { ssl: { rejectUnauthorized: true } }),
+    ...(isLocal || hasExplicitSslMode
+      ? {}
+      : { ssl: { rejectUnauthorized: true } }),
   });
 
   pool.on("error", (error) => {

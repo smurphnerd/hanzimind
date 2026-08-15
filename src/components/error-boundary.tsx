@@ -45,7 +45,7 @@ export class ErrorBoundary extends Component<
       }
 
       return (
-        <div className="container mx-auto py-8 px-4 max-w-2xl">
+        <div className="container mx-auto max-w-2xl px-4 py-8">
           <Card className="border-destructive">
             <CardHeader>
               <div className="flex items-center gap-2">

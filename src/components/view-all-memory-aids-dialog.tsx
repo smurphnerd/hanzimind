@@ -68,11 +68,11 @@ export function ViewAllMemoryAidsDialog({
 
         <div className="max-h-[60vh] overflow-y-auto">
           {isLoading ? (
-            <div className="text-muted-foreground py-8 text-center">
+            <div className="py-8 text-center text-muted-foreground">
               Loading...
             </div>
           ) : memoryAids.length === 0 ? (
-            <div className="text-muted-foreground py-8 text-center">
+            <div className="py-8 text-center text-muted-foreground">
               No memory aids found
             </div>
           ) : (
@@ -80,17 +80,17 @@ export function ViewAllMemoryAidsDialog({
               {memoryAids.map((mnemonic, index) => (
                 <div
                   key={mnemonic.id}
-                  className="border-border rounded-xl border p-4"
+                  className="rounded-xl border border-border p-4"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <p className="text-foreground mb-2">
-                        <span className="font-display text-primary mr-2 font-bold tabular-nums">
+                      <p className="mb-2 text-foreground">
+                        <span className="mr-2 font-display font-bold text-primary tabular-nums">
                           {(page - 1) * pageSize + index + 1}.
                         </span>
                         &ldquo;{mnemonic.memoryAid}&rdquo;
                       </p>
-                      <p className="text-muted-foreground text-sm">
+                      <p className="text-sm text-muted-foreground">
                         Saved by {mnemonic.usageCount} users • by{" "}
                         {mnemonic.createdByUsername}
                       </p>
@@ -114,7 +114,7 @@ export function ViewAllMemoryAidsDialog({
           )}
         </div>
 
-        <div className="border-border flex items-center justify-between border-t pt-4">
+        <div className="flex items-center justify-between border-t border-border pt-4">
           <Button
             variant="outline"
             size="sm"
@@ -124,7 +124,7 @@ export function ViewAllMemoryAidsDialog({
             <ChevronLeft className="size-4" />
             Previous
           </Button>
-          <span className="text-muted-foreground font-display text-sm font-bold tabular-nums">
+          <span className="font-display text-sm font-bold text-muted-foreground tabular-nums">
             Page {page} of {totalPages}
           </span>
           <Button

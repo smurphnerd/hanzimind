@@ -53,7 +53,9 @@ const loadDictionary = () =>
     )
       .split("\n")
       .filter((line) => line.trim())
-      .map((line) => JSON.parse(line) as { character: string; pinyin?: string[] })
+      .map(
+        (line) => JSON.parse(line) as { character: string; pinyin?: string[] },
+      )
       .map((entry) => [entry.character, entry.pinyin?.[0] ?? ""] as const),
   );
 
@@ -107,7 +109,10 @@ async function main() {
       if (entry?.decision !== "component" || !entry.gloss) return false;
       return !row.translation?.trim();
     })
-    .map((row) => ({ ...row, gloss: vocabClassification.get(row.vocabItem)!.gloss }));
+    .map((row) => ({
+      ...row,
+      gloss: vocabClassification.get(row.vocabItem)!.gloss,
+    }));
 
   // Authoritative, in both directions. Production still holds a borrowed reading
   // on 97 components from before the component work — 阝 has 邑's "yì" — and
@@ -220,10 +225,7 @@ async function main() {
       .update(schema.vocabItems)
       .set({ pinyin: row.reading })
       .where(
-        and(
-          eq(schema.vocabItems.id, row.id),
-          eq(schema.vocabItems.pinyin, ""),
-        ),
+        and(eq(schema.vocabItems.id, row.id), eq(schema.vocabItems.pinyin, "")),
       );
   }
 
@@ -268,9 +270,9 @@ async function main() {
 
   const [{ counts }] = await database
     .select({
-      counts: sql<
-        Record<string, number>
-      >`jsonb_object_agg(t.key, t.count)`.as("counts"),
+      counts: sql<Record<string, number>>`jsonb_object_agg(t.key, t.count)`.as(
+        "counts",
+      ),
     })
     .from(
       sql`(select ${schema.vocabItems.vocabType} || '/' || ${schema.vocabItems.script} as key,

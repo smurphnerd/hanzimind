@@ -23,10 +23,12 @@ The study session is a spaced repetition learning system that presents vocabular
 ### Step 1: Get Next Vocab Item
 
 **Endpoint:** `orpc.study.nextVocabItem`
+
 - **Input:** `{ deckId: string }`
 - **Output:** `VocabItemStudyDto`
 
 The backend (`StudyService.getNextVocabItem`) determines which item to show based on:
+
 - **Unseen items** (never studied before) get highest priority → returns `studyType: "new"`
 - **Seen items** are prioritized by:
   1. Lowest level across enabled study types
@@ -46,6 +48,7 @@ The UI displays different content based on `studyType`:
 **Purpose:** Introduce the user to a new vocabulary item
 
 **Display:**
+
 - Full vocabulary overview with all information:
   - Large Chinese character/word
   - Pinyin pronunciation
@@ -56,10 +59,12 @@ The UI displays different content based on `studyType`:
   - Memory aids section
 
 **User Action:**
+
 - Click "Continue" button to proceed
 - This marks the item as "seen"
 
 **Fields returned:**
+
 ```typescript
 {
   id: string
@@ -86,21 +91,25 @@ The UI displays different content based on `studyType`:
 **Purpose:** Test ability to read Chinese characters and produce correct pronunciation
 
 **Display:**
+
 - Large Chinese character/word (e.g., "你")
 
 **User Input:**
+
 - Text field for pinyin (e.g., "ni3hao3")
 - Input is auto-converted to tone marks using `pinyin-tone` library (ni3 → nǐ)
 
 **Correct Answer:**
+
 - Exact match with stored pinyin
 
 **Fields returned:**
+
 ```typescript
 {
-  id: string
-  vocabItem: string  // e.g., "你"
-  studyType: "reading"
+  id: string;
+  vocabItem: string; // e.g., "你"
+  studyType: "reading";
 }
 ```
 
@@ -109,22 +118,26 @@ The UI displays different content based on `studyType`:
 **Purpose:** Test listening comprehension and ability to identify sounds
 
 **Display:**
+
 - Large speaker button (auto-plays once on mount)
 - Button to replay audio
 
 **User Input:**
+
 - Text field for pinyin OR Chinese character
 - Pinyin input is auto-converted to tone marks
 
 **Correct Answer:**
+
 - Either exact pinyin match OR exact character match
 
 **Fields returned:**
+
 ```typescript
 {
-  id: string
-  audioUrl: string
-  studyType: "listening"
+  id: string;
+  audioUrl: string;
+  studyType: "listening";
 }
 ```
 
@@ -133,23 +146,27 @@ The UI displays different content based on `studyType`:
 **Purpose:** Test semantic comprehension of the word's meaning
 
 **Display:**
+
 - Chinese character/word (e.g., "你")
 - Audio playback button
 
 **User Input:**
+
 - Text field for English translation (e.g., "you")
 
 **Correct Answer:**
+
 - Semantic similarity check using `TranslationChecker`
 - Uses Jaccard similarity (not exact match required)
 
 **Fields returned:**
+
 ```typescript
 {
-  id: string
-  vocabItem: string
-  audioUrl: string
-  studyType: "understanding"
+  id: string;
+  vocabItem: string;
+  audioUrl: string;
+  studyType: "understanding";
 }
 ```
 
@@ -158,60 +175,68 @@ The UI displays different content based on `studyType`:
 **Purpose:** Test ability to produce Chinese characters from English meaning
 
 **Display:**
+
 - English translation (e.g., "you, second person pronoun")
 
 **User Input:**
+
 - Text field for Chinese character/word
 
 **Correct Answer:**
+
 - Exact character match
 
 **Fields returned:**
+
 ```typescript
 {
-  id: string
-  translation: string | null
-  studyType: "writing"
+  id: string;
+  translation: string | null;
+  studyType: "writing";
 }
 ```
 
 ### Step 3: User Submits Answer
 
 **Actions:**
+
 - User enters answer in text field
 - Clicks "Submit" button OR presses Enter key
 - OR clicks "Give Up" button (submits empty string)
 
 **For `studyType: "new"`:**
+
 - Clicking "Continue" submits empty string
 - No grading, just marks item as seen
 
 ### Step 4: Submit Answer to Backend
 
 **Endpoint:** `orpc.study.submitAnswer`
+
 - **Input:**
   ```typescript
   {
-    deckId: string
+    deckId: string;
     answer: {
-      vocabItemId: string
-      userId: string  // filled by backend
-      deckId: string
-      studyType: StudyType | "new"
-      answer: string
+      vocabItemId: string;
+      userId: string; // filled by backend
+      deckId: string;
+      studyType: StudyType | "new";
+      answer: string;
     }
   }
   ```
 - **Output:**
   ```typescript
   {
-    correct: boolean
-    userVocabItem: UserVocabItemDto  // Full vocab item with user progress
-    nextVocabItem: VocabItemStudyDto  // Next item to study (or null if done)
+    correct: boolean;
+    userVocabItem: UserVocabItemDto; // Full vocab item with user progress
+    nextVocabItem: VocabItemStudyDto; // Next item to study (or null if done)
   }
   ```
 
 **Backend Processing (`StudyService.processAnswer`):**
+
 1. Fetch vocab item and user progress from database
 2. For `studyType: "new"`: Mark item as `seen: true` and return
 3. For other types:
@@ -224,6 +249,7 @@ The UI displays different content based on `studyType`:
 4. Return correctness boolean
 
 **Spaced Repetition Intervals:**
+
 - Level 0 → Level 1: 10 minutes
 - Level 1 → Level 2: 1 hour
 - Level 2 → Level 3: 1 day
@@ -235,6 +261,7 @@ The UI displays different content based on `studyType`:
 ### Step 5: Show Result Card
 
 **Display:**
+
 - "Correct!" (green) or "Incorrect" (red) header
 - Level progression display:
   - Previous level (star rating)
@@ -248,6 +275,7 @@ The UI displays different content based on `studyType`:
   - Decomposition (for characters)
 
 **User Action:**
+
 - Click "Next" button OR press Enter to continue
 
 ### Step 6: Fetch Next Vocab Item
@@ -255,10 +283,12 @@ The UI displays different content based on `studyType`:
 **Two Scenarios:**
 
 #### a. More items available
+
 - Backend returns `nextVocabItem` in the response from Step 4
 - Frontend transitions back to Step 2 with new vocab item
 
 #### b. Session complete
+
 - Backend returns `null` for `nextVocabItem` (all items studied for now)
 - Frontend shows completion screen:
   - "You're Done!" message
@@ -273,16 +303,20 @@ The flow loops back to Step 2 with the next vocab item until the session is comp
 The frontend (`StudyPageContent` component) manages the following state:
 
 ```typescript
-const [currentVocabItem, setCurrentVocabItem] = useState<VocabItemStudyDto | null>()
-const [showingResult, setShowingResult] = useState(false)
-const [isCorrect, setIsCorrect] = useState(false)
-const [previousLevel, setPreviousLevel] = useState(0)
-const [newLevel, setNewLevel] = useState(0)
-const [userVocabItem, setUserVocabItem] = useState<UserVocabItemDto | null>(null)
-const [isCompleted, setIsCompleted] = useState(false)
+const [currentVocabItem, setCurrentVocabItem] =
+  useState<VocabItemStudyDto | null>();
+const [showingResult, setShowingResult] = useState(false);
+const [isCorrect, setIsCorrect] = useState(false);
+const [previousLevel, setPreviousLevel] = useState(0);
+const [newLevel, setNewLevel] = useState(0);
+const [userVocabItem, setUserVocabItem] = useState<UserVocabItemDto | null>(
+  null,
+);
+const [isCompleted, setIsCompleted] = useState(false);
 ```
 
 **State Transitions:**
+
 1. `StudyCard` (showing study item)
    ↓ User submits answer
 2. API call to `submitAnswer`
@@ -298,9 +332,11 @@ const [isCompleted, setIsCompleted] = useState(false)
 Based on the code review, here are potential issues to address:
 
 ### Issue 1: Level Display Bug
+
 **Location:** `src/app/study/[deckId]/page.tsx:515-516`
 
 **Current Code:**
+
 ```typescript
 setPreviousLevel(data.userVocabItem[levelKey]);
 setNewLevel(data.userVocabItem[levelKey]);
@@ -311,31 +347,39 @@ setNewLevel(data.userVocabItem[levelKey]);
 **Fix:** Track previous level BEFORE submitting answer, or have backend return both old and new levels.
 
 **Suggested Solution:**
+
 ```typescript
 // Before submitting, if we had the user's progress:
 const getPreviousLevel = () => {
   const studyType = currentVocabItem?.studyType as StudyType;
-  const levelKey = `${studyType}Level` as "readingLevel" | "listeningLevel" | "understandingLevel" | "writingLevel";
+  const levelKey = `${studyType}Level` as
+    | "readingLevel"
+    | "listeningLevel"
+    | "understandingLevel"
+    | "writingLevel";
   // Would need to fetch or cache user progress before submission
   return previousUserProgress[levelKey];
 };
 ```
 
 **OR** Backend should return:
+
 ```typescript
 {
-  correct: boolean
-  previousLevel: number
-  newLevel: number
-  userVocabItem: UserVocabItemDto
-  nextVocabItem: VocabItemStudyDto
+  correct: boolean;
+  previousLevel: number;
+  newLevel: number;
+  userVocabItem: UserVocabItemDto;
+  nextVocabItem: VocabItemStudyDto;
 }
 ```
 
 ### Issue 2: Missing Null Check
+
 **Location:** `src/server/endpoints/studyRouter.ts:105-108`
 
 **Current Code:**
+
 ```typescript
 const nextVocabItem = await context.cradle.studyService.getNextVocabItem(
   userId,
@@ -352,19 +396,23 @@ return { correct, userVocabItem, nextVocabItem };
 **Expected Behavior:** Should return `null` to indicate session completion
 
 **Fix:** Either:
+
 1. Make `getNextVocabItem` return `null` instead of throwing
 2. Catch the error and return `null` for `nextVocabItem`
 3. Update output schema to allow `nextVocabItem: VocabItemStudyDto.nullable()`
 
 ### Issue 3: Missing Auto-Focus
+
 The input field should auto-focus when a new study card is shown for better UX. This is currently implemented correctly with `inputRef.current?.focus()`.
 
 ### Issue 4: Memory Aids Section
+
 **Location:** `src/app/study/[deckId]/page.tsx:113-124`
 
 **Current Code:** Shows "Memory aids feature coming soon"
 
 **Fix:** Integrate with the memory aids system similar to dictionary page:
+
 - Fetch user's selected memory aid for this vocab item
 - Display it during "new" item introduction
 - Display it in result card for review
@@ -439,6 +487,7 @@ else if (studyType === "writing") {
 ### User Progress Tracking
 
 Each user-vocab relationship (`userVocabItems` table) tracks:
+
 - `seen`: boolean - Whether user has encountered this item
 - `readingLevel`: 0-5
 - `listeningLevel`: 0-5
@@ -453,6 +502,7 @@ Each user-vocab relationship (`userVocabItems` table) tracks:
 ### Deck Settings
 
 Each user-deck relationship (`userDecks` table) controls:
+
 - `includeConstituents`: boolean - Include component characters
 - `readingEnabled`: boolean
 - `listeningEnabled`: boolean

@@ -142,7 +142,7 @@ export default function SignInClientPage(props: { baseUrl: string }) {
             </Button>
           </form>
 
-          <div className="border-border my-2 border-t" />
+          <div className="my-2 border-t border-border" />
 
           <div className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}

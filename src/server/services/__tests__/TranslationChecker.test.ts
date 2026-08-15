@@ -75,11 +75,7 @@ describe("JaccardTranslationChecker", () => {
 
   describe("checkSimilarity", () => {
     it("should return true when similarity exceeds threshold", () => {
-      const result = checker.checkSimilarity(
-        "hello world",
-        "hello world",
-        0.8,
-      );
+      const result = checker.checkSimilarity("hello world", "hello world", 0.8);
       expect(result).toBe(true);
     });
 
@@ -182,8 +178,10 @@ describe("JaccardTranslationChecker", () => {
     it("should filter filler words when enabled", () => {
       const userAnswer = "to eat";
       const groundTruth = "eat";
-      const score =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const score = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // With filtering: "to" is removed
       // {eat} vs {eat}
       // similarity: 1.0
@@ -193,8 +191,10 @@ describe("JaccardTranslationChecker", () => {
     it("should handle when all words are filler words", () => {
       const userAnswer = "to the";
       const groundTruth = "a an";
-      const score =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const score = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // Both become empty sets after filtering (all articles/infinitive marker)
       // Empty sets should return 1.0
       expect(score).toBe(1.0);
@@ -204,8 +204,10 @@ describe("JaccardTranslationChecker", () => {
       const userAnswer = "apple";
       const groundTruth = "an apple";
 
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // "an" is filtered out
       expect(scoreWithFilter).toBe(1.0);
     });
@@ -225,8 +227,10 @@ describe("JaccardTranslationChecker", () => {
       expect(scoreWithoutFilter).toBeCloseTo(0.333, 2);
 
       // With filtering: articles removed, only content words remain
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // {dog} vs {dog}
       expect(scoreWithFilter).toBe(1.0);
     });
@@ -236,8 +240,10 @@ describe("JaccardTranslationChecker", () => {
       const groundTruth = "look for someone";
 
       // "at" and "for" are NOT in filler words, so they're preserved
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // {look, at, someone} vs {look, for, someone}
       // intersection: {look, someone} = 2
       // union: {look, at, for, someone} = 4
@@ -248,8 +254,10 @@ describe("JaccardTranslationChecker", () => {
       const userAnswer = "eat food";
       const groundTruth = "drink water";
 
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // No common words after filtering
       expect(scoreWithFilter).toBe(0.0);
     });
@@ -279,8 +287,10 @@ describe("JaccardTranslationChecker", () => {
       expect(scoreWithoutFilter).toBe(0.5); // {run} vs {to, run}
 
       // With filtering: "to" is removed
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       expect(scoreWithFilter).toBe(1.0); // {run} vs {run}
     });
 
@@ -289,8 +299,10 @@ describe("JaccardTranslationChecker", () => {
       const groundTruth = "use a product";
 
       // With filtering: "the" and "a" removed
-      const scoreWithFilter =
-        checkerWithFillerFiltering.getSimilarityScore(userAnswer, groundTruth);
+      const scoreWithFilter = checkerWithFillerFiltering.getSimilarityScore(
+        userAnswer,
+        groundTruth,
+      );
       // {use, product} vs {use, product}
       expect(scoreWithFilter).toBe(1.0);
     });
@@ -347,12 +359,16 @@ describe("JaccardTranslationChecker", () => {
     const checker = new JaccardTranslationChecker({ filterFillerWords: true });
 
     it("should accept a single-character typo", () => {
-      expect(checker.checkSimilarity("womsn", "woman, girl; female")).toBe(true);
+      expect(checker.checkSimilarity("womsn", "woman, girl; female")).toBe(
+        true,
+      );
     });
 
     it("should accept an adjacent transposition", () => {
       // "woamn" swaps m/a — one edit under Damerau-Levenshtein.
-      expect(checker.checkSimilarity("woamn", "woman, girl; female")).toBe(true);
+      expect(checker.checkSimilarity("woamn", "woman, girl; female")).toBe(
+        true,
+      );
     });
 
     it("should reject a two-edit scramble of a short word", () => {

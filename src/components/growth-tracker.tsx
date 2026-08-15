@@ -40,7 +40,10 @@ export function GrowthTracker({
   return (
     <div className={cn("inline-flex items-center gap-2", className)}>
       <Sprout
-        className={cn(ICON[size], started ? stage.colorClass : "text-stage-none")}
+        className={cn(
+          ICON[size],
+          started ? stage.colorClass : "text-stage-none",
+        )}
       />
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((i) => (

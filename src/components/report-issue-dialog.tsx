@@ -82,7 +82,7 @@ export function ReportIssueDialog({
           </DialogTitle>
           <DialogDescription>
             About{" "}
-            <span className="text-foreground font-semibold">{subject}</span>.
+            <span className="font-semibold text-foreground">{subject}</span>.
             Every report is read by a human — thank you for helping the garden
             grow.
           </DialogDescription>
@@ -122,7 +122,7 @@ function ReportIssueBody({
   if (isPending) {
     return (
       <div className="flex justify-center py-10">
-        <div className="border-muted border-t-primary size-8 animate-spin rounded-full border-4" />
+        <div className="size-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
       </div>
     );
   }
@@ -131,9 +131,9 @@ function ReportIssueBody({
     return (
       <div className="flex flex-col items-center gap-4 py-6 text-center">
         <Mika pose="peek" size={72} />
-        <p className="text-muted-foreground text-sm">
-          Reports are tied to an account so we can follow up on them. Sign in and
-          we&apos;ll bring you right back here.
+        <p className="text-sm text-muted-foreground">
+          Reports are tied to an account so we can follow up on them. Sign in
+          and we&apos;ll bring you right back here.
         </p>
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -226,7 +226,7 @@ function ReportIssueForm({
             key={option.value}
             htmlFor={`report-kind-${option.value}`}
             className={cn(
-              "hover:bg-muted flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors",
+              "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors hover:bg-muted",
               kind === option.value
                 ? "border-primary bg-secondary"
                 : "border-border",
@@ -241,7 +241,7 @@ function ReportIssueForm({
               <span className="block font-display font-bold">
                 {option.label}
               </span>
-              <span className="text-muted-foreground block text-xs font-normal">
+              <span className="block text-xs font-normal text-muted-foreground">
                 {option.hint}
               </span>
             </span>

@@ -10,7 +10,12 @@ describe("filterDecomposition", () => {
 
   it("should strip Ideographic Description Characters", () => {
     // Every IDC in U+2FF0–U+2FFF describes layout, not content.
-    expect(filterDecomposition("⿱⿰木木⿰木木")).toEqual(["木", "木", "木", "木"]);
+    expect(filterDecomposition("⿱⿰木木⿰木木")).toEqual([
+      "木",
+      "木",
+      "木",
+      "木",
+    ]);
   });
 
   it("should strip the fullwidth question mark placeholder", () => {

@@ -45,9 +45,8 @@ async function main() {
     );
 
     logger.info("Creating TTS service...");
-    const { GoogleTTSAPIProvider } = await import(
-      "@/server/services/tts/GoogleTTSAPIProvider"
-    );
+    const { GoogleTTSAPIProvider } =
+      await import("@/server/services/tts/GoogleTTSAPIProvider");
     const ttsProvider = new GoogleTTSAPIProvider(logger);
     const tts = new TTSService(
       { logger, storage, ttsProvider },

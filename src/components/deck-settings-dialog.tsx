@@ -139,10 +139,10 @@ export function DeckSettingsDialog({
                     <Icon className="size-5" />
                   </span>
                   <span className="min-w-0 space-y-0.5">
-                    <span className="font-display block text-sm font-bold">
+                    <span className="block font-display text-sm font-bold">
                       {mode.label}
                     </span>
-                    <span className="text-muted-foreground block text-xs font-normal">
+                    <span className="block text-xs font-normal text-muted-foreground">
                       {mode.hint}
                     </span>
                   </span>
@@ -162,18 +162,18 @@ export function DeckSettingsDialog({
         </div>
 
         {hasAnyStudyMode ? (
-          <p className="text-muted-foreground bg-muted flex items-start gap-2 rounded-xl p-3 text-xs">
-            <Sprout className="text-success mt-px size-4 shrink-0" />
+          <p className="flex items-start gap-2 rounded-xl bg-muted p-3 text-xs text-muted-foreground">
+            <Sprout className="mt-px size-4 shrink-0 text-success" />
             <span>
               The parts of each word are always included — you learn the parts
-              first, and words unlock as their parts stick. Components (character
-              parts like <span className="hanzi">亻</span> and{" "}
+              first, and words unlock as their parts stick. Components
+              (character parts like <span className="hanzi">亻</span> and{" "}
               <span className="hanzi">氵</span>) are reviewed by meaning only,
               since they have no pronunciation of their own.
             </span>
           </p>
         ) : (
-          <p className="text-destructive bg-destructive/10 flex items-start gap-2 rounded-xl p-3 text-xs">
+          <p className="flex items-start gap-2 rounded-xl bg-destructive/10 p-3 text-xs text-destructive">
             <AlertCircle className="mt-px size-4 shrink-0" />
             <span>
               Pick at least one mode — otherwise there&apos;s nothing to review.

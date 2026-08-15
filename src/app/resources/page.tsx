@@ -23,7 +23,7 @@ export default function ResourcesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             We&apos;re putting together study guides, tips on stroke order, and
             more. Check back soon.
           </p>

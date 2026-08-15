@@ -39,7 +39,7 @@ export function DeckProgressBar({
   return (
     <div
       className={cn(
-        "bg-stage-none/25 flex w-full overflow-hidden rounded-full",
+        "flex w-full overflow-hidden rounded-full bg-stage-none/25",
         TRACK[size],
         className,
       )}
@@ -75,15 +75,17 @@ export function GrowthLegend({ byStage, className }: GrowthLegendProps) {
   if (present.length === 0) return null;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)}>
+    <div
+      className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)}
+    >
       {present.map((stage) => (
         <span
           key={stage.key}
-          className="text-muted-foreground inline-flex items-center gap-1.5 text-xs"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
         >
           <span className={cn("size-2 rounded-full", stage.fillClass)} />
           {stage.label}
-          <span className="text-foreground font-display font-bold tabular-nums">
+          <span className="font-display font-bold text-foreground tabular-nums">
             {byStage[stage.index]}
           </span>
         </span>

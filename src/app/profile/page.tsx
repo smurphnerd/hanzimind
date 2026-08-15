@@ -39,7 +39,7 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="bg-accent/15 text-accent flex size-14 items-center justify-center rounded-2xl font-display text-xl font-extrabold uppercase">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-accent/15 font-display text-xl font-extrabold text-accent uppercase">
               {isPending ? (
                 <User className="size-7" />
               ) : (
@@ -61,7 +61,7 @@ export default function ProfilePage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Detailed progress and settings are coming soon.
           </p>
 

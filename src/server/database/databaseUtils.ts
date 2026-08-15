@@ -6,4 +6,3 @@ export const timestampFields = {
     .notNull()
     .$onUpdateFn(() => new Date()),
 };
-

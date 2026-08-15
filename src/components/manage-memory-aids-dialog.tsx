@@ -38,7 +38,7 @@ export function ManageMemoryAidsDialog({
           <DialogTitle className="font-display font-extrabold tracking-tight">
             Memory aids{" "}
             {item && (
-              <span className="hanzi text-primary ml-1">{item.vocabItem}</span>
+              <span className="hanzi ml-1 text-primary">{item.vocabItem}</span>
             )}
           </DialogTitle>
           <DialogDescription>
@@ -105,13 +105,13 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
           ))}
 
         {isError && (
-          <p className="text-muted-foreground py-6 text-center text-sm">
+          <p className="py-6 text-center text-sm text-muted-foreground">
             Couldn&apos;t load the aids for this glyph.
           </p>
         )}
 
         {data && data.items.length === 0 && (
-          <p className="text-muted-foreground py-6 text-center text-sm">
+          <p className="py-6 text-center text-sm text-muted-foreground">
             No memory aids yet. Add the first curated one below.
           </p>
         )}
@@ -128,7 +128,7 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
             <div
               key={aid.id}
               className={cn(
-                "border-border flex items-start gap-3 rounded-2xl border p-3",
+                "flex items-start gap-3 rounded-2xl border border-border p-3",
                 aid.isDefault && "border-primary/40 bg-secondary/40",
               )}
             >
@@ -152,7 +152,7 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
                 />
               </button>
               <div className="min-w-0 flex-1">
-                <p className="text-foreground text-sm">
+                <p className="text-sm text-foreground">
                   &ldquo;{aid.memoryAid}&rdquo;
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -161,10 +161,8 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
                       Official
                     </Badge>
                   )}
-                  {!aid.isPublic && (
-                    <Badge variant="secondary">Private</Badge>
-                  )}
-                  <span className="text-muted-foreground text-xs tabular-nums">
+                  {!aid.isPublic && <Badge variant="secondary">Private</Badge>}
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {aid.usageCount} saved • by {aid.createdByUsername}
                   </span>
                 </div>

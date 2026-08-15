@@ -37,7 +37,7 @@ function StatTile({
           <div className="font-display text-2xl font-extrabold tracking-tight">
             {value}
           </div>
-          <div className="text-muted-foreground text-sm">{label}</div>
+          <div className="text-sm text-muted-foreground">{label}</div>
         </div>
       </CardContent>
     </Card>
@@ -50,7 +50,7 @@ export default function Home() {
   if (isPending) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="border-muted border-t-primary size-10 animate-spin rounded-full border-4" />
+        <div className="size-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
       </div>
     );
   }
@@ -66,18 +66,18 @@ export default function Home() {
               <h1 className="font-display text-2xl font-extrabold tracking-tight">
                 Welcome back!
               </h1>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 Your garden&apos;s looking healthy. Let&apos;s keep it growing.
               </p>
             </div>
           </div>
-          <div className="bg-secondary text-primary inline-flex items-center gap-2 rounded-full px-4 py-2 font-display text-sm font-bold">
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 font-display text-sm font-bold text-primary">
             <Flame className="size-4" />5 day streak
           </div>
         </div>
 
         {/* Resume hero */}
-        <Card className="from-primary to-primary/85 mb-6 border-none bg-gradient-to-br text-primary-foreground shadow-card">
+        <Card className="mb-6 border-none bg-gradient-to-br from-primary to-primary/85 text-primary-foreground shadow-card">
           <CardContent className="flex items-center gap-5 py-2">
             <div className="font-display text-5xl font-extrabold tracking-tight tabular-nums">
               20
@@ -86,7 +86,7 @@ export default function Home() {
               <div className="font-display text-lg font-bold">
                 Reviews ready today
               </div>
-              <div className="text-primary-foreground/80 text-sm">
+              <div className="text-sm text-primary-foreground/80">
                 Continue · HSK 1 Standard Course
               </div>
             </div>
@@ -94,7 +94,7 @@ export default function Home() {
               asChild
               variant="secondary"
               size="icon"
-              className="bg-white text-primary hover:bg-white/90 size-12 shrink-0"
+              className="size-12 shrink-0 bg-white text-primary hover:bg-white/90"
             >
               <Link href="/study" aria-label="Resume studying">
                 <ArrowRight className="size-5" />
@@ -141,9 +141,11 @@ export default function Home() {
           time
         </h1>
 
-        <p className="hanzi text-muted-foreground mt-4 text-xl">学中文，懂中国</p>
+        <p className="hanzi mt-4 text-xl text-muted-foreground">
+          学中文，懂中国
+        </p>
 
-        <p className="text-muted-foreground mx-auto mt-4 max-w-lg text-lg">
+        <p className="mx-auto mt-4 max-w-lg text-lg text-muted-foreground">
           Clean, focused flashcard learning with stroke animations, pinyin, and
           spaced repetition that actually feels good.
         </p>

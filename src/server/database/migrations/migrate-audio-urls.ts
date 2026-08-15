@@ -91,7 +91,11 @@ async function main() {
     }
 
     logger.info(
-      { updated: updatedCount, errors: errorCount, total: itemsToUpdate.length },
+      {
+        updated: updatedCount,
+        errors: errorCount,
+        total: itemsToUpdate.length,
+      },
       "Audio URL migration completed",
     );
 

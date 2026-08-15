@@ -31,7 +31,9 @@ describe("loadScriptClassification", () => {
   );
 
   it("should classify only glyphs that exist in the dictionary", () => {
-    const unknown = [...classification.keys()].filter((g) => !characters.has(g));
+    const unknown = [...classification.keys()].filter(
+      (g) => !characters.has(g),
+    );
     expect(unknown).toEqual([]);
   });
 

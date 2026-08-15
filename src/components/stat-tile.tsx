@@ -45,7 +45,7 @@ export function StatTile({
           <div className="font-display text-2xl font-extrabold tracking-tight tabular-nums">
             {value}
           </div>
-          <div className="text-muted-foreground truncate text-sm">{label}</div>
+          <div className="truncate text-sm text-muted-foreground">{label}</div>
         </div>
       </CardContent>
     </Card>
@@ -63,7 +63,7 @@ export function InlineStat({ icon, children, className }: InlineStatProps) {
   return (
     <span
       className={cn(
-        "text-muted-foreground inline-flex items-center gap-1.5 text-sm",
+        "inline-flex items-center gap-1.5 text-sm text-muted-foreground",
         className,
       )}
     >

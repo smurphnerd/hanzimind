@@ -117,7 +117,10 @@ export class VocabService {
       // Disabled items are treated as if they did not exist, so this throws for
       // them exactly as it does for an unknown glyph.
       where: (vocabItems, { and, eq }) =>
-        and(eq(vocabItems.vocabItem, vocabItem), eq(vocabItems.disabled, false)),
+        and(
+          eq(vocabItems.vocabItem, vocabItem),
+          eq(vocabItems.disabled, false),
+        ),
     });
 
     if (!vocabItemRes) {
@@ -283,9 +286,10 @@ export class VocabService {
    * each tagged with its usage, whether it is public, and whether it is the
    * starred default. Ordered default first, then by usage.
    */
-  async listMemoryAidsForItemAdmin(
-    vocabItemId: string,
-  ): Promise<{ items: AdminMemoryAidDto[]; defaultMemoryAidId: string | null }> {
+  async listMemoryAidsForItemAdmin(vocabItemId: string): Promise<{
+    items: AdminMemoryAidDto[];
+    defaultMemoryAidId: string | null;
+  }> {
     const item = await this.deps.database.query.vocabItems.findFirst({
       columns: { defaultMemoryAidId: true },
       where: (vocabItems, { eq }) => eq(vocabItems.id, vocabItemId),

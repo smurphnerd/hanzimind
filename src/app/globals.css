@@ -7,8 +7,9 @@
   /* Fonts */
   --font-sans: var(--font-inter);
   --font-display: var(--font-nunito);
-  --font-hanzi: "PingFang SC", "Noto Sans SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  --font-hanzi:
+    "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
   /* Semantic (shadcn) tokens */
@@ -51,13 +52,29 @@
 
   /* Item-type color-coding (character / compound / sentence + component context) */
   --color-type-character: var(--type-character);
-  --color-type-character-soft: color-mix(in oklab, var(--type-character) 15%, var(--surface));
+  --color-type-character-soft: color-mix(
+    in oklab,
+    var(--type-character) 15%,
+    var(--surface)
+  );
   --color-type-compound: var(--type-compound);
-  --color-type-compound-soft: color-mix(in oklab, var(--type-compound) 15%, var(--surface));
+  --color-type-compound-soft: color-mix(
+    in oklab,
+    var(--type-compound) 15%,
+    var(--surface)
+  );
   --color-type-sentence: var(--type-sentence);
-  --color-type-sentence-soft: color-mix(in oklab, var(--type-sentence) 15%, var(--surface));
+  --color-type-sentence-soft: color-mix(
+    in oklab,
+    var(--type-sentence) 15%,
+    var(--surface)
+  );
   --color-type-component: var(--type-component);
-  --color-type-component-soft: color-mix(in oklab, var(--type-component) 15%, var(--surface));
+  --color-type-component-soft: color-mix(
+    in oklab,
+    var(--type-component) 15%,
+    var(--surface)
+  );
 
   /* Growth-stage (SRS) colors */
   --color-stage-none: var(--stage-none);
@@ -103,10 +120,10 @@
   --type-sentence: #f59e0b;
   --type-component: #14b8a6;
 
-  --card-shadow: 0 1px 2px rgba(24, 22, 30, 0.04),
-    0 8px 24px -12px rgba(24, 22, 30, 0.14);
-  --card-shadow-hover: 0 2px 4px rgba(24, 22, 30, 0.05),
-    0 14px 32px -12px rgba(24, 22, 30, 0.18);
+  --card-shadow:
+    0 1px 2px rgba(24, 22, 30, 0.04), 0 8px 24px -12px rgba(24, 22, 30, 0.14);
+  --card-shadow-hover:
+    0 2px 4px rgba(24, 22, 30, 0.05), 0 14px 32px -12px rgba(24, 22, 30, 0.18);
 
   --stage-none: #c9c7cf;
   --stage-seedling: #38bdf8;
@@ -180,9 +197,10 @@
 
   /* The light shadows are near-black on near-white and vanish on a #111014
      background, leaving every card flat. Deepen them so elevation still reads. */
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
-  --card-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.45),
-    0 14px 32px -12px rgba(0, 0, 0, 0.8);
+  --card-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --card-shadow-hover:
+    0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 32px -12px rgba(0, 0, 0, 0.8);
 }
 
 @layer base {

@@ -81,7 +81,7 @@ function HanziPanel({
 function Decomposition({ parts }: { parts: string[] }) {
   if (parts.length === 0) {
     return (
-      <p className="text-muted-foreground py-6 text-center text-sm">
+      <p className="py-6 text-center text-sm text-muted-foreground">
         No decomposition available
       </p>
     );
@@ -91,13 +91,13 @@ function Decomposition({ parts }: { parts: string[] }) {
       {parts.map((component, index) => (
         <div key={index} className="flex items-center gap-3">
           {index > 0 && (
-            <span className="text-muted-foreground text-xl">+</span>
+            <span className="text-xl text-muted-foreground">+</span>
           )}
           <Link
             href={`/dictionary/${encodeURIComponent(component)}`}
             className="group"
           >
-            <div className="hanzi bg-type-component-soft text-type-component border-type-component/30 flex size-16 items-center justify-center rounded-xl border text-3xl transition-transform group-hover:-translate-y-0.5">
+            <div className="hanzi flex size-16 items-center justify-center rounded-xl border border-type-component/30 bg-type-component-soft text-3xl text-type-component transition-transform group-hover:-translate-y-0.5">
               {component}
             </div>
           </Link>
@@ -190,7 +190,7 @@ function StudyCard({
               <h1 className="font-display text-2xl font-extrabold tracking-tight">
                 New word
               </h1>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 Meet it before you&apos;re quizzed.
               </p>
             </div>
@@ -219,7 +219,7 @@ function StudyCard({
       <div className="w-full max-w-xl">
         <div className="mb-5 flex items-center justify-center gap-2">
           <ItemTypeBadge type={vocabItem.vocabType} />
-          <span className="text-muted-foreground font-display text-sm font-bold">
+          <span className="font-display text-sm font-bold text-muted-foreground">
             · {modeLabel}
           </span>
         </div>
@@ -239,13 +239,13 @@ function StudyCard({
               <div className="flex flex-col items-center gap-6">
                 <Button
                   variant="outline"
-                  className="hover:bg-accent/10 hover:border-accent size-32 rounded-full"
+                  className="size-32 rounded-full hover:border-accent hover:bg-accent/10"
                   onClick={() => playAudio(vocabItem.audioUrl)}
                   aria-label="Play audio"
                 >
-                  <Volume2 className="text-accent size-14" />
+                  <Volume2 className="size-14 text-accent" />
                 </Button>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm text-muted-foreground">
                   Tap to play again
                 </p>
               </div>
@@ -276,7 +276,7 @@ function StudyCard({
             )}
 
             {vocabItem.studyType === "writing" && (
-              <p className="text-accent font-display text-center text-2xl font-bold">
+              <p className="text-center font-display text-2xl font-bold text-accent">
                 {vocabItem.translation}
               </p>
             )}
@@ -305,7 +305,7 @@ function StudyCard({
                   : e.target.value,
               )
             }
-            className={`h-14 text-center text-2xl${isHanziAnswer ? " hanzi" : ""}`}
+            className={`h-14 text-center text-2xl${isHanziAnswer ? "hanzi" : ""}`}
             autoComplete="off"
           />
 
@@ -325,7 +325,7 @@ function StudyCard({
           </div>
         </form>
 
-        <p className="text-muted-foreground mt-4 text-center text-xs">
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           {isPinyinAnswer ? (
             <>
               Tones as numbers (<span className="font-medium">hao3</span> → hǎo)
@@ -410,7 +410,7 @@ function ResultCard({
           >
             {isCorrect ? "对! Nailed it" : "Not quite"}
           </div>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="mt-1 text-sm text-muted-foreground">
             {isCorrect
               ? "That one's growing nicely."
               : "No stress — it'll come back around soon."}
@@ -445,7 +445,7 @@ function ResultCard({
                   {/* A meaning-only component is stored with no reading, a
                       phonetic one keeps it — branch on the data. */}
                   {userVocabItem.pinyin && (
-                    <div className="hanzi text-accent text-2xl">
+                    <div className="hanzi text-2xl text-accent">
                       {userVocabItem.pinyin}
                     </div>
                   )}
@@ -462,16 +462,16 @@ function ResultCard({
                 </div>
               </div>
 
-              <div className="border-border border-t pt-4">
-                <div className="text-muted-foreground mb-1 text-xs font-bold tracking-wider uppercase">
+              <div className="border-t border-border pt-4">
+                <div className="mb-1 text-xs font-bold tracking-wider text-muted-foreground uppercase">
                   Meaning
                 </div>
                 <p className="text-lg">{userVocabItem.translation}</p>
               </div>
 
               {userVocabItem.memoryAid && (
-                <div className="border-border border-t pt-4">
-                  <div className="text-primary mb-1 inline-flex items-center gap-1.5 text-xs font-bold tracking-wider uppercase">
+                <div className="border-t border-border pt-4">
+                  <div className="mb-1 inline-flex items-center gap-1.5 text-xs font-bold tracking-wider text-primary uppercase">
                     <Lightbulb className="size-3.5" />
                     Remember it
                   </div>
@@ -483,8 +483,8 @@ function ResultCard({
 
               {userVocabItem.vocabType === "character" &&
                 userVocabItem.constituents.length > 0 && (
-                  <div className="border-border border-t pt-4">
-                    <div className="text-muted-foreground mb-1 text-xs font-bold tracking-wider uppercase">
+                  <div className="border-t border-border pt-4">
+                    <div className="mb-1 text-xs font-bold tracking-wider text-muted-foreground uppercase">
                       Built from
                     </div>
                     <Decomposition parts={userVocabItem.constituents} />
@@ -497,7 +497,7 @@ function ResultCard({
         {canAddSynonym && (
           <div className="mt-5 flex justify-center">
             {synonymAdded ? (
-              <p className="text-success flex items-center gap-2 text-sm">
+              <p className="flex items-center gap-2 text-sm text-success">
                 <Check className="size-4" />
                 &ldquo;{lastAnswer.trim()}&rdquo; will be accepted from now on
               </p>
@@ -525,7 +525,7 @@ function ResultCard({
             <ArrowRight className="size-5" />
           </Button>
         </div>
-        <p className="text-muted-foreground mt-3 text-center text-xs">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           Press Enter to continue
         </p>
       </div>
@@ -545,7 +545,7 @@ function CompletionScreen() {
           <h1 className="font-display text-3xl font-extrabold tracking-tight">
             All done!
           </h1>
-          <p className="text-muted-foreground mt-2 mb-6 text-lg">
+          <p className="mt-2 mb-6 text-lg text-muted-foreground">
             Great work — you&apos;ve cleared every card in this session.
           </p>
           <Button size="lg" onClick={() => router.push("/study")}>

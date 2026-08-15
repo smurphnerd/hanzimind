@@ -97,7 +97,7 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
         <Card className="w-[32rem] max-w-full">
           <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
             <Mika pose="cheer" size={80} />
-            <div className="text-accent flex items-center gap-2">
+            <div className="flex items-center gap-2 text-accent">
               <MailCheck className="size-5" />
               <span className="font-display text-sm font-bold tracking-wide uppercase">
                 Check your email
@@ -106,9 +106,9 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
               Almost there!
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               We sent a verification link to{" "}
-              <span className="text-foreground font-semibold">{sentTo}</span>.
+              <span className="font-semibold text-foreground">{sentTo}</span>.
               Click it to activate your account.
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -214,7 +214,7 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             </Button>
           </form>
 
-          <div className="border-border my-2 border-t" />
+          <div className="my-2 border-t border-border" />
 
           <div className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}

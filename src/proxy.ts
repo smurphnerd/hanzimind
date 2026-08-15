@@ -17,7 +17,9 @@ export default function proxy(request: NextRequest) {
     // blocked in the browser.
     const mediaOrigins = [s3Endpoint.toString()];
     if (env.S3_OPTIONS.cloudfrontDistributionUrl) {
-      mediaOrigins.push(new URL(env.S3_OPTIONS.cloudfrontDistributionUrl).origin);
+      mediaOrigins.push(
+        new URL(env.S3_OPTIONS.cloudfrontDistributionUrl).origin,
+      );
     }
     const media = mediaOrigins.join(" ");
 

@@ -48,7 +48,9 @@ describe("loadVocabClassification", () => {
   });
 
   it("should classify only glyphs that exist in the dictionary", () => {
-    const unknown = [...classification.keys()].filter((g) => !dictionary.has(g));
+    const unknown = [...classification.keys()].filter(
+      (g) => !dictionary.has(g),
+    );
     expect(unknown).toEqual([]);
   });
 
@@ -102,7 +104,17 @@ describe("loadVocabClassification", () => {
   it("should keep the bound radical forms as components", () => {
     // The everyday bound forms. If any of these stops being a component the
     // hierarchy has lost its floor.
-    for (const glyph of ["亻", "氵", "扌", "忄", "艹", "讠", "辶", "刂", "纟"]) {
+    for (const glyph of [
+      "亻",
+      "氵",
+      "扌",
+      "忄",
+      "艹",
+      "讠",
+      "辶",
+      "刂",
+      "纟",
+    ]) {
       expect(classification.get(glyph)?.decision, glyph).toBe("component");
     }
   });
@@ -111,7 +123,17 @@ describe("loadVocabClassification", () => {
     // Each is a radical whose primary form is an ordinary typed word, so it must
     // stay a character: 人 person, 水 water, 手 hand, 尸体 corpse, 萝卜 radish,
     // 器皿 vessel, 王 king, 食 food.
-    for (const glyph of ["人", "水", "手", "心", "尸", "卜", "皿", "王", "食"]) {
+    for (const glyph of [
+      "人",
+      "水",
+      "手",
+      "心",
+      "尸",
+      "卜",
+      "皿",
+      "王",
+      "食",
+    ]) {
       expect(classification.has(glyph), glyph).toBe(false);
     }
   });
@@ -169,7 +191,17 @@ describe("loadVocabClassification", () => {
    * would be quizzed as the reading of 113 characters it says nothing about.
    */
   it("should not mark a bound form that only ever supplies meaning", () => {
-    for (const glyph of ["亻", "氵", "扌", "艹", "阝", "饣", "刂", "礻", "彳"]) {
+    for (const glyph of [
+      "亻",
+      "氵",
+      "扌",
+      "艹",
+      "阝",
+      "饣",
+      "刂",
+      "礻",
+      "彳",
+    ]) {
       expect(classification.get(glyph)?.phonetic, glyph).toBe(false);
     }
   });
@@ -197,10 +229,9 @@ describe("loadVocabClassification", () => {
       ["纟", "糹"],
       ["饣", "飠"],
     ]) {
-      expect(
-        classification.get(a)?.phonetic,
-        `${a} and ${b} disagree`,
-      ).toBe(classification.get(b)?.phonetic);
+      expect(classification.get(a)?.phonetic, `${a} and ${b} disagree`).toBe(
+        classification.get(b)?.phonetic,
+      );
     }
   });
 

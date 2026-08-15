@@ -99,8 +99,12 @@ async function main() {
     } else {
       drift++;
       console.log(`  DRIFT           ${table}`);
-      if (missing.length) console.log(`                    missing columns: ${missing.join(", ")}`);
-      if (extra.length) console.log(`                    extra columns:   ${extra.join(", ")}`);
+      if (missing.length)
+        console.log(
+          `                    missing columns: ${missing.join(", ")}`,
+        );
+      if (extra.length)
+        console.log(`                    extra columns:   ${extra.join(", ")}`);
     }
   }
 
@@ -159,14 +163,18 @@ async function main() {
 
   if (s3) {
     console.log("\n── S3 CONFIG (non-secret fields) ──────────────────────");
-    console.log(`  endpoint          ${String(s3["endpoint"] ?? "(default AWS)")}`);
+    console.log(
+      `  endpoint          ${String(s3["endpoint"] ?? "(default AWS)")}`,
+    );
     console.log(`  region            ${String(s3["region"] ?? "(unset)")}`);
     console.log(`  bucket            ${String(s3["bucketName"] ?? "(unset)")}`);
     console.log(`  forcePathStyle    ${String(s3["forcePathStyle"] ?? false)}`);
     console.log(
       `  publicUrl         ${String(s3["cloudfrontDistributionUrl"] ?? "(none — falls back to endpoint/bucket)")}`,
     );
-    console.log(`  credentials       ${s3["credentials"] ? "present" : "MISSING"}`);
+    console.log(
+      `  credentials       ${s3["credentials"] ? "present" : "MISSING"}`,
+    );
   }
 
   console.log(

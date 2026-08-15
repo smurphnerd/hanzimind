@@ -90,7 +90,10 @@ export function DictionaryWordLoading({ word }: { word?: string }) {
         </CardHeader>
         <CardContent className="space-y-4">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="border-border border-b pb-4 last:border-b-0">
+            <div
+              key={i}
+              className="border-b border-border pb-4 last:border-b-0"
+            >
               <Skeleton className="mb-2 h-4 w-full" />
               <Skeleton className="h-3 w-3/4" />
             </div>

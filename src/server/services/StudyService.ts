@@ -408,13 +408,15 @@ export class StudyService {
           .values({ userId, vocabItemId: answer.vocabItemId })
           .onConflictDoNothing();
 
-        userVocabItem = await this.deps.database.query.userVocabItems.findFirst({
-          where: (userVocabItems, { eq, and }) =>
-            and(
-              eq(userVocabItems.vocabItemId, answer.vocabItemId),
-              eq(userVocabItems.userId, userId),
-            ),
-        });
+        userVocabItem = await this.deps.database.query.userVocabItems.findFirst(
+          {
+            where: (userVocabItems, { eq, and }) =>
+              and(
+                eq(userVocabItems.vocabItemId, answer.vocabItemId),
+                eq(userVocabItems.userId, userId),
+              ),
+          },
+        );
 
         if (!userVocabItem) {
           throw new Error(

@@ -98,7 +98,7 @@ export function CharacterStrokes({
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
-      <div className="border-border bg-surface flex items-center justify-center rounded-lg border p-4">
+      <div className="flex items-center justify-center rounded-lg border border-border bg-surface p-4">
         <svg
           viewBox="0 0 1024 1024"
           className="h-64 w-64"
@@ -144,7 +144,10 @@ export function CharacterStrokes({
             {/* Animated strokes */}
             {paths.map((p, i) =>
               p.median ? (
-                <g key={`draw-${runId}-${i}`} clipPath={`url(#clip-${runId}-${i})`}>
+                <g
+                  key={`draw-${runId}-${i}`}
+                  clipPath={`url(#clip-${runId}-${i})`}
+                >
                   <path
                     id={`median-${runId}-${i}`}
                     d={p.median}

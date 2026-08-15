@@ -36,7 +36,10 @@ const traditionalOf = new Map();
 const fromCodepoint = (token) =>
   String.fromCodePoint(parseInt(token.replace(/<.*$/, "").slice(2), 16));
 
-for (const line of readFileSync(join(DATA, "unihan-variants.txt"), "utf-8").split("\n")) {
+for (const line of readFileSync(
+  join(DATA, "unihan-variants.txt"),
+  "utf-8",
+).split("\n")) {
   if (!line.trim() || line.startsWith("#")) continue;
 
   const [codepoint, field, rest] = line.split("\t");
@@ -51,7 +54,11 @@ for (const line of readFileSync(join(DATA, "unihan-variants.txt"), "utf-8").spli
   const glyph = fromCodepoint(codepoint);
   // Self references are dropped here, once, so every consumer below sees only
   // genuine cross-script relations.
-  const variants = rest.trim().split(/\s+/).map(fromCodepoint).filter((v) => v !== glyph);
+  const variants = rest
+    .trim()
+    .split(/\s+/)
+    .map(fromCodepoint)
+    .filter((v) => v !== glyph);
   if (variants.length > 0) target.set(glyph, variants);
 }
 
@@ -60,11 +67,11 @@ for (const line of readFileSync(join(DATA, "unihan-variants.txt"), "utf-8").spli
 const OVERRIDES = {
   // 苧 (ramie) simplifies to 苎; its kTraditionalVariant 薴 is a different word
   // (limonene) that merged into the same glyph. Traditional side.
-  "苧": "traditional",
+  苧: "traditional",
   // 蒙 is a standard glyph in both scripts. 懞/濛/矇 are separate traditional
   // words that all collapsed onto it in simplified, which is what puts a
   // distinct variant on both sides.
-  "蒙": "both",
+  蒙: "both",
 };
 
 /** @returns {"simplified" | "traditional" | "both"} */
@@ -89,22 +96,70 @@ function classify(glyph) {
 // Cheap guard against a malformed vendored file or an inverted rule: these are
 // unambiguous, and getting one wrong means the whole 9.6k-row backfill is wrong.
 const EXPECTED = {
-  simplified: ["国", "见", "这", "汉", "语", "书", "东", "车", "马", "门", "讠", "钅", "纟", "饣"],
-  traditional: ["國", "見", "這", "漢", "語", "書", "東", "車", "馬", "門", "訁", "釒", "糹", "飠"],
-  both: ["人", "大", "一", "山", "水", "火", "口", "手", "日", "月", "工", "中"],
+  simplified: [
+    "国",
+    "见",
+    "这",
+    "汉",
+    "语",
+    "书",
+    "东",
+    "车",
+    "马",
+    "门",
+    "讠",
+    "钅",
+    "纟",
+    "饣",
+  ],
+  traditional: [
+    "國",
+    "見",
+    "這",
+    "漢",
+    "語",
+    "書",
+    "東",
+    "車",
+    "馬",
+    "門",
+    "訁",
+    "釒",
+    "糹",
+    "飠",
+  ],
+  both: [
+    "人",
+    "大",
+    "一",
+    "山",
+    "水",
+    "火",
+    "口",
+    "手",
+    "日",
+    "月",
+    "工",
+    "中",
+  ],
 };
 const failures = [];
 for (const [expected, glyphs] of Object.entries(EXPECTED)) {
   for (const glyph of glyphs) {
     const actual = classify(glyph);
-    if (actual !== expected) failures.push(`${glyph}: expected ${expected}, got ${actual}`);
+    if (actual !== expected)
+      failures.push(`${glyph}: expected ${expected}, got ${actual}`);
   }
 }
 if (failures.length > 0) {
-  console.error("self-check FAILED:\n" + failures.map((f) => "  " + f).join("\n"));
+  console.error(
+    "self-check FAILED:\n" + failures.map((f) => "  " + f).join("\n"),
+  );
   process.exit(1);
 }
-console.log(`self-check passed (${Object.values(EXPECTED).flat().length} glyphs)`);
+console.log(
+  `self-check passed (${Object.values(EXPECTED).flat().length} glyphs)`,
+);
 
 // --- classify the dictionary --------------------------------------------------
 const entries = readFileSync(join(SEED, "dictionary.txt"), "utf-8")
@@ -126,13 +181,17 @@ for (const entry of entries) {
     glyph,
     cp: "U+" + glyph.codePointAt(0).toString(16).toUpperCase().padStart(4, "0"),
     script,
-    counterpart: (script === "traditional" ? simplifiedOf : traditionalOf).get(glyph).join(""),
+    counterpart: (script === "traditional" ? simplifiedOf : traditionalOf)
+      .get(glyph)
+      .join(""),
     override: OVERRIDES[glyph] ? "override" : "",
   });
 }
 
 rows.sort((a, b) =>
-  a.script === b.script ? a.cp.localeCompare(b.cp) : a.script.localeCompare(b.script),
+  a.script === b.script
+    ? a.cp.localeCompare(b.cp)
+    : a.script.localeCompare(b.script),
 );
 
 const preamble = [
@@ -152,7 +211,11 @@ writeFileSync(
   join(SEED, "script-classification.tsv"),
   preamble +
     "\n" +
-    rows.map((r) => [r.glyph, r.cp, r.script, r.counterpart, r.override].join("\t")).join("\n") +
+    rows
+      .map((r) =>
+        [r.glyph, r.cp, r.script, r.counterpart, r.override].join("\t"),
+      )
+      .join("\n") +
     "\n",
 );
 
