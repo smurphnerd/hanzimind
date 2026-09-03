@@ -21,7 +21,7 @@
     "db:migrate-audio-urls": "doppler run -- tsx --env-file=.env src/server/database/migrations/migrate-audio-urls.ts",
     "test": "doppler run -- vitest run",
     "test:ci": "vitest run",
-    "test-e2e": "doppler run -- pnpm playwright test",
+    "test-e2e": "playwright test",
     "email": "email dev --dir src/email --port 3100",
     "dev-containers": "docker compose -f development/docker-compose.yaml up"
   },
@@ -72,6 +72,7 @@
   },
   "devDependencies": {
     "@next/env": "^15.4.2",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.1.11",
     "@tanstack/react-query-devtools": "^5.83.0",
     "@types/d3-force": "^3.0.10",

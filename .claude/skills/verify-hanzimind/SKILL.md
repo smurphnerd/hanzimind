@@ -27,7 +27,7 @@ Ports for lane `<n>`:
 | Mailpit SMTP | `11025 + n` | `EMAIL_CONNECTION_URL` |
 | Mailpit web UI | `18025 + n` | printed on ready |
 
-Set `LANE_PORT_BASE` when `3000 + n` is taken by something else on the machine (`LANE_PORT_BASE=4300 lane-up.sh 1` serves on 4301). The container ports never sit on 5432, 9090, 8025 or 1025, so a developer's own `pnpm dev-containers` and a lane coexist.
+Set `LANE_PORT_BASE` when `3000 + n` is taken by something else on the machine (`LANE_PORT_BASE=4300 lane-up.sh 1` serves on 4301). `doctor.sh` and `lane-down.sh` read the port back from the lane's `.env.lane`, so the export is needed only for `lane-up.sh`; an explicit export still wins. The container ports never sit on 5432, 9090, 8025 or 1025, so a developer's own `pnpm dev-containers` and a lane coexist.
 
 Environment. The app reads env through `src/env.ts`. A lane never uses Doppler. Every lane command loads `development/lanes/<n>/.env.lane` by sourcing it with `set -a`, which is the one mechanism this skill uses for `drizzle-kit`, `tsx` and `next` alike. To run any other script against a lane:
 
@@ -38,7 +38,7 @@ pnpm exec tsx scripts/backfill-classification.ts --dry-run
 
 `DEEPL_API_KEY` is a placeholder unless the variable is set in the shell that runs `lane-up.sh`. Deck creation from dictionary characters works without it. Adding an unknown compound or sentence to a deck calls DeepL and fails with the placeholder.
 
-Seed time. The seed fetches audio for every dictionary entry from Google TTS, about six minutes for 9,574 entries. The first `lane-up.sh` on a machine pays that once and saves the `vocab_items` rows and the s3mock objects under `~/.cache/hanzimind-lanes/<key>` (override the root with `HANZIMIND_LANE_CACHE`), where `<key>` hashes the seed inputs (`schema.ts`, `dictionary.txt`, `graphics.txt`, the two classification TSVs and their loaders), so a schema change or a dictionary edit forces one full seed. Every later lane, in any checkout, restores the cache and is ready in about 20 seconds. Delete the cache directory to force a full seed. `lane-up.sh` is safe to rerun: a lane that is already answering prints `ready on <port> (already up)` and exits 0, a dead dev server is restarted once its port is released, a compose project that is partly up is reconciled, and `AUTH_SECRET` is read back from the existing `.env.lane`, so sessions signed in before a restart stay valid.
+Seed time. The seed fetches audio for every dictionary entry from Google TTS, about six minutes for 9,574 dictionary entries plus the 68 HSK 1 words the deck seed adds, 9,642 `vocab_items` rows in all. The first `lane-up.sh` on a machine pays that once and saves the `vocab_items` rows and the s3mock objects under `~/.cache/hanzimind-lanes/<key>` (override the root with `HANZIMIND_LANE_CACHE`), where `<key>` hashes the seed inputs (`schema.ts`, `dictionary.txt`, `graphics.txt`, the two classification TSVs and their loaders, `scripts/seed-hsk1-deck.ts` and `scripts/data/hsk1-vocabulary.txt`), so a schema change, a dictionary edit or an HSK list edit forces one full seed. Every later lane, in any checkout, restores the cache and is ready in about 20 seconds. Delete the cache directory to force a full seed. `lane-up.sh` is safe to rerun: a lane that is already answering prints `ready on <port> (already up)` and exits 0, a dead dev server is restarted once its port is released, a compose project that is partly up is reconciled, and `AUTH_SECRET` is read back from the existing `.env.lane`, so sessions signed in before a restart stay valid. Every other line of `.env.lane` is rewritten on each run, so a hand edit there lasts until the next `lane-up.sh`; put a lasting change in the script.
 
 One lane per checkout. `next dev` holds `.next/dev/lock` in the project directory, so a second lane in the same worktree fails with `Unable to acquire lock`. Run each lane from its own worktree, which is how the swarm boots anyway. Starting a second lane means a second number, never the same one twice.
 
@@ -53,7 +53,7 @@ Read-only. Refuses with exit 3 before any check when the lane's `DATABASE_URL` h
 ```
 ok      compose project hanzimind-lane-3 is up (postgres, s3, mailpit)
 ok      POST http://localhost:3003/api/rpc/ping answers 200
-ok      vocab_items has 9574 rows
+ok      vocab_items has 9642 rows
 ok      running GIT_SHA 0fafff91e811 matches git rev-parse HEAD
 ```
 
@@ -72,6 +72,16 @@ Harness gotchas, each of which cost a worker a lane:
 - `get_page_text` returns `<main>` only. Toasts, the header and dialogs are outside it, so prove a toast with a screenshot taken right after the click, and prove header state with `read_page`.
 - A successful sign-in is a full page load. Wait for the `Welcome back!` heading before reading the header.
 - Keep the tab wider than 640px, or the header nav collapses and `read_page` will not list `Study`, `Decks`, `Dictionary`.
+
+Headless. Only one worker at a time can drive `claude-in-chrome`, because every worker shares one extension tab group. Every other browser lane drives headless Chromium through Playwright, which the repo ships as its e2e suite:
+
+```sh
+LANE_PORT_BASE=4300 E2E_LANE=9 pnpm test-e2e
+LANE_PORT_BASE=4300 E2E_LANE=9 pnpm exec playwright test -g dictionary
+E2E_BASE_URL=http://localhost:4309 pnpm exec playwright test e2e/my-lane.spec.ts
+```
+
+`playwright.config.ts` boots the lane itself through `e2e/lane.sh` (`lane-up.sh $E2E_LANE`, then a `tail -f` of the dev log so Playwright has a process to hold) and reuses a lane that already answers. `E2E_BASE_URL` points the suite at any server. The three committed specs under `e2e/` are the recipes for sign-in, one study card and dictionary search; `e2e/fixtures.ts` gives an ad-hoc spec `signInContext` (API sign-in, cookie into the browser context) and `rpc` (one procedure call with `{"json": input}`). To drive a feature headless, write a throwaway spec beside them, locate by role and label the way the feature file names the handle, and save proof with `page.screenshot({ path: "<evidence dir>/<slug>.png" })`. A failed spec keeps a trace under `test-results/playwright/`; open it with `pnpm exec playwright show-trace <trace.zip>`. Playwright waits for the element, so the dropped-click and toast gotchas above are handled by `expect(...).toBeVisible()` and `getByText`, but press `Enter` in the answer field rather than clicking `Check`. The auth layer allows three sign-ins per ten seconds per address and answers 429 after that, so the suite signs in once (the `sign-in` project saves its session for the `signed-in` project) and an ad-hoc spec should reuse `test-results/playwright/learner-state.json` as `storageState` rather than sign in again; space repeated suite runs ten seconds apart.
 
 API. Sign in once and keep the cookie jar, then call procedures by path. Every recipe uses `jar.txt` for the learner and `admin-jar.txt` for the admin, in the current directory. Every procedure is `POST`, the body is `{"json": <input>}`, and the response is `{"json": <output>}` with an error object and a 4xx status on failure.
 
@@ -131,6 +141,7 @@ All under `.claude/skills/verify-hanzimind/scripts/`. The four commands are exec
 | `doctor.sh` | `doctor.sh <n>` | Four read-only checks, exit 0 only when all print `ok`. Exit 3 on a non-local database. |
 | `lane-down.sh` | `lane-down.sh <n>` | Stop the dev server by pid file and remove the compose project with its volumes. |
 | `perf-probe.mjs` | `perf-probe.mjs --port <p> --rpc <router/procedure> --body <json> --n <count>` | Sign in and print p50 and p95 in ms for one procedure. |
+| `e2e/lane.sh` (repo root) | Playwright `webServer` command, `E2E_LANE=<n>` | `lane-up.sh <n>` then `tail -f` its dev log. |
 | `lane-lib.sh` | sourced by the three shell scripts | Port arithmetic and paths. Not a command. |
 
 Keep the feature map honest with `/maintain-verification-skill` when routes or components change.
