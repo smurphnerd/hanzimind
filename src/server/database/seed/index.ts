@@ -1,6 +1,7 @@
 import { pino } from "pino";
 import pinoPretty from "pino-pretty";
 import { seedDictionary } from "./seed-dictionary";
+import { seedTestUsers } from "./seed-test-users";
 import { getDatabase } from "../database";
 import { TranslatorService } from "../../services/TranslatorService";
 import { TTSService } from "../../services/TTSService";
@@ -68,6 +69,11 @@ async function main() {
 
     logger.info("Starting dictionary seeding...");
     await seedDictionary(seedCradle);
+    const testUsers = await seedTestUsers(database, {
+      SEED_TEST_USER: process.env.SEED_TEST_USER,
+      NODE_ENV: env.NODE_ENV,
+    });
+    logger.info({ testUsers }, "Seeded test users");
     logger.info("Database seeding completed successfully");
     process.exit(0);
   } catch (error) {
