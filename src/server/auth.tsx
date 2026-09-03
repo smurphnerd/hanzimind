@@ -54,8 +54,7 @@ export const getAuth = (
     plugins: [
       // Puts `role` on the session user so admin status travels with the session
       // — no extra round trip to learn it. New accounts default to "user";
-      // "admin" is the only elevated role. Existing admins are seeded from
-      // ADMIN_EMAILS by scripts/backfill-admin-roles.ts.
+      // "admin" is the only elevated role.
       admin({
         defaultRole: "user",
         adminRoles: ["admin"],

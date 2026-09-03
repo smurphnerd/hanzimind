@@ -9,7 +9,7 @@ import type { VocabType } from "@/definitions/definitions";
  */
 export type ItemTypeKey = VocabType;
 
-export interface ItemTypeMeta {
+interface ItemTypeMeta {
   key: ItemTypeKey;
   label: string;
   shortLabel: string;

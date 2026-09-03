@@ -69,13 +69,13 @@ function split(input: string): { letters: string; tones: string } {
   return { letters, tones };
 }
 
-export function canonicalPinyin(input: string): string {
+function canonicalPinyin(input: string): string {
   const { letters, tones } = split(input);
   return tones ? `${letters}|${tones}` : letters;
 }
 
 /** Canonical form with tone information removed. */
-export function canonicalPinyinToneless(input: string): string {
+function canonicalPinyinToneless(input: string): string {
   return split(input).letters;
 }
 

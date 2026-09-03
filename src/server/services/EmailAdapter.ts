@@ -5,7 +5,7 @@ import React, { type ReactElement } from "react";
 
 import type { Cradle } from "@/server/initialization";
 
-export type SendEmailArgs = {
+type SendEmailArgs = {
   from: string;
   to: string;
   subject: string;

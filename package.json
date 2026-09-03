@@ -18,7 +18,6 @@
     "typecheck": "tsc --noEmit",
     "db:push": "doppler run -- drizzle-kit push",
     "db:seed": "doppler run -- tsx --env-file=.env src/server/database/seed/index.ts",
-    "db:migrate-audio-urls": "doppler run -- tsx --env-file=.env src/server/database/migrations/migrate-audio-urls.ts",
     "test": "doppler run -- vitest run",
     "test:ci": "vitest run",
     "test-e2e": "doppler run -- pnpm playwright test",

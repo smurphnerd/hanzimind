@@ -35,7 +35,7 @@ const loggingMiddleware = baseProcedure.middleware(
   },
 );
 
-export const authMiddleware = baseProcedure.middleware(
+const authMiddleware = baseProcedure.middleware(
   async ({ context, next, errors }) => {
     const authState = await context.cradle.auth.api.getSession({
       headers: context.headers,

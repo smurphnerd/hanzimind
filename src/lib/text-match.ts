@@ -15,7 +15,7 @@
  *
  * Exits early once `max` is exceeded, so comparing unrelated words is cheap.
  */
-export function editDistance(a: string, b: string, max = Infinity): number {
+function editDistance(a: string, b: string, max = Infinity): number {
   if (a === b) return 0;
   if (Math.abs(a.length - b.length) > max) return max + 1;
 
@@ -56,7 +56,7 @@ export function editDistance(a: string, b: string, max = Infinity): number {
  * How many edits to forgive in a word. Short words get no slack — "cat" and
  * "car" are different answers, not a typo.
  */
-export function typoTolerance(word: string): number {
+function typoTolerance(word: string): number {
   if (word.length <= 3) return 0;
   if (word.length <= 7) return 1;
   return 2;

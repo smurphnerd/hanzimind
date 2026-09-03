@@ -1,41 +1,17 @@
-import { pino } from "pino";
-import pinoPretty from "pino-pretty";
 import { seedDictionary } from "./seed-dictionary";
 import { seedTestUsers } from "./seed-test-users";
-import { getDatabase } from "../database";
 import { TranslatorService } from "../../services/TranslatorService";
 import { TTSService } from "../../services/TTSService";
 import { S3StorageAdapter } from "../../services/S3StorageAdapter";
-import { envSchema } from "@/env-utils";
+import { bootstrap } from "../../../../scripts/bootstrap";
 
 async function main() {
-  // Use environment variables directly
-  console.log("Loading environment variables...");
-  const env = envSchema.parse({
-    ...process.env,
-    NODE_ENV: process.env.NODE_ENV,
-  });
-
-  console.log("Creating logger...");
-  // Create logger
-  const logger = pino(
-    {
-      // LOG_LEVEL is optional in the env schema and pino rejects undefined.
-      level: env.LOG_LEVEL ?? "info",
-    },
-    env.NODE_ENV === "development" ? pinoPretty() : undefined,
-  ).child({
-    GIT_SHA: env.GIT_SHA,
-  });
-  console.log("Logger created");
+  const { env, logger, database } = bootstrap();
 
   try {
     logger.info("Starting database seeding");
 
     // Manually create dependencies for seeding
-    logger.info("Creating database connection...");
-    const database = getDatabase(logger, env.DATABASE_URL);
-
     logger.info("Creating S3 storage adapter...");
     const storage = new S3StorageAdapter(env.S3_OPTIONS);
 

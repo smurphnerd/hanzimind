@@ -57,4 +57,3 @@ class PinoDrizzleLogger implements DrizzleLogger {
 }
 
 export type Drizzle = ReturnType<typeof getDatabase>;
-export type Transaction = Parameters<Parameters<Drizzle["transaction"]>[0]>[0];
