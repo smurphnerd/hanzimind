@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import type { Drizzle } from "@/server/database/database";
@@ -248,32 +248,6 @@ export class AdminService {
       { vocabItem: existing.vocabItem, update },
       "Admin updated a vocab item",
     );
-
-    return updated;
-  }
-
-  /** Bulk reclassification, for fixing a batch of glyphs in one go. */
-  async setVocabType(args: {
-    ids: string[];
-    vocabType: VocabType;
-  }): Promise<number> {
-    if (args.ids.length === 0) return 0;
-
-    const rows = await this.deps.database
-      .select({
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        vocabType: schema.vocabItems.vocabType,
-      })
-      .from(schema.vocabItems)
-      .where(inArray(schema.vocabItems.id, args.ids));
-
-    let updated = 0;
-    for (const row of rows) {
-      if (row.vocabType === args.vocabType) continue;
-      await this.updateVocabItem({ id: row.id, vocabType: args.vocabType });
-      updated++;
-    }
 
     return updated;
   }

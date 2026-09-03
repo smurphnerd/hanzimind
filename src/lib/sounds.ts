@@ -83,7 +83,7 @@ function playTone(ctx: AudioContext, options: ToneOptions) {
 }
 
 /** A bright ascending E-major arpeggio — short and sparkly. */
-export function playCorrectSound() {
+function playCorrectSound() {
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -100,7 +100,7 @@ export function playCorrectSound() {
 }
 
 /** A soft, low downward bend — an "ah, not quite", not an error buzzer. */
-export function playIncorrectSound() {
+function playIncorrectSound() {
   const ctx = getAudioContext();
   if (!ctx) return;
 

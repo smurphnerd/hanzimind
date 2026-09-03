@@ -4,7 +4,7 @@
  *   1. vocab-classification.tsv  — which glyphs are bound `component` forms
  *   2. script-classification.tsv — which script each glyph belongs to
  *
- * Unlike classify-vocab.ts this is ADDITIVE and idempotent, which is what makes
+ * This is ADDITIVE and idempotent, which is what makes
  * it safe to run against a database the admin UI has been editing:
  *
  *   - a glyph the file calls a component is promoted from `character`
@@ -27,10 +27,9 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pino } from "pino";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
-import { getDatabase } from "@/server/database/database";
+import { bootstrap } from "./bootstrap";
 import { schema } from "@/server/database/schema";
 import { loadVocabClassification } from "@/server/database/seed/vocab-classification";
 import {
@@ -60,10 +59,7 @@ const loadDictionary = () =>
   );
 
 async function main() {
-  const logger = pino({ transport: { target: "pino-pretty" } });
-  const env = { DATABASE_URL: process.env["DATABASE_URL"] };
-  if (!env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
-  const database = getDatabase(logger, env.DATABASE_URL);
+  const { logger, database } = bootstrap();
 
   const vocabClassification = loadVocabClassification();
   const scriptClassification = loadScriptClassification();

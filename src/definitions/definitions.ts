@@ -1,13 +1,12 @@
 import { z } from "zod/v4";
 
-export const studyTypeValues = [
+const studyTypeValues = [
   "reading",
   "listening",
   "understanding",
   "writing",
 ] as const;
-export const StudyTypeEnum = z.enum(studyTypeValues);
-export type StudyType = z.infer<typeof StudyTypeEnum>;
+export type StudyType = (typeof studyTypeValues)[number];
 
 // Ordered largest to smallest. `component` is a bound radical form (亻, 氵, ⺮) —
 // a graphical part of a character that is never typed as a word on its own.
@@ -33,13 +32,7 @@ const scriptValues = ["simplified", "traditional", "both"] as const;
 export const ScriptEnum = z.enum(scriptValues);
 export type Script = z.infer<typeof ScriptEnum>;
 
-const etymologyTypeValues = [
-  "ideographic",
-  "pictographic",
-  "pictophonetic",
-] as const;
-export const EtymologyTypeEnum = z.enum(etymologyTypeValues);
-export type EtymologyType = z.infer<typeof EtymologyTypeEnum>;
+export type EtymologyType = "ideographic" | "pictographic" | "pictophonetic";
 
 export const MemoryAidDto = z.object({
   id: z.string(),
@@ -349,20 +342,6 @@ export const DeckDetailedDto = DeckDto.extend({
 });
 export type DeckDetailedDto = z.infer<typeof DeckDetailedDto>;
 
-// User deck relationship schema
-export const UserDeckDto = z.object({
-  userId: z.string(),
-  deckId: z.string(),
-  includeConstituents: z.boolean(),
-  readingEnabled: z.boolean(),
-  listeningEnabled: z.boolean(),
-  understandingEnabled: z.boolean(),
-  writingEnabled: z.boolean(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-export type UserDeckDto = z.infer<typeof UserDeckDto>;
-
 export const UserVocabItemDto = VocabItemDto.extend({
   userId: z.string(),
   username: z.string(),
@@ -412,7 +391,7 @@ export type DeckProgressDto = z.infer<typeof DeckProgressDto>;
 // Suggestions (learner-reported corrections, reviewed in the admin screen)
 // ---------------------------------------------------------------------------
 
-export const suggestionKindValues = [
+const suggestionKindValues = [
   "translation",
   "pinyin",
   "decomposition",
@@ -423,7 +402,7 @@ export const suggestionKindValues = [
 export const SuggestionKindEnum = z.enum(suggestionKindValues);
 export type SuggestionKind = z.infer<typeof SuggestionKindEnum>;
 
-export const suggestionStatusValues = ["open", "resolved", "rejected"] as const;
+const suggestionStatusValues = ["open", "resolved", "rejected"] as const;
 export const SuggestionStatusEnum = z.enum(suggestionStatusValues);
 export type SuggestionStatus = z.infer<typeof SuggestionStatusEnum>;
 

@@ -39,11 +39,4 @@ export const envSchema = z.object({
   AUTH_SECRET: z.string(),
   SYSTEM_EMAIL_FROM: z.string(),
   DEEPL_API_KEY: z.string(),
-  /**
-   * Comma-separated addresses granted admin access, e.g.
-   * "me@example.com,someone@example.com". Optional — leaving it unset means
-   * nobody is an admin, which is the safe default. See src/server/admin-access.ts
-   * for why this is not a database column.
-   */
-  ADMIN_EMAILS: z.string().optional(),
 });

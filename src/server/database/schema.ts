@@ -29,8 +29,7 @@ export const users = pgTable("users", {
   emailVerified: boolean().notNull().default(false),
   image: text(),
   // Better Auth admin-plugin fields. `role` is the runtime source of truth for
-  // admin access (seeded from ADMIN_EMAILS by scripts/backfill-admin-roles.ts);
-  // the plugin also manages banning.
+  // admin access; the plugin also manages banning.
   role: text().default("user"),
   banned: boolean().default(false),
   banReason: text(),
@@ -148,7 +147,7 @@ export const vocabItems = pgTable("vocab_items", {
   // Too basic to teach (a sub-radical fragment) or unstudiable (no gloss to quiz
   // against). Disabled items are filtered out of every read path — decompositions,
   // dictionary, search, and study selection — so they behave as if deleted.
-  // Driven by seed/vocab-classification.tsv; see scripts/classify-vocab.ts.
+  // Driven by seed/vocab-classification.tsv; see scripts/backfill-classification.ts.
   disabled: boolean().notNull().default(false),
   // The curated memory aid an admin has starred for this glyph. Shown first on
   // the dictionary and used on a learner's study card until they pin their own.
