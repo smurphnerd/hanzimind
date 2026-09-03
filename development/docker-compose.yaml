@@ -1,4 +1,4 @@
-name: hanzimind
+name: ${COMPOSE_PROJECT_NAME:-hanzimind}
 
 services:
   postgres:
@@ -11,14 +11,24 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
   s3:
     image: adobe/s3mock:latest
+    # The image runs as uid 1000, which cannot write a root-owned named volume.
+    user: root
+    # The JVM sizes its heap from the cgroup limit. Without one it takes most of
+    # the Docker VM and the next s3mock fails to start.
+    mem_limit: 512m
     ports:
       - "${S3_PORT:-9090}:9090"
     environment:
-      - retainFilesOnExit=true
-      - initialBuckets=default-bucket
-      - root=data
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: default-bucket
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /data
     volumes:
       - s3_data:/data
   mailpit:
@@ -27,8 +37,8 @@ services:
     volumes:
       - mailpit_data:/data
     ports:
-      - "${MAILPIT_PORT_WEB_UI_PORT:-8025}:8025"
-      - "${MAILPIT_PORT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
     environment:
       MP_MAX_MESSAGES: 5000
       MP_DATABASE: /data/mailpit.db
