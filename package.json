@@ -3,6 +3,10 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "doppler run -- next dev",
     "build": "env NODE_ENV=production next build",
@@ -10,11 +14,13 @@
     "start": "doppler run -- next start",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "db:push": "doppler run -- drizzle-kit push",
     "db:seed": "doppler run -- tsx --env-file=.env src/server/database/seed/index.ts",
     "db:migrate-audio-urls": "doppler run -- tsx --env-file=.env src/server/database/migrations/migrate-audio-urls.ts",
     "test": "doppler run -- vitest run",
+    "test:ci": "vitest run",
     "test-e2e": "doppler run -- pnpm playwright test",
     "email": "email dev --dir src/email --port 3100",
     "dev-containers": "docker compose -f development/docker-compose.yaml up"
