@@ -77,7 +77,6 @@ function rshBody(f: RshFrame): string | null {
   return `${f.keyword}\n\n${parts.join("\n\n")}`;
 }
 
-
 async function main() {
   const logger = pino({ transport: { target: "pino-pretty" } });
   const url = process.env["DATABASE_URL"];
