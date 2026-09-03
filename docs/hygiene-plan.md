@@ -67,6 +67,8 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 Each live lane is one `swarm workers` lane at the PR head, resolved through provider dispatch, in its own worktree or output directory, with its own receipt. Drive the surface only through the driver skill this plan names.
 
+This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about three lanes at once. Run at most three lanes concurrently. A swarm worker therefore drives several of a PR's ten live boxes serially inside one lane, and the ten boxes are split across three workers. The first lane on a fresh machine pays a six minute seed once; every later lane restores the seed cache in about 20 seconds.
+
 - [ ] `git fetch origin <head-branch> && git checkout <head SHA>` in the lane's worktree.
 - [ ] Start the lane's own Postgres, s3mock and Mailpit with the compose project name and port offset that `.claude/skills/verify-hanzimind/SKILL.md` assigns per lane. Run `pnpm db:push` and `pnpm db:seed` against that database with the lane's `.env.lane` file, then `pnpm dev` on the lane's port. Ready when `GET /api/rpc/ping` answers 200. Before P0-VERIFY lands, follow the same recipe by hand from `development/docker-compose.yaml` and README.md.
 - [ ] Deliver input only through the verification skill's drive commands, which use the `claude-in-chrome` skill for the browser and `curl` against `/api/rpc` for the API. Read-only diagnostics are the dev server log, the browser console, Mailpit's inbox at the lane's Mailpit port, and `psql` against the lane's database.
@@ -173,7 +175,7 @@ Each live lane is one `swarm workers` lane at the PR head, resolved through prov
 - [ ] Metric. Seconds from `lane-up.sh` start to `ready`.
 - [ ] Probe. Time `lane-up.sh <n>` three times at the head. There is no trunk equivalent, so the trunk probe is the manual recipe from README.md timed by hand once.
 - [ ] Baseline. Record the trunk value first.
-- [ ] Rule. Head fails when lane-up exceeds 180 seconds with images already pulled.
+- [ ] Rule. Head fails when lane-up exceeds 180 seconds with images already pulled and the seed cache warm. The cold seed is about 370 seconds of Google TTS fetches and is measured once, not gated.
 
 **Review gate.** None. P0-VERIFY is not review-gated.
 
