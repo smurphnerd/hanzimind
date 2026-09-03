@@ -13,7 +13,6 @@ allowBuilds:
   bufferutil: false
   cpu-features: false
   esbuild: false
-  msedge-tts: false
   onnxruntime-node: false
   protobufjs: false
   sharp: false
