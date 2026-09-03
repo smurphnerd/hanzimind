@@ -357,7 +357,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Files.**
 
-- [ ] Delete `scripts/classify-vocab.ts`, `scripts/backfill-etymology-roles.ts`, `scripts/backfill-admin-roles.ts`, `scripts/backfill-book-memory-aids.ts`, `scripts/seed-hsk1-deck.ts`, `scripts/assess-remote.ts`, `src/server/database/migrations/migrate-audio-urls.ts`.
+- [ ] Delete `scripts/classify-vocab.ts`, `scripts/backfill-etymology-roles.ts`, `scripts/backfill-admin-roles.ts`, `scripts/backfill-book-memory-aids.ts`, `scripts/assess-remote.ts`, `src/server/database/migrations/migrate-audio-urls.ts`. Keep `scripts/seed-hsk1-deck.ts`, which the lane recipe runs to seed the HSK 1 deck.
 - [ ] Create `scripts/bootstrap.ts`.
 - [ ] Edit `scripts/backfill-classification.ts`, `scripts/regenerate-audio.ts`, `scripts/seed-preview.ts`, `src/server/database/seed/index.ts`.
 - [ ] Edit `src/server/services/AdminService.ts`, `src/server/endpoints/procedure.ts`, `src/server/database/database.ts`, `src/server/services/EmailAdapter.ts`, `src/definitions/definitions.ts`, `src/lib/text-match.ts`, `src/lib/pinyin.ts`, `src/lib/sounds.ts`, `src/lib/growth.ts`, `src/lib/vocab-type.ts`, `src/lib/graph-palette.ts`, `src/server/admin-access.ts`, `src/env-utils.ts`.
@@ -365,7 +365,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Build.**
 
-- [ ] Delete the seven one-shot scripts the survey lists as already run, and the `db:migrate-audio-urls` package script. Keep `backfill-classification.ts`, `regenerate-audio.ts`, `seed-preview.ts` and the seed entry.
+- [ ] Delete the six one-shot scripts the survey lists as already run, and the `db:migrate-audio-urls` package script. Keep `backfill-classification.ts`, `regenerate-audio.ts`, `seed-preview.ts`, `seed-hsk1-deck.ts` and the seed entry.
 - [ ] Write `scripts/bootstrap.ts` exporting one `bootstrap()` that parses env through `envSchema` and returns `{ env, logger, database }`. The four surviving scripts call it instead of hand-rolling pino and env.
 - [ ] Delete `AdminService.setVocabType` and every exported symbol in the survey's dead-exports list, verified by a grep that finds no importer outside tests.
 - [ ] Delete `src/server/admin-access.ts` and `ADMIN_EMAILS` from the env schema, since their only caller was the deleted backfill.
