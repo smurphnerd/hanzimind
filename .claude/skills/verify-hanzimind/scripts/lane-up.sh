@@ -107,6 +107,26 @@ seed_started_at=$(date +%s)
 lane_psql "update decks set created_by_id = (select id from users where email = 'verify@hanzimind.test') where id = 'deck-hsk1'" >/dev/null
 printf 'seeded in %ss (dictionary, test users, HSK 1 deck)\n' "$(( $(date +%s) - seed_started_at ))"
 
+model_dir="$REPO/node_modules/@huggingface/transformers/.cache/Xenova/all-MiniLM-L6-v2"
+model_cache="$cache_root/transformers/Xenova/all-MiniLM-L6-v2"
+find "$REPO/node_modules/@huggingface/transformers/.cache" -name '*.tmp.*' -delete 2>/dev/null || true
+if [ ! -f "$model_dir/onnx/model.onnx" ] && [ -f "$model_cache/onnx/model.onnx" ]; then
+	mkdir -p "$(dirname "$model_dir")"
+	cp -R "$model_cache" "$model_dir"
+	printf 'restored the semantic model from %s\n' "$model_cache"
+fi
+if [ ! -f "$model_dir/onnx/model.onnx" ]; then
+	model_started_at=$(date +%s)
+	(cd "$REPO" && pnpm exec tsx "$REPO/.claude/skills/verify-hanzimind/scripts/prefetch-model.ts") ||
+		{ printf 'lane %s: semantic model download failed\n' "$LANE" >&2; exit 1; }
+	printf 'downloaded the semantic model in %ss\n' "$(( $(date +%s) - model_started_at ))"
+fi
+if [ ! -f "$model_cache/onnx/model.onnx" ]; then
+	mkdir -p "$(dirname "$model_cache")"
+	cp -R "$model_dir" "$model_cache"
+	printf 'saved the semantic model to %s\n' "$model_cache"
+fi
+
 if [ "$build_cache" = "1" ]; then
 	mkdir -p "$cache_root"
 	staging=$(mktemp -d "$cache_root/staging.XXXXXX")

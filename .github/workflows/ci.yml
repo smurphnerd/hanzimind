@@ -71,3 +71,34 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/setup
       - run: pnpm build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "1"
+      E2E_AUDIO: "0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Make Google TTS unreachable
+        run: echo "127.0.0.1 translate.google.com" | sudo tee -a /etc/hosts
+      - name: Run the suite on lane 0
+        run: pnpm test-e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: |
+            test-results/playwright
+            !test-results/playwright/learner-state.json
+      - name: Tear the lane down
+        if: always()
+        run: .claude/skills/verify-hanzimind/scripts/lane-down.sh 0

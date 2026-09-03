@@ -14,7 +14,12 @@ lane_init() {
 	PID_FILE="$LANE_DIR/dev.pid"
 	LOG_FILE="$LANE_DIR/dev.log"
 
-	DEV_PORT=$(( ${LANE_PORT_BASE:-3000} + LANE ))
+	if [ -n "${LANE_PORT_BASE:-}" ]; then
+		DEV_PORT=$(( LANE_PORT_BASE + LANE ))
+	else
+		DEV_PORT=$(sed -n 's#^BASE_URL=http://localhost:##p' "$ENV_FILE" 2>/dev/null || true)
+		[ -n "$DEV_PORT" ] || DEV_PORT=$(( 3000 + LANE ))
+	fi
 	POSTGRES_PORT=$(( 15432 + LANE ))
 	S3_PORT=$(( 19090 + LANE ))
 	MAILPIT_WEB_PORT=$(( 18025 + LANE ))
