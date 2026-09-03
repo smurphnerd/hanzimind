@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Start verification lane <n>: its own Postgres, s3mock, Mailpit and dev server.
 # Usage: lane-up.sh <n>    (LANE_PORT_BASE=4300 moves the dev port range,
+#                           LANE_MODE=prod runs next build and next start instead of next dev,
 #                           HANZIMIND_LANE_CACHE=<dir> moves the seed cache from ~/.cache/hanzimind-lanes)
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lane-lib.sh"
@@ -140,7 +141,15 @@ if [ "$build_cache" = "1" ]; then
 	fi
 fi
 
-(cd "$REPO" && lane_env && exec nohup node_modules/.bin/next dev -p "$DEV_PORT" >"$LOG_FILE" 2>&1) &
+if [ "${LANE_MODE:-dev}" = "prod" ]; then
+	build_started_at=$(date +%s)
+	(cd "$REPO" && lane_env && NODE_ENV=production node_modules/.bin/next build >"$LANE_DIR/build.log" 2>&1) ||
+		{ printf 'lane %s: next build failed, see %s\n' "$LANE" "$LANE_DIR/build.log" >&2; exit 1; }
+	printf 'built in %ss\n' "$(( $(date +%s) - build_started_at ))"
+	(cd "$REPO" && lane_env && NODE_ENV=production exec nohup node_modules/.bin/next start -p "$DEV_PORT" >"$LOG_FILE" 2>&1) &
+else
+	(cd "$REPO" && lane_env && exec nohup node_modules/.bin/next dev -p "$DEV_PORT" >"$LOG_FILE" 2>&1) &
+fi
 echo $! >"$PID_FILE"
 
 for _ in $(seq 1 240); do

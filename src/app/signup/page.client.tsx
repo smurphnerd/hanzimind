@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
-import * as z from "zod/v4";
 
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/authClient";
+import { z } from "@/lib/zod-jitless";
 
 const SignUpFormSchema = z.object({
   username: z

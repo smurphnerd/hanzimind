@@ -17,6 +17,8 @@ Read `features/README.md` before driving anything. It holds the accounts, the ha
 
 What it does, in order. Refuses if any of the lane's five ports is held by another process and names the holder. Starts compose project `hanzimind-lane-3` with `development/docker-compose.yaml` on the lane's ports. Writes `development/lanes/3/.env.lane`. Runs `drizzle-kit push --force`. Seeds the database with `SEED_TEST_USER=1`, then runs `scripts/seed-hsk1-deck.ts` and hands the `HSK 1` deck (`deck-hsk1`, 150 words plus their parts) to the learner account, so a fresh lane has one public deck to browse, save and study. Starts `next dev -p 3003` in the background with its pid in `development/lanes/3/dev.pid` and its output in `development/lanes/3/dev.log`. Prints `ready on 3003` once `POST /api/rpc/ping` answers 200, then one line with the Mailpit, Postgres and s3mock addresses and the elapsed seconds.
 
+Production mode. `LANE_MODE=prod lane-up.sh 3` runs `next build` (about a minute, log in `development/lanes/3/build.log`) and `next start -p 3003` with `NODE_ENV=production`, instead of `next dev`. Use it for anything the dev server would mask: dev mode injects its own inline scripts and `eval`, so a CSP that is clean in production shows violations in dev and the other way round. The seed still runs under `NODE_ENV=development` from `.env.lane`. Everything else, `doctor.sh`, `lane-down.sh`, the ports, the cache and Playwright (`LANE_MODE=prod E2E_LANE=3 pnpm test-e2e` boots a production lane), is the same. One production lane per checkout: the build writes the worktree's own `.next/`, so a second production lane in the same worktree overwrites the first one's build. Run each from its own worktree, as with `next dev`.
+
 Ports for lane `<n>`:
 
 | Service | Port | Env var in `.env.lane` |
@@ -137,7 +139,7 @@ All under `.claude/skills/verify-hanzimind/scripts/`. The four commands are exec
 
 | Script | Invocation | Purpose |
 | --- | --- | --- |
-| `lane-up.sh` | `lane-up.sh <n>` | Start lane `<n>` and print `ready on <port>`. `LANE_PORT_BASE` moves the dev port. `DEEPL_API_KEY` in the shell is passed through. |
+| `lane-up.sh` | `lane-up.sh <n>` | Start lane `<n>` and print `ready on <port>`. `LANE_PORT_BASE` moves the dev port, `LANE_MODE=prod` builds and starts a production server. `DEEPL_API_KEY` in the shell is passed through. |
 | `doctor.sh` | `doctor.sh <n>` | Four read-only checks, exit 0 only when all print `ok`. Exit 3 on a non-local database. |
 | `lane-down.sh` | `lane-down.sh <n>` | Stop the dev server by pid file and remove the compose project with its volumes. |
 | `perf-probe.mjs` | `perf-probe.mjs --port <p> --rpc <router/procedure> --body <json> --n <count>` | Sign in and print p50 and p95 in ms for one procedure. |
