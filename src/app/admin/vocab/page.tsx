@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 
@@ -108,7 +113,10 @@ function AdminVocabContent() {
     }),
   );
 
-  const update = (id: string, patch: Parameters<typeof updateMutation.mutate>[0]) => {
+  const update = (
+    id: string,
+    patch: Parameters<typeof updateMutation.mutate>[0],
+  ) => {
     setSavingId(id);
     updateMutation.mutate(patch);
   };
@@ -183,7 +191,7 @@ function AdminVocabContent() {
       {/* Search and the hidden-only toggle */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative min-w-64 flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             placeholder="Search glyph, reading or definition…"
@@ -351,7 +359,7 @@ function AdminVocabContent() {
                           }
                         />
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -367,7 +375,7 @@ function AdminVocabContent() {
                           }
                         />
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -391,7 +399,7 @@ function AdminVocabContent() {
       {/* Paging */}
       {paging && paging.total > 0 && (
         <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm tabular-nums">
+          <p className="text-sm text-muted-foreground tabular-nums">
             {(paging.page - 1) * paging.pageSize + 1}–
             {Math.min(paging.page * paging.pageSize, paging.total)} of{" "}
             {paging.total}
@@ -430,15 +438,15 @@ export default function AdminVocabPage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <div className="mb-8">
-        <h1 className="font-display text-foreground text-4xl font-extrabold tracking-tight">
+        <h1 className="font-display text-4xl font-extrabold tracking-tight text-foreground">
           Vocabulary
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="mt-2 text-muted-foreground">
           Every component is taught by meaning. <strong>Phonetic</strong> adds
           sound: right for 艮 behind 很/跟/根, wrong for 亻, whose
-          &ldquo;rén&rdquo; is borrowed from 人. Most components store a borrowed
-          reading, so the two are separate switches — a reading is only ever
-          quizzed when Phonetic is on, and turning it off hides the reading
+          &ldquo;rén&rdquo; is borrowed from 人. Most components store a
+          borrowed reading, so the two are separate switches — a reading is only
+          ever quizzed when Phonetic is on, and turning it off hides the reading
           everywhere rather than deleting it. The next classification backfill
           resets Phonetic from the seed file. Hidden items disappear from
           decompositions, search and study everywhere.
