@@ -54,3 +54,19 @@ lane_log_has_git_sha() {
 	sleep 1
 	tail -n +"$((lines_before + 1))" "$LOG_FILE" 2>/dev/null | grep -q "$1"
 }
+
+# Copies the model into the shared cache so that a reader, which tests for
+# onnx/model.onnx, never sees a half-written set. mkdir elects one saver;
+# every entry is renamed in, onnx last.
+save_model_cache() {
+	local src="$1" dst="$2" staging entry
+	mkdir -p "$(dirname "$dst")"
+	staging=$(mktemp -d "$(dirname "$dst")/staging.XXXXXX") || return 1
+	if ! cp -R "$src"/. "$staging" || ! mkdir "$dst" 2>/dev/null; then
+		rm -rf "$staging"
+		return 1
+	fi
+	find "$staging" -mindepth 1 -maxdepth 1 ! -name onnx -exec mv {} "$dst"/ \;
+	[ -e "$staging/onnx" ] && mv "$staging/onnx" "$dst"/
+	rmdir "$staging"
+}

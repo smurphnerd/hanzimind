@@ -122,9 +122,7 @@ if [ ! -f "$model_dir/onnx/model.onnx" ]; then
 		{ printf 'lane %s: semantic model download failed\n' "$LANE" >&2; exit 1; }
 	printf 'downloaded the semantic model in %ss\n' "$(( $(date +%s) - model_started_at ))"
 fi
-if [ ! -f "$model_cache/onnx/model.onnx" ]; then
-	mkdir -p "$(dirname "$model_cache")"
-	cp -R "$model_dir" "$model_cache"
+if [ ! -f "$model_cache/onnx/model.onnx" ] && save_model_cache "$model_dir" "$model_cache"; then
 	printf 'saved the semantic model to %s\n' "$model_cache"
 fi
 

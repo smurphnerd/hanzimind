@@ -4,14 +4,15 @@
 import { pipeline } from "@huggingface/transformers";
 
 const modelId = "Xenova/all-MiniLM-L6-v2";
-let lastPercent = -1;
+const lastPercent = new Map<string, number>();
 await pipeline("feature-extraction", modelId, {
   progress_callback: (event: { status: string; file?: string; progress?: number }) => {
     if (event.status !== "progress" || event.progress === undefined) return;
+    const file = event.file ?? modelId;
     const percent = Math.floor(event.progress / 10) * 10;
-    if (percent > lastPercent) {
-      lastPercent = percent;
-      console.log(`${event.file ?? modelId}: ${percent}%`);
+    if (percent > (lastPercent.get(file) ?? -1)) {
+      lastPercent.set(file, percent);
+      console.log(`${file}: ${percent}%`);
     }
   },
 });

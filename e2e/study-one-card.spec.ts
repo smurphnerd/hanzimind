@@ -30,20 +30,32 @@ test("answering one card in HSK 1 correctly shows the result card with a level",
   });
   expect(first, "the deck has nothing due").not.toBeNull();
 
+  const nextCard = () =>
+    page
+      .waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/rpc/study/nextVocabItem") &&
+          response.ok(),
+      )
+      .then(
+        async (response) =>
+          ((await response.json()) as { json: Card | null }).json,
+      );
+
+  let cardPromise = nextCard();
   await page.goto(`/study/${DECK_ID}`);
-  if (first!.studyType === "new") {
+  let card = await cardPromise;
+  if (card?.studyType === "new") {
     await expect(page.getByRole("heading", { name: "New word" })).toBeVisible();
+    cardPromise = nextCard();
     await page.getByRole("button", { name: "Continue" }).click();
+    card = await cardPromise;
   }
   const input = page.getByRole("textbox");
   await expect(input).toBeVisible();
 
-  // Continue records the intro, so read the card the page is showing now. A
-  // listening or writing card hides its glyph, so the deck's item list maps
+  // A listening or writing card hides its glyph, so the deck's item list maps
   // the card's id back to it.
-  const card = await rpc<Card>(request, "study/nextVocabItem", {
-    deckId: DECK_ID,
-  });
   expect(card, "no quiz card followed the intro").not.toBeNull();
   const deck = await rpc<Deck>(request, "decks/getById", { deckId: DECK_ID });
   const glyph = deck.vocabItems.find((item) => item.id === card!.id)?.vocabItem;
