@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, hygiene]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm test:ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-junit
+          path: test-results/vitest/junit.xml
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    env:
+      GIT_SHA: ${{ github.sha }}
+      BASE_URL: http://localhost:3000
+      DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+      S3_OPTIONS: '{"endpoint":"http://localhost:9090","region":"us-east-1","bucketName":"ci","forcePathStyle":true}'
+      EMAIL_CONNECTION_URL: smtp://localhost:1025
+      AUTH_SECRET: ci
+      SYSTEM_EMAIL_FROM: ci@example.com
+      DEEPL_API_KEY: ci
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm build
