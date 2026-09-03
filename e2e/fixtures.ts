@@ -2,7 +2,7 @@ import { expect, type APIRequestContext } from "@playwright/test";
 
 export const LEARNER = {
   email: "verify@hanzimind.test",
-  password: "verify-hanzimind",
+  password: "wrong-password-on-purpose",
 };
 
 export const SEED_HINT =
