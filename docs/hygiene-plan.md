@@ -99,7 +99,7 @@ Each live lane is one `swarm workers` lane at the PR head, resolved through prov
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
 
-- [ ] Lane 1. Push a commit with a lint error to a throwaway branch and open a PR. Save `ci-lint-red.png`. Pass when the lint check is red and the others are unaffected.
+- [ ] Lane 1. Push a commit with a lint error that eslint rates as an error, such as an explicit any, to a throwaway branch and open a PR. Save `ci-lint-red.png`. Pass when the lint check is red and the others are unaffected.
 - [ ] Lane 2. Push a commit with a type error. Save `ci-typecheck-red.png`. Pass when typecheck is red, build is red because `next build` type-checks too, and lint, format and test are green.
 - [ ] Lane 3. Push an unformatted file. Save `ci-format-red.png`. Pass when only format is red.
 - [ ] Lane 4. Push a failing vitest assertion. Save `ci-test-red.png`. Pass when only test is red and the junit artifact is attached.
