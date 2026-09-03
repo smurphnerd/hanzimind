@@ -1257,7 +1257,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `src/server/__tests__/auth-config.test.ts` gains cases that the auth options carry the three senders and the rate-limit rules. `admin-access.test.ts` keeps passing. Run `pnpm test auth-config admin-access`.
+- [ ] `src/server/__tests__/auth-config.test.ts` gains cases that the auth options carry the three senders and the rate-limit rules. Run `pnpm test auth-config`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
 
