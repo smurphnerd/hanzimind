@@ -1899,6 +1899,8 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Build.**
 
+- [ ] Add a check that counts the rows in `docs/hygiene-findings.md` and compares them against the two numbers stated in prose, the opening sentence and the `Counts.` line, failing when they disagree. Both went stale twice during the program, once reading "Thirty-three" over 39 rows and once "Forty" over 45, and a document whose whole job is to be trusted cannot carry a hand-maintained number.
+
 - [ ] Move the essay sections of CLAUDE.md into the three docs files and leave a one-line pointer each. Fix the service list, router list, script list, Doppler, s3mock and OKLCH claims. Cut the generic testing boilerplate to the repo-specific rules.
 - [ ] `AGENTS.md` becomes a two-line file pointing at CLAUDE.md. README loses the create-next-app tail and gains the Doppler and lane recipes. STUDY_FLOW.md matches the reducer and the rules modules. FUTURE_ADDITIONS.md drops shipped items.
 - [ ] `.env.example` lists every variable in `envSchema` with a comment.
