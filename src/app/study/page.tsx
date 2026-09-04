@@ -176,10 +176,10 @@ function StudyContent() {
     orpc.decks.getUserDecks.queryOptions({ input: DECKS_INPUT }),
   );
 
+  // Independent of the deck list above, so the two run together rather than
+  // one waiting on the other's ids.
   const { data: progress } = useSuspenseQuery(
-    orpc.study.deckProgress.queryOptions({
-      input: { deckIds: data.decks.map((deck) => deck.id) },
-    }),
+    orpc.study.deckProgress.queryOptions({ input: {} }),
   );
 
   const progressByDeck = new Map(

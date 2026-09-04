@@ -109,14 +109,13 @@ export const studyRouter = {
     }),
 
   deckProgress: authProcedure
-    // One call for the whole study list — the page renders up to 50 decks.
-    .input(z.object({ deckIds: z.array(z.string()).max(100) }))
+    // No input: the caller's saved decks are the answer, and asking for ids
+    // meant the study page had to fetch its deck list and wait for it before it
+    // could ask for progress at all.
+    .input(z.object({}))
     .output(z.array(DeckProgressDto))
-    .handler(async ({ input, context }) => {
-      return context.cradle.studyService.getDeckProgress(
-        context.user.id,
-        input.deckIds,
-      );
+    .handler(async ({ context }) => {
+      return context.cradle.studyService.getDeckProgress(context.user.id);
     }),
 
   nextVocabItem: authProcedure

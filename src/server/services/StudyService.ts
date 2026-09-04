@@ -23,7 +23,6 @@ import {
 import {
   canStudy,
   readingOf,
-  emptyStages,
   selectNextCard,
   summariseDeckProgress,
   type ProgressRollupItem,
@@ -672,23 +671,15 @@ export class StudyService {
    *
    * Returns one entry per requested id, in the order asked for.
    */
-  async getDeckProgress(
-    userId: string,
-    deckIds: string[],
-  ): Promise<DeckProgressDto[]> {
-    if (deckIds.length === 0) return [];
-
-    const notEnrolled = (deckId: string): DeckProgressDto => ({
-      deckId,
-      total: 0,
-      unstudiable: 0,
-      seen: 0,
-      dueNow: 0,
-      newAvailable: 0,
-      locked: 0,
-      byStage: emptyStages(),
-    });
-
+  /**
+   * Every saved deck's standing, for the study list.
+   *
+   * The caller does not say which decks. It used to, which meant the page had
+   * to fetch its deck list first and wait for it before asking for progress:
+   * two sequential round trips for one screen, and the ids were only ever the
+   * ones this query already filters by.
+   */
+  async getDeckProgress(userId: string): Promise<DeckProgressDto[]> {
     // Settings are per user-deck, so what counts as studiable differs between
     // decks and has to be read before the items can be bucketed.
     const userDecks = await this.deps.database
@@ -700,14 +691,9 @@ export class StudyService {
         writingEnabled: schema.userDecks.writingEnabled,
       })
       .from(schema.userDecks)
-      .where(
-        and(
-          eq(schema.userDecks.userId, userId),
-          inArray(schema.userDecks.deckId, [...new Set(deckIds)]),
-        ),
-      );
+      .where(eq(schema.userDecks.userId, userId));
 
-    if (userDecks.length === 0) return deckIds.map(notEnrolled);
+    if (userDecks.length === 0) return [];
 
     const enabledByDeck = new Map<string, StudyType[]>(
       userDecks.map((deck) => [deck.deckId, enabledStudyTypes(deck)]),
@@ -750,10 +736,7 @@ export class StudyService {
 
     const now = new Date();
 
-    return deckIds.map((deckId) => {
-      const enabled = enabledByDeck.get(deckId);
-      if (!enabled) return notEnrolled(deckId);
-
+    return [...enabledByDeck].map(([deckId, enabled]) => {
       return summariseDeckProgress({
         deckId,
         items: itemsByDeck.get(deckId) ?? [],
