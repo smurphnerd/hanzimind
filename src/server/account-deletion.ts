@@ -230,359 +230,90 @@ export function coverage(): Record<string, Step["action"]> {
 }
 
 /**
- * Somewhere to run a query, narrow enough that a test can stand in for the
+ * Somewhere to run a statement, narrow enough that a test can stand in for the
  * database.
  */
 export type Executor = {
   execute: (query: SQL) => Promise<{ rows: Record<string, unknown>[] }>;
 };
 
-/** Somewhere to say that the database and the schema file disagree. */
-type Log = { warn: (data: object, message: string) => void };
-
-/** What Postgres does to the child row when the parent row goes. */
-export type Action =
-  | "no-action"
-  | "restrict"
-  | "cascade"
-  | "set-null"
-  | "set-default";
-
-const ACTIONS: Record<string, Action> = {
-  a: "no-action",
-  r: "restrict",
-  c: "cascade",
-  n: "set-null",
-  d: "set-default",
-};
-
-/** A foreign key as Postgres holds it, not as the schema file describes it. */
-export type DatabaseKey = {
-  name: string;
-  schema: string;
-  table: string;
-  columns: string[];
-  parentSchema: string;
-  parentTable: string;
-  parentColumns: string[];
-  onDelete: Action;
-  /**
-   * Whether a column of this key refuses a null, which is what turns a
-   * `set null` rewrite into a failed parent delete.
-   */
-  refusesNull: boolean;
-};
+const TRIAL = "account_deletion_trial";
 
 /**
- * Every foreign key the live database is actually enforcing, in every schema.
+ * Deletes the account's own row, checks that it went, and rolls that back.
  *
- * Not restricted to the application's own schema: a child table anywhere in the
- * database still blocks the parent delete, and a key this query does not return
- * is a key the walk below cannot refuse. That filter was one of the two ways the
- * fifth review reproduced the lockout.
- */
-export async function databaseKeys(db: Executor): Promise<DatabaseKey[]> {
-  const result = await db.execute(sql`
-    select
-      c.conname as name,
-      childspace.nspname as child_schema,
-      child.relname as child_table,
-      (
-        select array_agg(a.attname::text order by k.ord)
-        from unnest(c.conkey) with ordinality k(attnum, ord)
-        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
-      ) as child_columns,
-      (
-        select bool_or(a.attnotnull)
-        from unnest(c.conkey) k(attnum)
-        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
-      ) as child_refuses_null,
-      parentspace.nspname as parent_schema,
-      parent.relname as parent_table,
-      (
-        select array_agg(a.attname::text order by k.ord)
-        from unnest(c.confkey) with ordinality k(attnum, ord)
-        join pg_attribute a on a.attrelid = c.confrelid and a.attnum = k.attnum
-      ) as parent_columns,
-      c.confdeltype as on_delete
-    from pg_constraint c
-    join pg_class child on child.oid = c.conrelid
-    join pg_namespace childspace on childspace.oid = child.relnamespace
-    join pg_class parent on parent.oid = c.confrelid
-    join pg_namespace parentspace on parentspace.oid = parent.relnamespace
-    where c.contype = 'f'
-    order by childspace.nspname, child.relname, c.conname
-  `);
-  return result.rows.map((row) => {
-    const action = ACTIONS[String(row.on_delete)];
-    // An action nobody here has heard of is not a licence to ignore the key.
-    if (!action) {
-      throw new Error(
-        `Account deletion does not know what Postgres does to ${String(row.name)} on delete (${String(row.on_delete)}), so it will not proceed.`,
-      );
-    }
-    const columns = columnList(row.child_columns, row.name);
-    const parentColumns = columnList(row.parent_columns, row.name);
-    if (columns.length === 0 || columns.length !== parentColumns.length) {
-      throw new Error(
-        `Account deletion could not pair the columns of ${String(row.name)}, so it will not proceed.`,
-      );
-    }
-    return {
-      name: String(row.name),
-      schema: String(row.child_schema),
-      table: String(row.child_table),
-      columns,
-      parentSchema: String(row.parent_schema),
-      parentTable: String(row.parent_table),
-      parentColumns,
-      onDelete: action,
-      refusesNull: row.child_refuses_null === true,
-    };
-  });
-}
-
-/**
- * Postgres hands back `name[]` for a constraint's columns, which the driver
- * leaves as the literal `{a,b}` unless it is cast to text, so this refuses
- * anything that did not arrive as a list rather than walk one character at a
- * time.
- */
-function columnList(value: unknown, name: unknown): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(
-      `Account deletion could not read the columns of ${String(name)} from the database.`,
-    );
-  }
-  return value.map(String);
-}
-
-/** Rows that are about to disappear, named by one of their columns. */
-type Doomed = {
-  schema: string;
-  table: string;
-  column: string;
-  values: string[];
-};
-
-const HOPS = 10;
-
-const name = (key: DatabaseKey) =>
-  `${key.schema}.${key.table}.${key.columns.join(",")}`;
-
-/**
- * Refuses to let the transaction commit unless the account really is free of
- * every reference the database enforces.
+ * Six reviews defeated six versions of a check that MODELLED what the database
+ * would do — first a list of references, then a derivation of one, then a walk
+ * of the live foreign keys. Each was defeated by something outside its model,
+ * and the last two by things a walk of `pg_constraint` cannot see at all: a
+ * trigger that raises, a rule that reports success while deleting nothing, a
+ * trigger behind a cascade, and a search_path that made the walk start at a
+ * table that did not exist and pass everything.
  *
- * This is the guard the list of steps cannot be. Five reviews defeated that
- * list, because a list is a claim about which references were CONSIDERED and
- * the harm depends on which ones SURVIVE. So this asks the second question, and
- * asks it of Postgres: walk out from the account's own row along the keys the
- * database is enforcing, and if anything still points at a row that is about to
- * go, throw. The transaction rolls back, better-auth never reaches the
- * learner's sessions or credentials, and they keep both their data and their
- * way in.
+ * So this asks Postgres instead of modelling it, on a savepoint. The trial
+ * evaluates every constraint, trigger, rule, cascade and referential action,
+ * because it IS the delete, which makes it exactly as accurate as the thing
+ * that enforces them. It is also cheaper than the walk it replaces, and it has
+ * no over-refusals: the earlier walk refused three shapes Postgres would have
+ * allowed.
  *
- * The rule underneath every branch below is that a reference this cannot
- * positively prove harmless refuses the deletion. Refusing costs a learner one
- * retry; being wrong the other way leaves them locked out of an account that
- * still holds all their data. Both times this was defeated, the cause was the
- * same: a key the model could not classify was skipped instead of refused.
+ * Two details carry the rule case, where a delete reports success while
+ * removing nothing — the case that showed a learner "Your account is gone" over
+ * a surviving row whose password had already been taken, the worst outcome this
+ * flow can produce. `returning` is not decoration: Postgres refuses it outright
+ * on a relation whose delete a rule rewrites, so a rule cannot be silent here.
+ * And the returned row is counted rather than the error merely being absent, so
+ * a delete that removes nothing is a refusal however it managed it.
+ *
+ * What it cannot cover: better-auth deletes the users row in a LATER
+ * transaction, so a schema change landing between this commit and that delete
+ * is still a lockout. See the note in auth.tsx.
  */
-export async function assertAccountReleased(
-  db: Executor,
-  userId: string,
-  log?: Log,
-) {
-  const keys = await databaseKeys(db);
-  const home = await currentSchema(db);
-  reportDisagreement(keys, home, log);
-
-  const leftovers: string[] = [];
-  let frontier: Doomed[] = [
-    { schema: home, table: "users", column: "id", values: [userId] },
-  ];
-  for (let hop = 0; hop < HOPS && frontier.length > 0; hop++) {
-    const next: Doomed[] = [];
-    for (const doomed of frontier) {
-      const inbound = keys.filter(
-        (key) =>
-          key.parentSchema === doomed.schema &&
-          key.parentTable === doomed.table,
-      );
-      for (const key of inbound) {
-        const remaining = await countReferencing(db, key, doomed);
-        if (remaining === 0) continue;
-        switch (key.onDelete) {
-          case "no-action":
-          case "restrict":
-            leftovers.push(`${name(key)} (${remaining})`);
-            break;
-          case "set-null":
-            // Postgres accepts `on delete set null` onto a column declared not
-            // null and fails only at delete time, so the rewrite has to be
-            // checked rather than assumed.
-            if (key.refusesNull) {
-              leftovers.push(
-                `${name(key)} (${remaining}, set null onto a column that refuses one)`,
-              );
-            }
-            break;
-          case "set-default":
-            // Whether the default satisfies the key depends on a row existing
-            // that this cannot see, so it is refused rather than assumed.
-            leftovers.push(
-              `${name(key)} (${remaining}, set default, which cannot be shown to satisfy the key)`,
-            );
-            break;
-          case "cascade":
-            next.push(...(await behind(db, keys, key, doomed)));
-            break;
-          default: {
-            const unreachable: never = key.onDelete;
-            throw new Error(
-              `Account deletion does not handle ${String(unreachable)} on ${key.name}, so it will not proceed.`,
-            );
-          }
-        }
-      }
-    }
-    frontier = next;
-  }
-  if (frontier.length > 0) {
-    throw new Error(
-      `Account deletion gave up walking references after ${HOPS} hops, so it will not proceed.`,
-    );
-  }
-  if (leftovers.length > 0) {
-    throw new Error(
-      `Account deletion left ${leftovers.length} reference${leftovers.length === 1 ? "" : "s"} to this account: ${leftovers.join(", ")}. Nothing has been deleted.`,
-    );
-  }
-}
-
-async function currentSchema(db: Executor) {
-  const result = await db.execute(sql`select current_schema() as name`);
-  return String(result.rows[0]?.name ?? "public");
-}
-
-const qualified = (schema: string, table: string) =>
-  sql`${sql.identifier(schema)}.${sql.identifier(table)}`;
-
-/**
- * One bound parameter per value. Drizzle binds a JS array as a single one,
- * which Postgres then tries to read as an array literal.
- */
-const valueList = (values: string[]) =>
-  sql.join(
-    values.map((value) => sql`${value}`),
-    sql`, `,
-  );
-
-/**
- * The doomed rows joined to the rows referencing them, through whatever columns
- * the key is actually built on. Joining rather than comparing one column is what
- * lets a composite key, or one onto a column other than the primary key, be
- * evaluated instead of refused on sight — the earlier blanket refusal would have
- * failed every deletion in the database over a key nothing referenced.
- */
-function rowsReferencing(key: DatabaseKey, doomed: Doomed) {
-  const pairs = sql.join(
-    key.columns.map(
-      (column, index) =>
-        sql`child.${sql.identifier(column)} = parent.${sql.identifier(key.parentColumns[index]!)}`,
-    ),
-    sql` and `,
-  );
-  // A row pointing at itself goes with the row, so it is not a leftover.
-  const itself =
-    key.schema === doomed.schema && key.table === doomed.table
-      ? sql` and child.${sql.identifier(doomed.column)} not in (${valueList(doomed.values)})`
-      : sql.empty();
-  return sql`
-    from ${qualified(key.schema, key.table)} child
-    join ${qualified(key.parentSchema, key.parentTable)} parent on ${pairs}
-    where parent.${sql.identifier(doomed.column)} in (${valueList(doomed.values)})${itself}
-  `;
-}
-
-async function countReferencing(
-  db: Executor,
-  key: DatabaseKey,
-  doomed: Doomed,
-) {
-  if (doomed.values.length === 0) return 0;
-  const result = await db.execute(
-    sql`select count(*)::int as count ${rowsReferencing(key, doomed)}`,
-  );
-  return Number(result.rows[0]?.count ?? 0);
-}
-
-/** The doomed rows of a cascading child, named by whatever else references them. */
-async function behind(
-  db: Executor,
-  keys: DatabaseKey[],
-  key: DatabaseKey,
-  doomed: Doomed,
-): Promise<Doomed[]> {
-  const referenced = [
-    ...new Set(
-      keys
-        .filter(
-          (k) => k.parentSchema === key.schema && k.parentTable === key.table,
-        )
-        .flatMap((k) => k.parentColumns),
-    ),
-  ];
-  const found: Doomed[] = [];
-  for (const column of referenced) {
+export async function assertAccountDeletable(db: Executor, userId: string) {
+  await db.execute(sql.raw(`savepoint ${TRIAL}`));
+  let removed: number;
+  try {
     const result = await db.execute(
-      sql`select distinct child.${sql.identifier(column)} as value ${rowsReferencing(key, doomed)}`,
+      sql`delete from ${schema.users} where ${schema.users.id} = ${userId} returning ${schema.users.id}`,
     );
-    const values = result.rows
-      .map((row) => String(row.value))
-      .filter(
-        (value) =>
-          key.schema !== doomed.schema ||
-          key.table !== doomed.table ||
-          column !== doomed.column ||
-          !doomed.values.includes(value),
-      );
-    if (values.length > 0) {
-      found.push({ schema: key.schema, table: key.table, column, values });
-    }
+    removed = result.rows.length;
+  } catch (cause) {
+    // The failed statement leaves the transaction unusable, and the caller
+    // still has to log and roll back, so put it back on its feet first.
+    await db.execute(sql.raw(`rollback to savepoint ${TRIAL}`));
+    throw new Error(
+      `Postgres refused to delete this account: ${describe(cause)} Nothing has been deleted.`,
+      { cause },
+    );
   }
-  return found;
+  await db.execute(sql.raw(`rollback to savepoint ${TRIAL}`));
+  if (removed !== 1) {
+    throw new Error(
+      `A trial delete of this account removed ${removed} rows rather than one, so something is intercepting it. Nothing has been deleted.`,
+    );
+  }
 }
 
 /**
- * The schema-derived list and the database can disagree — a key added by a
- * migration, or dropped by one, or one in a schema the file has never heard of.
- * Say so, and say which of them is in charge: the post-condition reads the
- * database, so the database governs and the list is what needs fixing.
+ * Postgres names the constraint in the message and the row in the detail, but
+ * the driver wraps that in its own error whose message is only the SQL that
+ * failed. The innermost cause is the one worth repeating.
  */
-function reportDisagreement(keys: DatabaseKey[], home: string, log?: Log) {
-  if (!log) return;
-  const cleared = clearedTables();
-  const blocks = (key: DatabaseKey) => key.onDelete !== "cascade";
-  const live = keys
-    .filter(
-      (key) =>
-        blocks(key) &&
-        key.parentSchema === home &&
-        cleared.includes(key.parentTable),
-    )
-    .map((key) =>
-      key.schema === home ? `${key.table}.${key.columns.join(",")}` : name(key),
-    );
-  const listed = blockingReferences().map((reference) => reference.from);
-  const missing = live.filter((entry) => !listed.includes(entry));
-  const stale = listed.filter((entry) => !live.includes(entry));
-  if (missing.length === 0 && stale.length === 0) return;
-  log.warn(
-    { missing, stale },
-    "The database's blocking references disagree with the schema's; the database governs the deletion and the schema list is what is out of date",
-  );
+function describe(thrown: unknown) {
+  let error = thrown;
+  while (
+    error &&
+    typeof error === "object" &&
+    (error as { cause?: unknown }).cause
+  ) {
+    error = (error as { cause: unknown }).cause;
+  }
+  const { message, detail } = (error ?? {}) as {
+    message?: unknown;
+    detail?: unknown;
+  };
+  const said = String(message ?? thrown);
+  return detail ? `${said} ${String(detail)}` : said;
 }
 
 /**
@@ -590,11 +321,12 @@ function reportDisagreement(keys: DatabaseKey[], home: string, log?: Log) {
  * demand: rows pointing at the learner's memory aids before the aids, rows
  * pointing at their decks before the decks.
  *
- * The steps say what this intends to clear. `assertAccountReleased`, at the
- * end and inside the same transaction, says whether it worked — so a step that
- * misses something rolls the whole thing back instead of stranding the learner.
+ * The steps say what this intends to clear. `assertAccountDeletable`, at the
+ * end and inside the same transaction, asks Postgres whether it worked — so a
+ * step that misses something rolls the whole thing back instead of stranding
+ * the learner.
  */
-export async function clearAccountData(tx: Tx, userId: string, log?: Log) {
+export async function clearAccountData(tx: Tx, userId: string) {
   const aids = await tx
     .select({ id: schema.memoryAids.id })
     .from(schema.memoryAids)
@@ -609,7 +341,7 @@ export async function clearAccountData(tx: Tx, userId: string, log?: Log) {
     deckIds: decks.map((deck) => deck.id),
   };
   for (const step of STEPS) await step.run(tx, subject);
-  await assertAccountReleased(tx, userId, log);
+  await assertAccountDeletable(tx, userId);
 }
 
 /** Decks this account published that somebody else is studying. */

@@ -162,18 +162,26 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
             });
           }
 
-          // Clearing the learner's own state, and then proving to Postgres
-          // that nothing points at them any more before the transaction
-          // commits. A miss rolls the whole thing back, so better-auth never
-          // reaches the sessions and credentials it removes next and the
-          // learner keeps both their data and their way in.
+          // Clearing the learner's own state, and then asking Postgres
+          // whether the account can actually be deleted by deleting it on a
+          // savepoint and rolling that back. A refusal rolls the whole thing
+          // back, so better-auth never reaches the sessions and credentials it
+          // removes next and the learner keeps both their data and their way
+          // in.
           //
-          // better-auth deletes the users row in its own transaction after
-          // this one commits, so the proof is of the state at commit rather
-          // than a lock held across both.
+          // KNOWN LIMITATION. better-auth deletes sessions, the credential
+          // account and the users row in its own transactions after this one
+          // commits, and they are not even one transaction between themselves.
+          // So this proves the state at commit, not a lock held across both. A
+          // schema change landing in that window — a new foreign key, trigger
+          // or rule reaching the users row — is still a lockout, because the
+          // credentials are gone by the time the users delete fails. Closing it
+          // needs the users row deleted inside this transaction, which better-
+          // auth's flow does not allow. The window is milliseconds and needs a
+          // migration to land inside it.
           try {
             await deps.database.transaction((tx) =>
-              clearAccountData(tx, user.id, deps.logger),
+              clearAccountData(tx, user.id),
             );
           } catch (error) {
             // Named `err`, because pino only serialises an Error under that

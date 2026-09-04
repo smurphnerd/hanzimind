@@ -200,11 +200,10 @@ describe("buildAuthOptions", () => {
   });
 
   /**
-   * The transaction the deletion runs in, plus the answers Postgres gives the
-   * post-condition at the end of it: one blocking key, and `leftover` rows
-   * still pointing at the account through it.
+   * The transaction the deletion runs in, plus the answer Postgres gives the
+   * trial delete at the end of it: the account's row, or nothing.
    */
-  const fakeTransaction = (calls: string[], leftover: number) => ({
+  const fakeTransaction = (calls: string[], deletable: boolean) => ({
     delete: (table: { _: { name: string } }) => {
       calls.push(`delete ${table?._?.name ?? "?"}`);
       return { where: async () => undefined };
@@ -221,32 +220,14 @@ describe("buildAuthOptions", () => {
         if (Array.isArray(value)) return value.join("");
         return value === undefined ? String(chunk) : String(value);
       };
-      const text = render(query);
-      if (text.includes("current_schema()"))
-        return { rows: [{ name: "public" }] };
-      return text.includes("pg_constraint")
-        ? {
-            rows: [
-              {
-                name: "decks_created_by_id_fk",
-                child_schema: "public",
-                child_table: "decks",
-                child_columns: ["created_by_id"],
-                child_refuses_null: false,
-                parent_schema: "public",
-                parent_table: "users",
-                parent_columns: ["id"],
-                on_delete: "r",
-              },
-            ],
-          }
-        : { rows: [{ count: leftover }] };
+      if (!render(query).includes("delete from")) return { rows: [] };
+      return { rows: deletable ? [{ id: "u1" }] : [] };
     },
   });
 
   it("clears the learner's own state, and their unstudied decks, before the account is deleted", async () => {
     const calls: string[] = [];
-    const tx = fakeTransaction(calls, 0);
+    const tx = fakeTransaction(calls, true);
     const clean = {
       ...deps,
       database: {
@@ -268,13 +249,13 @@ describe("buildAuthOptions", () => {
   });
 
   /**
-   * The whole point of the post-condition: when the steps miss something, the
-   * deletion refuses instead of handing better-auth an account it is about to
-   * strip of sessions and credentials and then fail to delete.
+   * The whole point of the trial delete: when the account cannot actually be
+   * removed, the deletion refuses instead of handing better-auth an account it
+   * is about to strip of sessions and credentials and then fail to delete.
    */
-  it("refuses when anything still points at the account after the steps run", async () => {
+  it("refuses when the trial delete cannot remove the account", async () => {
     const calls: string[] = [];
-    const tx = fakeTransaction(calls, 3);
+    const tx = fakeTransaction(calls, false);
     const leftover = {
       ...deps,
       database: {
