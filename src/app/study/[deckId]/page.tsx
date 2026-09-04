@@ -18,6 +18,7 @@ import {
 } from "@/components/study/completion-screen";
 import { ResultCard } from "@/components/study/result-card";
 import { StudyCard } from "@/components/study/study-card";
+import type { VocabItemStudyDto } from "@/definitions/definitions";
 import { useORPC } from "@/lib/orpc.client";
 import { playAnswerSound } from "@/lib/sounds";
 import {
@@ -52,9 +53,18 @@ function StudySession() {
 
   const [confettiKey, setConfettiKey] = useState(0);
 
-  // `isPending` is React state, so it is still false for a second call made in
-  // the same tick — a ref flips synchronously and actually blocks the double.
-  const submitInFlight = useRef(false);
+  // One answer per card, tracked on the card object itself.
+  //
+  // A ref, because `isPending` is React state and is still false for a second
+  // Enter arriving in the same tick. The card rather than a boolean, because a
+  // boolean released on settle reopens the window it was closing: the release
+  // runs with the response, and a keypress landing between it and React
+  // committing the next screen submits the same card again — the double level
+  // advance this guard exists to stop. Cards arrive fresh from the server, so
+  // reference identity is exactly "this instance of this card", and an item
+  // legitimately re-served later is a different object. Cleared on failure, so
+  // a lost answer can still be retried.
+  const answeredCard = useRef<VocabItemStudyDto | null>(null);
 
   const submitAnswerMutation = useMutation(
     orpc.study.submitAnswer.mutationOptions({
@@ -79,11 +89,9 @@ function StudySession() {
 
   const submit = (answer: string, surrendered: boolean) => {
     if (session.phase !== "card") return;
-    // Ignore repeat Enter presses / clicks while an answer is in flight,
-    // otherwise the SRS level advances twice for one card.
-    if (submitInFlight.current) return;
-    submitInFlight.current = true;
     const { card } = session;
+    if (answeredCard.current === card) return;
+    answeredCard.current = card;
     submitAnswerMutation.mutate(
       {
         deckId,
@@ -108,9 +116,9 @@ function StudySession() {
           // rather than being cancelled the moment Next unmounts it.
           if (result.correct) setConfettiKey((key) => key + 1);
         },
-        // Released here rather than in mutationOptions: that object is built
+        // Cleared here rather than in mutationOptions: that object is built
         // during render, and reading a ref there is disallowed.
-        onSettled: () => (submitInFlight.current = false),
+        onError: () => (answeredCard.current = null),
       },
     );
   };
