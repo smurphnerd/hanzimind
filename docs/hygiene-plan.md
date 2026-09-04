@@ -1128,12 +1128,12 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Files.**
 
-- [ ] Edit `src/server/services/VocabService.ts`, `src/server/services/DeckService.ts`.
+- [ ] Edit `src/server/services/VocabService.ts`, `src/server/services/DeckService.ts`, `src/server/database/database.ts` for the `Executor` type, and `CLAUDE.md`, which named the now-deleted method in an example.
 - [ ] Edit `src/server/services/__tests__/DeckService.test.ts`.
 
 **Build.**
 
-- [ ] Thread the transaction handle through `VocabService.addVocabItem` so a created vocab item is inserted on the same transaction as the deck that asked for it.
+- [ ] Split `VocabService.addVocabItem` at the seam between its two halves rather than threading a transaction handle through it. One half does every slow call, DeepL and Edge TTS and S3, and writes nothing; the other writes the prepared rows on an executor the caller supplies, which `createDeck` gives its own transaction. The original wording said to thread the handle, and taken literally that holds a pooled connection open across a network round trip per word, up to 100 for a fifty-word create against a pool capped at 10. It also reverses the phase order P3-DECKS documented as load-bearing and pinned with a test asserting the transaction is never opened when speech synthesis fails.
 - [ ] Make `DeckService.createDeck` roll back every item it created when any later step fails, so a half-finished create leaves no new dictionary rows behind.
 - [ ] Leave items that already existed in the dictionary untouched by the rollback, since another learner's deck may point at them.
 
