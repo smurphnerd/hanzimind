@@ -199,18 +199,44 @@ describe("buildAuthOptions", () => {
     expect(started, "it started deleting before refusing").toEqual([]);
   });
 
+  /**
+   * The transaction the deletion runs in, plus the answers Postgres gives the
+   * post-condition at the end of it: one blocking key, and `leftover` rows
+   * still pointing at the account through it.
+   */
+  const fakeTransaction = (calls: string[], leftover: number) => ({
+    delete: (table: { _: { name: string } }) => {
+      calls.push(`delete ${table?._?.name ?? "?"}`);
+      return { where: async () => undefined };
+    },
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    select: () => ({
+      from: () => ({ where: async () => [{ id: "deck-1" }] }),
+    }),
+    execute: async (query: { queryChunks: { value?: unknown }[] }) => {
+      const text = query.queryChunks
+        .map((chunk) => String(chunk.value ?? chunk))
+        .join(" ");
+      return text.includes("pg_constraint")
+        ? {
+            rows: [
+              {
+                name: "decks_created_by_id_fk",
+                child_table: "decks",
+                child_columns: ["created_by_id"],
+                parent_table: "users",
+                parent_columns: ["id"],
+                on_delete: "r",
+              },
+            ],
+          }
+        : { rows: [{ count: leftover }] };
+    },
+  });
+
   it("clears the learner's own state, and their unstudied decks, before the account is deleted", async () => {
     const calls: string[] = [];
-    const tx = {
-      delete: (table: { _: { name: string } }) => {
-        calls.push(`delete ${table?._?.name ?? "?"}`);
-        return { where: async () => undefined };
-      },
-      update: () => ({ set: () => ({ where: async () => undefined }) }),
-      select: () => ({
-        from: () => ({ where: async () => [{ id: "deck-1" }] }),
-      }),
-    };
+    const tx = fakeTransaction(calls, 0);
     const clean = {
       ...deps,
       database: {
@@ -229,6 +255,33 @@ describe("buildAuthOptions", () => {
 
     // five own-state deletes, then deck_vocab_items, user_decks and decks
     expect(calls).toHaveLength(8);
+  });
+
+  /**
+   * The whole point of the post-condition: when the steps miss something, the
+   * deletion refuses instead of handing better-auth an account it is about to
+   * strip of sessions and credentials and then fail to delete.
+   */
+  it("refuses when anything still points at the account after the steps run", async () => {
+    const calls: string[] = [];
+    const tx = fakeTransaction(calls, 3);
+    const leftover = {
+      ...deps,
+      database: {
+        selectDistinct: () => ({
+          from: () => ({ innerJoin: () => ({ where: async () => [] }) }),
+        }),
+        transaction: async (run: (t: typeof tx) => Promise<void>) => run(tx),
+      },
+    } as unknown as Cradle;
+
+    await expect(
+      buildAuthOptions(leftover, {
+        authSecret: "secret",
+        baseUrl: "http://localhost:3000",
+        systemEmailFrom: "from@hanzimind.test",
+      }).user.deleteUser.beforeDelete({ id: "u1" } as never),
+    ).rejects.toThrow(/nothing has been removed/i);
   });
 
   it("sends the verification email through the adapter", async () => {

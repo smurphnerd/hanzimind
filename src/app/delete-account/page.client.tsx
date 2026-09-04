@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Mika } from "@/components/mika";
+import { authClient } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -17,6 +18,9 @@ import { Card, CardContent } from "@/components/ui/card";
 // A token is spent by the first call, refusal or not, so it must be sent once
 // even though React mounts a client component twice in development.
 const sent = new Map<string, Promise<string | null>>();
+
+const SIGN_IN_FIRST =
+  "This link only works in the browser where you asked to delete your account, and this one is signed out. Sign in here and open the link again — it is still good.";
 
 async function confirmDeletion(token: string) {
   const existing = sent.get(token);
@@ -41,6 +45,12 @@ async function confirmDeletion(token: string) {
     ) {
       return body.message;
     }
+    // The callback needs the learner's session, so a valid token opened in a
+    // browser that is signed out answers 404. Saying the link expired there
+    // would send them to ask for another one that fails the same way.
+    if ([401, 403, 404].includes(response.status)) {
+      return SIGN_IN_FIRST;
+    }
     if (response.status >= 500) {
       return "Something went wrong on our side and the account was not deleted. Nothing has been removed. Please try again from your profile, and tell us if it keeps happening.";
     }
@@ -52,6 +62,9 @@ async function confirmDeletion(token: string) {
 
 export default function DeleteAccountClientPage() {
   const token = useSearchParams().get("token");
+  // Asking without a session spends nothing and answers 404, so wait for the
+  // session and say what is wrong instead of burning the link.
+  const { data: session, isPending } = authClient.useSession();
   const [state, setState] = useState<
     | { status: "working" }
     | { status: "done" }
@@ -59,7 +72,7 @@ export default function DeleteAccountClientPage() {
   >({ status: "working" });
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || isPending || !session) return;
     let live = true;
     void confirmDeletion(token).then((message) => {
       if (!live) return;
@@ -68,7 +81,7 @@ export default function DeleteAccountClientPage() {
     return () => {
       live = false;
     };
-  }, [token]);
+  }, [token, isPending, session]);
 
   const card = (
     pose: "read" | "cheer" | "peek",
@@ -99,6 +112,12 @@ export default function DeleteAccountClientPage() {
       "A deletion link works once. Ask for a new one from your profile.",
       { href: "/profile", label: "Back to profile" },
     );
+  }
+  if (!isPending && !session) {
+    return card("peek", "Sign in to finish", SIGN_IN_FIRST, {
+      href: `/signin?redirectUrl=${encodeURIComponent(`/delete-account?token=${token}`)}`,
+      label: "Sign in",
+    });
   }
   if (state.status === "refused") {
     return card("peek", "We couldn't delete this account", state.message, {

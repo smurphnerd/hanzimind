@@ -162,12 +162,29 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
             });
           }
 
-          // Every reference the schema puts between this learner and their
-          // users row, in the order the keys demand. account-deletion.ts
-          // derives that set rather than remembering it.
-          await deps.database.transaction((tx) =>
-            clearAccountData(tx, user.id),
-          );
+          // Clearing the learner's own state, and then proving to Postgres
+          // that nothing points at them any more before the transaction
+          // commits. A miss rolls the whole thing back, so better-auth never
+          // reaches the sessions and credentials it removes next and the
+          // learner keeps both their data and their way in.
+          //
+          // better-auth deletes the users row in its own transaction after
+          // this one commits, so the proof is of the state at commit rather
+          // than a lock held across both.
+          try {
+            await deps.database.transaction((tx) =>
+              clearAccountData(tx, user.id, deps.logger),
+            );
+          } catch (error) {
+            deps.logger.error(
+              { error, userId: user.id },
+              "Rolled back an account deletion: the account was not fully released",
+            );
+            throw new APIError("INTERNAL_SERVER_ERROR", {
+              message:
+                "We could not finish deleting this account, so nothing has been removed.",
+            });
+          }
           deps.logger.info(
             { userId: user.id },
             "Cleared a learner's own state before deleting the account",

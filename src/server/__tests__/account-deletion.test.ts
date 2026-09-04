@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import type { SQL } from "drizzle-orm";
+
 import {
+  assertAccountReleased,
   blockingReferences,
   clearedTables,
   coverage,
   schemaReferences,
+  type DatabaseKey,
+  type Executor,
 } from "../account-deletion";
 
 describe("clearedTables", () => {
@@ -82,5 +87,169 @@ describe("coverage", () => {
       "user_vocab_synonyms.user_id": "delete",
       "vocab_items.default_memory_aid_id": "release",
     });
+  });
+});
+
+/**
+ * The post-condition asks Postgres what still points at the account, so a test
+ * of it is a test of what it does with the answers. The fake below is a
+ * database that gives fixed ones: a foreign-key catalogue, and a count per
+ * table.
+ */
+const render = (query: SQL) =>
+  (query as unknown as { queryChunks: unknown[] }).queryChunks
+    .map((chunk) => {
+      const value = (chunk as { value?: unknown }).value;
+      if (Array.isArray(value)) return value.join("");
+      return value === undefined ? String(chunk) : String(value);
+    })
+    .join(" ");
+
+const key = (over: Partial<DatabaseKey>): DatabaseKey => ({
+  name: `${over.table}_fk`,
+  table: "decks",
+  columns: ["created_by_id"],
+  parentTable: "users",
+  parentColumns: ["id"],
+  blocks: true,
+  cascades: false,
+  ...over,
+});
+
+function fakeDatabase(keys: DatabaseKey[], counts: Record<string, number>) {
+  return {
+    execute: async (query: SQL) => {
+      const text = render(query);
+      if (text.includes("pg_constraint")) {
+        return {
+          rows: keys.map((k) => ({
+            name: k.name,
+            child_table: k.table,
+            child_columns: k.columns,
+            parent_table: k.parentTable,
+            parent_columns: k.parentColumns,
+            on_delete: k.cascades ? "c" : k.blocks ? "r" : "n",
+          })),
+        };
+      }
+      const table = keys.find((k) => text.includes(k.table))?.table ?? "";
+      const remaining = counts[table] ?? 0;
+      if (text.includes("distinct")) {
+        return {
+          rows: Array.from({ length: remaining }, (_, index) => ({
+            value: `${table}-${index}`,
+          })),
+        };
+      }
+      return { rows: [{ count: remaining }] };
+    },
+  } satisfies Executor;
+}
+
+describe("assertAccountReleased", () => {
+  it("passes when nothing points at the account any more", async () => {
+    const database = fakeDatabase(
+      [
+        key({ table: "decks" }),
+        key({ table: "user_decks", columns: ["user_id"] }),
+      ],
+      {},
+    );
+    await expect(
+      assertAccountReleased(database, "learner"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("names the table and column that still points at the account", async () => {
+    const database = fakeDatabase([key({ table: "decks" })], { decks: 2 });
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /decks\.created_by_id \(2\)/,
+    );
+  });
+
+  // The point of the whole exercise. The steps say they clear user_decks, and
+  // four rounds of review each defeated a check that believed such a claim.
+  // This one never reads them, so a step that declares a column its query does
+  // not cover stops the deletion instead of stranding the learner.
+  it("throws for a leftover the steps claim to cover", async () => {
+    const database = fakeDatabase(
+      [key({ table: "user_decks", columns: ["user_id"] })],
+      {
+        user_decks: 1,
+      },
+    );
+    expect(coverage()["user_decks.user_id"]).toBe("delete");
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /user_decks\.user_id \(1\)/,
+    );
+  });
+
+  it("lets a cascading reference stand, because Postgres removes it too", async () => {
+    const database = fakeDatabase(
+      [
+        key({
+          table: "sessions",
+          columns: ["user_id"],
+          blocks: false,
+          cascades: true,
+        }),
+      ],
+      { sessions: 3 },
+    );
+    await expect(
+      assertAccountReleased(database, "learner"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("walks past a cascading child to whatever points at that", async () => {
+    const database = fakeDatabase(
+      [
+        key({
+          table: "sessions",
+          columns: ["user_id"],
+          blocks: false,
+          cascades: true,
+        }),
+        key({
+          name: "device_tokens_fk",
+          table: "device_tokens",
+          columns: ["session_id"],
+          parentTable: "sessions",
+          parentColumns: ["id"],
+        }),
+      ],
+      { sessions: 2, device_tokens: 1 },
+    );
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /device_tokens\.session_id/,
+    );
+  });
+
+  it("refuses rather than skip a key it cannot check", async () => {
+    const database = fakeDatabase(
+      [
+        key({
+          name: "pair_fk",
+          table: "pairs",
+          columns: ["user_id", "deck_id"],
+        }),
+      ],
+      {},
+    );
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /cannot verify pair_fk/,
+    );
+  });
+
+  it("says so when the database enforces a key the schema list does not name", async () => {
+    const warnings: object[] = [];
+    const database = fakeDatabase(
+      [key({ name: "invoices_fk", table: "invoices", columns: ["user_id"] })],
+      {},
+    );
+    await assertAccountReleased(database, "learner", {
+      warn: (data) => warnings.push(data),
+    });
+    expect(warnings[0]).toMatchObject({ missing: ["invoices.user_id"] });
   });
 });
