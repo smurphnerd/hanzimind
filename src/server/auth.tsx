@@ -9,8 +9,12 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { nanoid } from "nanoid";
 import type { Logger } from "pino";
+import type { ReactElement } from "react";
 
+import { ChangeEmailEmail } from "@/email/ChangeEmailEmail";
+import { DeleteAccountEmail } from "@/email/DeleteAccountEmail";
 import { EmailVerificationEmail } from "@/email/EmailVerificationEmail";
+import { PasswordResetEmail } from "@/email/PasswordResetEmail";
 import type { Cradle } from "@/server/initialization";
 
 import { schema } from "./database/schema";
@@ -28,8 +32,32 @@ const DAY = 60 * 60 * 24;
  * Every option better-auth runs on, as data, so a test can read them without
  * standing up an instance.
  */
-export const buildAuthOptions = (deps: Cradle, options: AuthOptions) =>
-  ({
+export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
+  /**
+   * better-auth swallows nothing: a rejected send propagates to the caller, so
+   * the endpoint answers 500 rather than pretending the mail went out. The log
+   * line is what an operator reads afterwards.
+   */
+  const send = async (
+    to: string,
+    subject: string,
+    body: ReactElement,
+    kind: string,
+  ) => {
+    try {
+      await deps.email.sendEmail({
+        from: options.systemEmailFrom,
+        to,
+        subject,
+        body,
+      });
+    } catch (error) {
+      deps.logger.error({ error, to, kind }, "Failed to send an auth email");
+      throw error;
+    }
+  };
+
+  return {
     trustedOrigins: [options.baseUrl],
     database: drizzleAdapter(deps.database, {
       provider: "pg",
@@ -61,19 +89,51 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) =>
       enabled: true,
       requireEmailVerification: true,
       minPasswordLength: 10,
+      sendResetPassword: async ({ user, url }) =>
+        send(
+          user.email,
+          "Reset your password - Hanzimind",
+          <PasswordResetEmail link={url} username={user.name} />,
+          "reset-password",
+        ),
+    },
+    user: {
+      changeEmail: {
+        enabled: true,
+        // Sent to the address on file, so losing the new one cannot lock an
+        // account out and taking the new one cannot steal it.
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) =>
+          send(
+            user.email,
+            "Confirm your new email - Hanzimind",
+            <ChangeEmailEmail
+              link={url}
+              username={user.name}
+              newEmail={newEmail}
+            />,
+            "change-email",
+          ),
+      },
+      deleteUser: {
+        enabled: true,
+        sendDeleteAccountVerification: async ({ user, url }) =>
+          send(
+            user.email,
+            "Confirm account deletion - Hanzimind",
+            <DeleteAccountEmail link={url} username={user.name} />,
+            "delete-account",
+          ),
+      },
     },
     emailVerification: {
       autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({ user, url }) => {
-        // Awaited, so better-auth reports a failed send to the caller instead
-        // of resolving as though the mail went out.
-        await deps.email.sendEmail({
-          from: options.systemEmailFrom,
-          to: user.email,
-          body: <EmailVerificationEmail link={url} username={user.name} />,
-          subject: "Verify your email - Hanzimind",
-        });
-      },
+      sendVerificationEmail: async ({ user, url }) =>
+        send(
+          user.email,
+          "Verify your email - Hanzimind",
+          <EmailVerificationEmail link={url} username={user.name} />,
+          "verify-email",
+        ),
     },
     plugins: [
       // Puts `role` on the session user so admin status travels with the session
@@ -86,7 +146,8 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) =>
     ],
     secret: options.authSecret,
     logger: getLogger(deps.logger),
-  }) satisfies BetterAuthOptions;
+  } satisfies BetterAuthOptions;
+};
 
 export const getAuth = (deps: Cradle, options: AuthOptions) =>
   betterAuth(buildAuthOptions(deps, options));
