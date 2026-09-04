@@ -875,9 +875,9 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 2. Give up on a card. Save `session-giveup.png`. Pass when the result shows the answer and the level resets.
 - [ ] Lane 3. Type `nv3` on a reading card. Save `session-fold.png`. Pass when the input shows `nǚ`.
 - [ ] Lane 4. Start on an empty deck. Save `session-empty.png`. Pass when the empty state renders.
-- [ ] Lane 5. Finish a small deck. Save `session-complete.png`. Pass when the completion screen renders with confetti.
+- [ ] Lane 5. Answer the last card of a deck. Save `session-complete.png`. Pass when the completion screen renders. The box previously said "with confetti"; verification found zero confetti canvases on the completion screen at trunk as well, because the burst fires on the last result card and is unmounted when Next is pressed. That is finding 58 for P5-STUDY-UX, not a bar for this PR.
 - [ ] Lane 6. Reload mid-session. Save `session-reload.png`. Pass when a fresh card loads with no stale result.
-- [ ] Lane 7. Add a synonym from the result card. Save `session-synonym.png`. Pass when the synonym persists in `user_vocab_items`.
+- [ ] Lane 7. Add a synonym from the result card. Save `session-synonym.png`. Pass when the synonym persists in `user_vocab_synonyms`.
 - [ ] Lane 8. Toggle Details and Graph on the first-sight card. Save `session-graph.png`. Pass when the graph renders.
 - [ ] Lane 9. Run through 20 cards at 390 pixels wide. Save `session-mobile.png`. Pass when nothing overflows horizontally.
 - [ ] Lane 10. Run the e2e suite. Save `session-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
