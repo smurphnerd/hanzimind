@@ -12,10 +12,8 @@ import {
   GraphPanelFrame,
   describeDeckCut,
 } from "@/components/graph-panel-frame";
-import {
-  SegmentedToggle,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedToggle } from "@/components/segmented-toggle";
+import type { HintedSegmentedOption } from "@/components/segmented-control";
 import { useORPC } from "@/lib/orpc.client";
 import type { DeckGraphDto } from "@/definitions/definitions";
 
@@ -25,7 +23,7 @@ import type { DeckGraphDto } from "@/definitions/definitions";
  * A level is a tier of the unlock order, and "1 level" reads as the first tier
  * rather than the second. Showing `depth` levels means keeping `level < depth`.
  */
-function depthOptions(maxLevel: number): SegmentedOption<number>[] {
+function depthOptions(maxLevel: number): HintedSegmentedOption<number>[] {
   const total = maxLevel + 1;
 
   return Array.from({ length: total }, (_, index) => {

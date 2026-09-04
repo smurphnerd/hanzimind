@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -49,21 +50,25 @@ export function ScriptBadge({
   const meta = SCRIPT_META[script] ?? SCRIPT_META.both;
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* A Badge is a span, and a span is not in the tab order, so the hint
+    // Provider per badge rather than one in the root layout, which would have
+    // charged every route in the app for a tooltip only /admin/vocab renders.
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* A Badge is a span, and a span is not in the tab order, so the hint
             this replaced was mouse-only — three words of "Simp" and nothing
             else for anyone who does not hover. tabIndex makes the trigger
             reachable; the focus ring is already in badgeVariants. */}
-        <Badge
-          variant="outline"
-          tabIndex={0}
-          className={cn(meta.className, className)}
-        >
-          {meta.label}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent>{meta.hint}</TooltipContent>
-    </Tooltip>
+          <Badge
+            variant="outline"
+            tabIndex={0}
+            className={cn(meta.className, className)}
+          >
+            {meta.label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>{meta.hint}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

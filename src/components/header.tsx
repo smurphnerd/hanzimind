@@ -11,11 +11,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Mika } from "@/components/mika";
 import { cn } from "@/lib/utils";
@@ -158,25 +153,22 @@ export function Header() {
           )}
           <ThemeToggle />
           {session?.user ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/profile"
-                  aria-label="Your profile"
-                  className="flex size-9 items-center justify-center rounded-full bg-accent/15 font-display text-sm font-bold text-accent uppercase transition-colors hover:bg-accent/25"
-                >
-                  {(session.user.name ?? session.user.email ?? "?")
-                    .charAt(0)
-                    .toUpperCase()}
-                </Link>
-              </TooltipTrigger>
-              {/* Which account the initial belongs to. The aria-label stays
-                  "Your profile": that is what the link does, and reading the
-                  address out as the link's name would say the wrong thing. */}
-              <TooltipContent>
-                {session.user.name ?? session.user.email ?? "Profile"}
-              </TooltipContent>
-            </Tooltip>
+            // The one place a tooltip is NOT worth it. The header sits in the
+            // root layout, so a Radix tooltip here puts @radix-ui/react-tooltip
+            // in every route's layout chunk — measured at 9,533 bytes on
+            // /dictionary/[word], which is most of that route's budget for the
+            // whole of this PR. The account name moves into the accessible
+            // name instead, so assistive tech still gets it; what is lost is
+            // revealing it by hovering with a mouse.
+            <Link
+              href="/profile"
+              aria-label={`Your profile — ${session.user.name ?? session.user.email ?? "signed in"}`}
+              className="flex size-9 items-center justify-center rounded-full bg-accent/15 font-display text-sm font-bold text-accent uppercase transition-colors hover:bg-accent/25"
+            >
+              {(session.user.name ?? session.user.email ?? "?")
+                .charAt(0)
+                .toUpperCase()}
+            </Link>
           ) : (
             <>
               <Button asChild variant="ghost" size="sm">

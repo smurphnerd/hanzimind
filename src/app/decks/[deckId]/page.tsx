@@ -35,6 +35,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useORPC } from "@/lib/orpc.client";
@@ -49,10 +50,8 @@ import { authClient } from "@/lib/authClient";
 import { useHydrated } from "@/lib/use-hydrated";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
 import { DeckGraphPanel } from "@/components/deck-graph-panel";
-import {
-  SegmentedTabsList,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedTabsList } from "@/components/segmented-tabs";
+import type { SegmentedOption } from "@/components/segmented-control";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
@@ -131,25 +130,27 @@ function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
         meta.softClass,
       )}
     >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
-            className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
-          >
-            <span className="hanzi text-xl leading-tight break-words text-foreground">
-              {item.vocabItem}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {subtitle}
-            </span>
-          </Link>
-        </TooltipTrigger>
-        {/* The chip already shows the pinyin where there is one, so the meaning
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
+              className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
+            >
+              <span className="hanzi text-xl leading-tight break-words text-foreground">
+                {item.vocabItem}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {subtitle}
+              </span>
+            </Link>
+          </TooltipTrigger>
+          {/* The chip already shows the pinyin where there is one, so the meaning
             is the half that gets truncated away — which is exactly what the
             hint was for. */}
-        <TooltipContent>{translationOf(item)}</TooltipContent>
-      </Tooltip>
+          <TooltipContent>{translationOf(item)}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {canPlayAudio(item.audioUrl) && (
         <Button
           variant="ghost"

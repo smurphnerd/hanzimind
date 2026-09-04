@@ -13,10 +13,8 @@ import { DecompositionGraphPanel } from "@/components/decomposition-graph-panel"
 import { useHydrated } from "@/lib/use-hydrated";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ComponentRoleBadge } from "@/components/component-role-badge";
-import {
-  SegmentedTabsList,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedTabsList } from "@/components/segmented-tabs";
+import type { SegmentedOption } from "@/components/segmented-control";
 import type { VocabType } from "@/definitions/definitions";
 import { canPlayAudio, playAudio } from "@/lib/audio";
 import { vocabTypeMeta } from "@/lib/vocab-type";
