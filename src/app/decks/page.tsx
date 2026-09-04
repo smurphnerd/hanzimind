@@ -19,7 +19,9 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { CompositionBar } from "@/components/composition-bar";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/pagination";
 import {
   Card,
   CardContent,
@@ -40,19 +42,10 @@ import { DeckGridSkeleton } from "@/components/decks-loading";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
-import { vocabTypeMeta } from "@/lib/vocab-type";
 import { cn } from "@/lib/utils";
 import type { DeckDto } from "@/definitions/definitions";
 
 const DECKS_PER_PAGE = 12;
-
-/** Smallest unit first, so the strip reads the order the deck is actually learned in. */
-const COMPOSITION_ORDER = [
-  "component",
-  "character",
-  "compound",
-  "sentence",
-] as const;
 
 type SelectedDeck = {
   id: string;
@@ -61,62 +54,6 @@ type SelectedDeck = {
   isSaved: boolean;
   settings: DeckSettings;
 };
-
-/** What a deck is made of, as one stacked bar plus its counts. */
-function DeckComposition({
-  typeCounts,
-}: {
-  typeCounts: DeckDto["typeCounts"];
-}) {
-  const parts = COMPOSITION_ORDER.map((type) => ({
-    meta: vocabTypeMeta(type),
-    count: typeCounts[type],
-  })).filter(({ count }) => count > 0);
-
-  // Widths come off the counts actually drawn rather than itemCount, so the bar
-  // always fills edge to edge.
-  const total = parts.reduce((sum, { count }) => sum + count, 0);
-
-  if (total === 0) return null;
-
-  return (
-    <div className="space-y-2">
-      <div
-        className="flex h-2 w-full overflow-hidden rounded-full bg-muted"
-        role="img"
-        aria-label={parts
-          .map(
-            ({ meta, count }) =>
-              `${count} ${meta.label.toLowerCase()}${count === 1 ? "" : "s"}`,
-          )
-          .join(", ")}
-      >
-        {parts.map(({ meta, count }) => (
-          <span
-            key={meta.key}
-            className={meta.fillClass}
-            style={{ width: `${(count / total) * 100}%` }}
-          />
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {parts.map(({ meta, count }) => (
-          <span
-            key={meta.key}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <span className={cn("size-2 rounded-full", meta.fillClass)} />
-            {meta.label}
-            <span className="font-display font-bold text-foreground tabular-nums">
-              {count}
-            </span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function DeckCard({
   deck,
@@ -173,7 +110,7 @@ function DeckCard({
           </InlineStat>
         </div>
 
-        <DeckComposition typeCounts={deck.typeCounts} />
+        <CompositionBar typeCounts={deck.typeCounts} legend />
       </CardContent>
 
       <CardFooter>
@@ -287,7 +224,6 @@ function DeckGrid({
   }
 
   const { total } = data.pagingInfo;
-  const totalPages = Math.max(1, Math.ceil(total / DECKS_PER_PAGE));
 
   return (
     <>
@@ -308,30 +244,13 @@ function DeckGrid({
         ))}
       </div>
 
-      <div className="mt-8 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground tabular-nums">
-          {(page - 1) * DECKS_PER_PAGE + 1}–
-          {Math.min(page * DECKS_PER_PAGE, total)} of {total}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => onPageChange(Math.max(1, page - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <Pagination
+        page={page}
+        pageSize={DECKS_PER_PAGE}
+        total={total}
+        onPageChange={onPageChange}
+        className="mt-8"
+      />
     </>
   );
 }

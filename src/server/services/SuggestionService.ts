@@ -3,6 +3,7 @@ import "server-only";
 import { and, count, desc, eq, gt } from "drizzle-orm";
 import type { Logger } from "pino";
 
+import { pageRange } from "@/lib/pagination";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
@@ -169,7 +170,7 @@ export class SuggestionService {
       total,
       page: args.page,
       pageSize: args.pageSize,
-      totalPages: Math.max(1, Math.ceil(total / args.pageSize)),
+      totalPages: pageRange(args.page, args.pageSize, total).totalPages,
     };
   }
 

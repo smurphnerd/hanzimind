@@ -4,6 +4,7 @@ import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import { escapeLike } from "@/lib/sql";
+import { pageRange } from "@/lib/pagination";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
@@ -130,7 +131,7 @@ export class AdminService {
       total,
       page: args.page,
       pageSize: args.pageSize,
-      totalPages: Math.max(1, Math.ceil(total / args.pageSize)),
+      totalPages: pageRange(args.page, args.pageSize, total).totalPages,
     };
   }
 

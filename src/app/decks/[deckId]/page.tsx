@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import {
   BookOpen,
   ChevronDown,
-  ChevronLeft,
   Layers,
   List,
   Network,
@@ -22,6 +21,9 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { CompositionBar } from "@/components/composition-bar";
+import { COMPOSITION_ORDER } from "@/lib/deck-composition";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -52,7 +54,6 @@ import { canPlayAudio, playAudio } from "@/lib/audio";
 import { vocabTypeMeta } from "@/lib/vocab-type";
 import { cn } from "@/lib/utils";
 import type {
-  DeckTypeCountsDto,
   DeckVocabItemSummaryDto,
   VocabType,
 } from "@/definitions/definitions";
@@ -65,13 +66,22 @@ import type {
  * hundred characters still scan as a block, while eight sentences already fill a
  * screen.
  */
-const GROUPS: Array<{ type: VocabType; label: string; previewLimit: number }> =
-  [
-    { type: "component", label: "Components", previewLimit: 60 },
-    { type: "character", label: "Characters", previewLimit: 60 },
-    { type: "compound", label: "Words", previewLimit: 48 },
-    { type: "sentence", label: "Sentences", previewLimit: 8 },
-  ];
+const GROUP_META: Record<VocabType, { label: string; previewLimit: number }> = {
+  component: { label: "Components", previewLimit: 60 },
+  character: { label: "Characters", previewLimit: 60 },
+  compound: { label: "Words", previewLimit: 48 },
+  sentence: { label: "Sentences", previewLimit: 8 },
+};
+
+/**
+ * Ordered by the same list the composition bar uses, so the strip's segments and
+ * the headings below it cannot fall out of step — which is the whole reason the
+ * two share a colour.
+ */
+const GROUPS = COMPOSITION_ORDER.map((type) => ({
+  type,
+  ...GROUP_META[type],
+}));
 
 /** List / graph switch for the deck's contents. */
 type DeckView = "standard" | "graph";
@@ -208,47 +218,6 @@ function GlyphGroup({
   );
 }
 
-/**
- * The deck's type mix as one strip. The colours match the group headings below,
- * so the proportions and the sections read as the same thing.
- */
-function CompositionBar({
-  typeCounts,
-  className,
-}: {
-  typeCounts: DeckTypeCountsDto;
-  className?: string;
-}) {
-  const total = GROUPS.reduce((sum, group) => sum + typeCounts[group.type], 0);
-
-  if (total === 0) return null;
-
-  const present = GROUPS.filter((group) => typeCounts[group.type] > 0);
-
-  return (
-    <div
-      className={cn(
-        "flex h-2.5 w-full overflow-hidden rounded-full bg-muted",
-        className,
-      )}
-      role="img"
-      aria-label={present
-        .map(
-          (group) => `${typeCounts[group.type]} ${group.label.toLowerCase()}`,
-        )
-        .join(", ")}
-    >
-      {present.map((group) => (
-        <span
-          key={group.type}
-          className={vocabTypeMeta(group.type).fillClass}
-          style={{ width: `${(typeCounts[group.type] / total) * 100}%` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function DeckOverviewContent() {
   const params = useParams();
   const deckId = params.deckId as string;
@@ -331,13 +300,7 @@ function DeckOverviewContent() {
         showingGraph ? "max-w-7xl" : "max-w-4xl",
       )}
     >
-      <Link
-        href="/decks"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ChevronLeft className="size-4" />
-        Back to Decks
-      </Link>
+      <BackLink href="/decks">Back to Decks</BackLink>
 
       <PageHeader
         className="mb-4"
