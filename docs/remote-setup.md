@@ -156,8 +156,10 @@ psql "$DATABASE_URL" -f /tmp/catalog.sql > /tmp/actual.txt
 diff -u /tmp/expected.txt /tmp/actual.txt
 ```
 
-An empty diff means the baseline describes the remote database and the cutover
-below is safe. **Anything else is a finding, not a formality.** Read it before
+CI runs this same comparison between a push-built database and a migrated one
+on every commit, so the two tools are not the suspect here — a difference means
+something happened to this particular database. An empty diff means the baseline
+describes the remote database and the cutover below is safe. **Anything else is a finding, not a formality.** Read it before
 going on: a column production has and `schema.ts` does not means the schema was
 pushed from a branch that never merged, and marking the baseline applied would
 freeze that difference in place forever, invisible to every later migration.
