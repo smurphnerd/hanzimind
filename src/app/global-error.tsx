@@ -22,7 +22,7 @@ export default function GlobalError({
     <html lang="en">
       <body className="flex min-h-screen flex-col justify-center bg-background text-foreground">
         <ErrorState
-          title="The page could not be loaded"
+          heading="The page could not be loaded"
           description={error.message}
           requestId={requestIdOf(error)}
           onRetry={reset}

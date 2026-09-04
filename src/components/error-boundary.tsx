@@ -24,14 +24,19 @@ import { requestIdOf } from "@/lib/request-id";
  * sits.
  */
 export function ErrorState({
-  title = "Something went wrong",
+  heading = "Something went wrong",
   description,
   requestId,
   onRetry,
   retryLabel = "Try again",
   children,
 }: {
-  title?: string;
+  /**
+   * The card's heading. `heading` rather than `title` for the reason
+   * `page-header.tsx` gives: it keeps the HTML attribute of that name meaning
+   * exactly one thing wherever it still appears outside `components/ui`.
+   */
+  heading?: string;
   description?: string;
   requestId?: string;
   onRetry?: () => void;
@@ -44,7 +49,7 @@ export function ErrorState({
         <CardHeader>
           <div className="flex items-center gap-2">
             <AlertCircle className="size-5 text-destructive" />
-            <CardTitle>{title}</CardTitle>
+            <CardTitle>{heading}</CardTitle>
           </div>
           <CardDescription>
             {description || "An unexpected error occurred"}

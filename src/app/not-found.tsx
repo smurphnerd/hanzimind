@@ -13,7 +13,7 @@ export default function NotFound() {
     <div className="container mx-auto max-w-2xl px-4 py-16">
       <EmptyState
         pose="peek"
-        title="This page does not exist"
+        heading="This page does not exist"
         description="The link may be out of date, or the character may not be in the dictionary yet."
         action={
           <div className="flex flex-wrap justify-center gap-2">
