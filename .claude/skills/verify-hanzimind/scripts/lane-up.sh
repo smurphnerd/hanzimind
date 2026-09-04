@@ -90,7 +90,15 @@ EOF
 (cd "$REPO" && lane_env &&
 	pnpm exec tsx src/server/database/migrate.ts --baseline &&
 	pnpm exec tsx src/server/database/migrate.ts) >"$LANE_DIR/db-migrate.log" 2>&1 ||
-	{ printf 'lane %s: db:migrate failed, see %s\n' "$LANE" "$LANE_DIR/db-migrate.log" >&2; exit 1; }
+	{
+		# Print the log, do not point at it. In CI the lane directory is on a
+		# runner nobody can open, so "see development/lanes/0/db-migrate.log"
+		# is the entire diagnostic a human gets for a schema that would not
+		# build.
+		printf 'lane %s: db:migrate failed, last 40 lines of %s:\n' "$LANE" "$LANE_DIR/db-migrate.log" >&2
+		tail -n 40 "$LANE_DIR/db-migrate.log" 2>/dev/null | sed 's/^/  /' >&2
+		exit 1
+	}
 
 cache_key=$(seed_cache_key)
 cache_root="${HANZIMIND_LANE_CACHE:-$HOME/.cache/hanzimind-lanes}"
