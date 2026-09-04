@@ -1,27 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { acceptRequestId, requestIdOf } from "../request-id";
-
-describe("acceptRequestId", () => {
-  it("reuses a proxy's id, so one request reads as one event across hops", () => {
-    expect(acceptRequestId("a1b2-c3.d4_e5")).toBe("a1b2-c3.d4_e5");
-  });
-
-  it("rejects an id with anything that does not belong in a log line", () => {
-    expect(acceptRequestId("id with spaces")).toBeUndefined();
-    expect(acceptRequestId("id\nlooks-like-two-lines")).toBeUndefined();
-    expect(acceptRequestId("<script>")).toBeUndefined();
-  });
-
-  it("rejects an id long enough to bloat every line it touches", () => {
-    expect(acceptRequestId("a".repeat(65))).toBeUndefined();
-  });
-
-  it("has nothing to reuse when the header is absent or empty", () => {
-    expect(acceptRequestId(null)).toBeUndefined();
-    expect(acceptRequestId("")).toBeUndefined();
-  });
-});
+import { newRequestId, requestIdOf } from "../request-id";
 
 describe("requestIdOf", () => {
   it("reads the id this app minted off an oRPC error payload", () => {
@@ -49,5 +28,14 @@ describe("requestIdOf", () => {
     expect(requestIdOf({ digest: "" })).toBeUndefined();
     expect(requestIdOf("not an object")).toBeUndefined();
     expect(requestIdOf(null)).toBeUndefined();
+  });
+});
+
+describe("newRequestId", () => {
+  // Honouring an inbound x-request-id would correlate a trace across hops, but
+  // nothing trusted sits in front of this app, so it would only let a caller
+  // pin or collide with someone else's id.
+  it("mints a fresh id every time rather than trusting a caller", () => {
+    expect(newRequestId()).not.toBe(newRequestId());
   });
 });

@@ -3,10 +3,17 @@
  * wrote about it are the same event.
  *
  * An id is only worth carrying if it survives the whole path, so it is minted
- * once at the RPC entry point and then never re-derived: the RPC route puts it
- * in the response header, `loggingMiddleware` attaches it to the error payload
- * the client renders, and the handler's `onError` logs it. An id generated on
- * the client, or a second one minted deeper in, would match nothing.
+ * once at the RPC entry point and then never re-derived. What that buys, exactly:
+ *
+ * - Every RPC response carries it as `x-request-id`.
+ * - Every RPC failure writes exactly one log line under it — including the two
+ *   that never reach a procedure, an unmatched path and a body the codec cannot
+ *   decode.
+ * - Every RPC failure a client can render carries it in the error payload, so
+ *   the id on the page and the id in the log are the same string.
+ *
+ * The one gap left is a 404 for an unmatched path: its body is plain text, not
+ * an error a page renders, so the id is in the header and the log only.
  *
  * Client-safe on purpose — the error routes and the error boundary all have to
  * read it back off an error object.
@@ -15,21 +22,16 @@
 export const REQUEST_ID_HEADER = "x-request-id";
 
 /**
- * Ids are echoed into logs and into a page, so an id that came in over the wire
- * is only reused when it is short and boring. Anything else is replaced rather
- * than rejected: a malformed header from a proxy is not the caller's problem.
+ * Always minted here, never taken from the request.
+ *
+ * Reusing an inbound `x-request-id` would correlate a trace across hops, which
+ * is worth having — but only from a proxy you trust. Nothing sits in front of
+ * this app that sets one, so honouring the header would let any caller choose
+ * its own id, and so pin one, collide with another's, or replay a third. A
+ * charset guard stops log injection but none of that.
  */
-const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
-
 export function newRequestId(): string {
   return crypto.randomUUID();
-}
-
-/** An inbound id from a proxy or load balancer, when it is safe to reuse. */
-export function acceptRequestId(
-  value: string | null | undefined,
-): string | undefined {
-  return value && REQUEST_ID_PATTERN.test(value) ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
