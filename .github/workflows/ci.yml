@@ -143,6 +143,10 @@ jobs:
         run: |
           psql -X "$DATABASE_URL" -f scripts/schema-catalog.sql > migrated.txt
           psql -X "$PUSHED_URL" -f scripts/schema-catalog.sql > pushed.txt
+          # Two empty dumps diff clean. Prove the dump saw a schema at all
+          # before believing that the two agree about it.
+          grep -q 'vocab_items' migrated.txt
+          grep -q 'vocab_items' pushed.txt
           diff -u pushed.txt migrated.txt
 
   e2e:
