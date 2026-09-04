@@ -126,7 +126,9 @@ The baseline was generated from `schema.ts`, not read out of any database, so it
 describes what the schema file says. If the schema was ever pushed straight
 into production from a working copy that differed, the two can disagree — and the
 whole cutover assumes they do not. Build a reference database from the migration
-and compare the two catalogs. Nothing here writes to the remote database.
+and compare the two catalogs. `$DATABASE_URL` below is the remote database,
+as Doppler sets it; the reference one is passed inline. Nothing here writes to
+the remote database.
 
 ```bash
 # 1. A local reference database with nothing in it but the migration.
@@ -149,7 +151,7 @@ SQL
 
 docker compose -f development/docker-compose.yaml exec -T postgres \
   psql -U postgres -d migrate_reference -f - < /tmp/catalog.sql > /tmp/expected.txt
-psql "$PRODUCTION_DATABASE_URL" -f /tmp/catalog.sql > /tmp/actual.txt
+psql "$DATABASE_URL" -f /tmp/catalog.sql > /tmp/actual.txt
 
 diff -u /tmp/expected.txt /tmp/actual.txt
 ```
