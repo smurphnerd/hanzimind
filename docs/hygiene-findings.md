@@ -102,10 +102,14 @@ Rows 32 and 33 are not the hunt's. P2-FOUND's verdict swarm found them on trunk 
 that PR. Row 33 is fixed in the same PR, because it belongs in the `safeCallbackUrl` that PR had
 just written and given a test file. Row 32 is left for the auth surface's owner.
 
-Row 21 moved to P4-AUTH rather than closing in P2-FOUND. The fix already exists on that branch,
-which awaits the verification send, logs the failure and rethrows instead of dropping it, so a
-second one would be duplicate work. It stays open because trunk still carries the bug and there
-is no merged SHA to cite.
+Row 21 moved to P4-AUTH rather than closing in P2-FOUND, and is half done there. The verification
+send is awaited and a failure is logged with the address and the kind, so the unhandled rejection
+is gone, but better-auth runs every sender through `runInBackgroundOrAwait` and swallows the
+rethrow, so the endpoint still answers 200 and a visitor whose email failed is still told it was
+sent. That is the original defect, unchanged, which is why the row stays open: on its user-visible
+half rather than on any bookkeeping. The sign-up card's `Resend email` button is the learner's way
+back and does report its own failure. Closing the row needs the endpoint to report the send, which
+is a better-auth behaviour change rather than a configuration one.
 
 Row 30 is one defect recorded from both ends. P2-CLIENT saw the symptom, React #418 on a
 dictionary entry that has a memory aid; P2-FOUND's swarm traced the cause, a server render that
