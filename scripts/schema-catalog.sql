@@ -16,6 +16,10 @@
 -- unprotected. Several sections are empty against today's schema; that is the
 -- point of having them.
 
+-- Without this a broken query here would fail identically against both
+-- databases, the diff would still be empty, and the check would pass while
+-- proving nothing. psql continues past errors by default.
+\set ON_ERROR_STOP on
 \pset pager off
 \pset footer off
 
