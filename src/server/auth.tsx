@@ -176,8 +176,18 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
               clearAccountData(tx, user.id, deps.logger),
             );
           } catch (error) {
+            // Named `err`, because pino only serialises an Error under that
+            // key and `{ error }` reached the log as `{}` — which threw away
+            // the one sentence saying which reference survived, on a refusal
+            // the learner is deliberately told nothing specific about. The
+            // message is repeated as a plain string so it cannot vanish again
+            // behind a serialiser setting.
             deps.logger.error(
-              { error, userId: user.id },
+              {
+                err: error,
+                reason: error instanceof Error ? error.message : String(error),
+                userId: user.id,
+              },
               "Rolled back an account deletion: the account was not fully released",
             );
             throw new APIError("INTERNAL_SERVER_ERROR", {

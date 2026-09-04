@@ -213,17 +213,27 @@ describe("buildAuthOptions", () => {
     select: () => ({
       from: () => ({ where: async () => [{ id: "deck-1" }] }),
     }),
-    execute: async (query: { queryChunks: { value?: unknown }[] }) => {
-      const text = query.queryChunks
-        .map((chunk) => String(chunk.value ?? chunk))
-        .join(" ");
+    execute: async (query: unknown) => {
+      const render = (chunk: unknown): string => {
+        const nested = (chunk as { queryChunks?: unknown[] }).queryChunks;
+        if (nested) return nested.map(render).join(" ");
+        const value = (chunk as { value?: unknown }).value;
+        if (Array.isArray(value)) return value.join("");
+        return value === undefined ? String(chunk) : String(value);
+      };
+      const text = render(query);
+      if (text.includes("current_schema()"))
+        return { rows: [{ name: "public" }] };
       return text.includes("pg_constraint")
         ? {
             rows: [
               {
                 name: "decks_created_by_id_fk",
+                child_schema: "public",
                 child_table: "decks",
                 child_columns: ["created_by_id"],
+                child_refuses_null: false,
+                parent_schema: "public",
                 parent_table: "users",
                 parent_columns: ["id"],
                 on_delete: "r",

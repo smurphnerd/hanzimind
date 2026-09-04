@@ -8,6 +8,7 @@ import {
   clearedTables,
   coverage,
   schemaReferences,
+  type Action,
   type DatabaseKey,
   type Executor,
 } from "../account-deletion";
@@ -94,45 +95,65 @@ describe("coverage", () => {
  * The post-condition asks Postgres what still points at the account, so a test
  * of it is a test of what it does with the answers. The fake below is a
  * database that gives fixed ones: a foreign-key catalogue, and a count per
- * table.
+ * child table.
  */
-const render = (query: SQL) =>
-  (query as unknown as { queryChunks: unknown[] }).queryChunks
-    .map((chunk) => {
-      const value = (chunk as { value?: unknown }).value;
-      if (Array.isArray(value)) return value.join("");
-      return value === undefined ? String(chunk) : String(value);
-    })
-    .join(" ");
+function render(query: unknown): string {
+  const chunks = (query as { queryChunks?: unknown[] }).queryChunks;
+  if (chunks) return chunks.map(render).join(" ");
+  const value = (query as { value?: unknown }).value;
+  if (Array.isArray(value)) return value.join("");
+  return value === undefined ? String(query) : String(value);
+}
+
+const CHARS: Record<Action, string> = {
+  "no-action": "a",
+  restrict: "r",
+  cascade: "c",
+  "set-null": "n",
+  "set-default": "d",
+};
 
 const key = (over: Partial<DatabaseKey>): DatabaseKey => ({
-  name: `${over.table}_fk`,
+  name: `${over.table ?? "decks"}_fk`,
+  schema: "public",
   table: "decks",
   columns: ["created_by_id"],
+  parentSchema: "public",
   parentTable: "users",
   parentColumns: ["id"],
-  blocks: true,
-  cascades: false,
+  onDelete: "restrict",
+  refusesNull: false,
   ...over,
 });
 
-function fakeDatabase(keys: DatabaseKey[], counts: Record<string, number>) {
+function fakeDatabase(
+  keys: DatabaseKey[],
+  counts: Record<string, number>,
+  onDelete: Record<string, string> = {},
+) {
   return {
     execute: async (query: SQL) => {
       const text = render(query);
+      if (text.includes("current_schema()"))
+        return { rows: [{ name: "public" }] };
       if (text.includes("pg_constraint")) {
         return {
           rows: keys.map((k) => ({
             name: k.name,
+            child_schema: k.schema,
             child_table: k.table,
             child_columns: k.columns,
+            child_refuses_null: k.refusesNull,
+            parent_schema: k.parentSchema,
             parent_table: k.parentTable,
             parent_columns: k.parentColumns,
-            on_delete: k.cascades ? "c" : k.blocks ? "r" : "n",
+            on_delete: onDelete[k.name] ?? CHARS[k.onDelete],
           })),
         };
       }
-      const table = keys.find((k) => text.includes(k.table))?.table ?? "";
+      // The child table is the one named before the join, so read only that far.
+      const child = text.split(" join ")[0]!;
+      const table = keys.find((k) => child.includes(k.table))?.table ?? "";
       const remaining = counts[table] ?? 0;
       if (text.includes("distinct")) {
         return {
@@ -163,20 +184,18 @@ describe("assertAccountReleased", () => {
   it("names the table and column that still points at the account", async () => {
     const database = fakeDatabase([key({ table: "decks" })], { decks: 2 });
     await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
-      /decks\.created_by_id \(2\)/,
+      /public\.decks\.created_by_id \(2\)/,
     );
   });
 
   // The point of the whole exercise. The steps say they clear user_decks, and
-  // four rounds of review each defeated a check that believed such a claim.
+  // five rounds of review each defeated a check that believed such a claim.
   // This one never reads them, so a step that declares a column its query does
   // not cover stops the deletion instead of stranding the learner.
   it("throws for a leftover the steps claim to cover", async () => {
     const database = fakeDatabase(
       [key({ table: "user_decks", columns: ["user_id"] })],
-      {
-        user_decks: 1,
-      },
+      { user_decks: 1 },
     );
     expect(coverage()["user_decks.user_id"]).toBe("delete");
     await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
@@ -186,14 +205,7 @@ describe("assertAccountReleased", () => {
 
   it("lets a cascading reference stand, because Postgres removes it too", async () => {
     const database = fakeDatabase(
-      [
-        key({
-          table: "sessions",
-          columns: ["user_id"],
-          blocks: false,
-          cascades: true,
-        }),
-      ],
+      [key({ table: "sessions", columns: ["user_id"], onDelete: "cascade" })],
       { sessions: 3 },
     );
     await expect(
@@ -204,12 +216,7 @@ describe("assertAccountReleased", () => {
   it("walks past a cascading child to whatever points at that", async () => {
     const database = fakeDatabase(
       [
-        key({
-          table: "sessions",
-          columns: ["user_id"],
-          blocks: false,
-          cascades: true,
-        }),
+        key({ table: "sessions", columns: ["user_id"], onDelete: "cascade" }),
         key({
           name: "device_tokens_fk",
           table: "device_tokens",
@@ -225,31 +232,117 @@ describe("assertAccountReleased", () => {
     );
   });
 
-  it("refuses rather than skip a key it cannot check", async () => {
+  // The fifth review's second defeat. Postgres accepts `on delete set null`
+  // onto a column declared not null and fails only when the delete runs, so
+  // the rewrite is checked rather than assumed.
+  it("refuses a set null onto a column that refuses one", async () => {
     const database = fakeDatabase(
       [
         key({
-          name: "pair_fk",
-          table: "pairs",
-          columns: ["user_id", "deck_id"],
+          table: "probe_setnull",
+          columns: ["uid"],
+          onDelete: "set-null",
+          refusesNull: true,
         }),
       ],
-      {},
+      { probe_setnull: 1 },
     );
     await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
-      /cannot verify pair_fk/,
+      /set null onto a column that refuses one/,
     );
+  });
+
+  it("lets a set null onto a nullable column stand", async () => {
+    const database = fakeDatabase(
+      [key({ table: "notes", columns: ["uid"], onDelete: "set-null" })],
+      { notes: 4 },
+    );
+    await expect(
+      assertAccountReleased(database, "learner"),
+    ).resolves.toBeUndefined();
+  });
+
+  // Whether the default satisfies the key depends on a row this cannot see.
+  it("refuses a set default it cannot show will satisfy the key", async () => {
+    const database = fakeDatabase(
+      [key({ table: "audits", columns: ["uid"], onDelete: "set-default" })],
+      { audits: 1 },
+    );
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /set default/,
+    );
+  });
+
+  // Default-deny, the rule both defeats came down to: an action this does not
+  // recognise stops the deletion rather than falling off the end of the switch.
+  it("refuses an action it does not recognise", async () => {
+    const database = fakeDatabase(
+      [key({ name: "future_fk", table: "future", columns: ["uid"] })],
+      {},
+      { future_fk: "z" },
+    );
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /does not know what Postgres does to future_fk/,
+    );
+  });
+
+  // The fifth review's first defeat: the catalogue used to be filtered to the
+  // application's own schema, and a child anywhere in the database still blocks
+  // the parent delete.
+  it("sees a child table in another schema", async () => {
+    const database = fakeDatabase(
+      [
+        key({
+          name: "receipts_fk",
+          schema: "probe_audit",
+          table: "receipts",
+          columns: ["uid"],
+        }),
+      ],
+      { receipts: 1 },
+    );
+    await expect(assertAccountReleased(database, "learner")).rejects.toThrow(
+      /probe_audit\.receipts\.uid/,
+    );
+  });
+
+  // Refusing on sight failed every deletion in the database over a key nothing
+  // referenced, so a composite key is evaluated through its own columns.
+  it("evaluates a composite key rather than refusing it on sight", async () => {
+    const keys = [
+      key({
+        name: "pairs_fk",
+        table: "pairs",
+        columns: ["user_id", "user_email"],
+        parentColumns: ["id", "email"],
+      }),
+    ];
+    await expect(
+      assertAccountReleased(fakeDatabase(keys, {}), "learner"),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertAccountReleased(fakeDatabase(keys, { pairs: 1 }), "learner"),
+    ).rejects.toThrow(/pairs\.user_id,user_email \(1\)/);
   });
 
   it("says so when the database enforces a key the schema list does not name", async () => {
     const warnings: object[] = [];
     const database = fakeDatabase(
-      [key({ name: "invoices_fk", table: "invoices", columns: ["user_id"] })],
+      [
+        key({
+          name: "receipts_fk",
+          schema: "probe_audit",
+          table: "receipts",
+          columns: ["uid"],
+        }),
+      ],
       {},
     );
     await assertAccountReleased(database, "learner", {
       warn: (data) => warnings.push(data),
     });
-    expect(warnings[0]).toMatchObject({ missing: ["invoices.user_id"] });
+    expect(warnings[0]).toMatchObject({
+      missing: ["probe_audit.receipts.uid"],
+    });
   });
 });

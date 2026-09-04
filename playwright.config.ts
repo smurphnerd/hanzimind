@@ -47,6 +47,9 @@ export default defineConfig({
       use: { storageState: LEARNER_STATE },
     },
     { name: "public", testMatch: /dictionary-.*\.spec\.ts/ },
+    // Node-side, no browser: the deletion post-condition against the lane's
+    // real Postgres, which is the only place its catalogue query is exercised.
+    { name: "database", testMatch: /\.db\.spec\.ts/ },
     {
       name: "adhoc",
       testMatch: /\.adhoc\.spec\.ts/,

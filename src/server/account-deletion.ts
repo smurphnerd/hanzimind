@@ -240,34 +240,64 @@ export type Executor = {
 /** Somewhere to say that the database and the schema file disagree. */
 type Log = { warn: (data: object, message: string) => void };
 
+/** What Postgres does to the child row when the parent row goes. */
+export type Action =
+  | "no-action"
+  | "restrict"
+  | "cascade"
+  | "set-null"
+  | "set-default";
+
+const ACTIONS: Record<string, Action> = {
+  a: "no-action",
+  r: "restrict",
+  c: "cascade",
+  n: "set-null",
+  d: "set-default",
+};
+
 /** A foreign key as Postgres holds it, not as the schema file describes it. */
 export type DatabaseKey = {
   name: string;
+  schema: string;
   table: string;
   columns: string[];
+  parentSchema: string;
   parentTable: string;
   parentColumns: string[];
-  /** Postgres refuses the parent delete rather than fixing this child. */
-  blocks: boolean;
-  /** Postgres deletes this child along with its parent. */
-  cascades: boolean;
+  onDelete: Action;
+  /**
+   * Whether a column of this key refuses a null, which is what turns a
+   * `set null` rewrite into a failed parent delete.
+   */
+  refusesNull: boolean;
 };
 
 /**
- * Every foreign key the live database is actually enforcing. The schema file is
- * a second-hand account of this, and the post-condition below has to be free of
- * whatever the schema file, or the steps, failed to notice.
+ * Every foreign key the live database is actually enforcing, in every schema.
+ *
+ * Not restricted to the application's own schema: a child table anywhere in the
+ * database still blocks the parent delete, and a key this query does not return
+ * is a key the walk below cannot refuse. That filter was one of the two ways the
+ * fifth review reproduced the lockout.
  */
 export async function databaseKeys(db: Executor): Promise<DatabaseKey[]> {
   const result = await db.execute(sql`
     select
       c.conname as name,
+      childspace.nspname as child_schema,
       child.relname as child_table,
       (
         select array_agg(a.attname::text order by k.ord)
         from unnest(c.conkey) with ordinality k(attnum, ord)
         join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
       ) as child_columns,
+      (
+        select bool_or(a.attnotnull)
+        from unnest(c.conkey) k(attnum)
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+      ) as child_refuses_null,
+      parentspace.nspname as parent_schema,
       parent.relname as parent_table,
       (
         select array_agg(a.attname::text order by k.ord)
@@ -277,22 +307,37 @@ export async function databaseKeys(db: Executor): Promise<DatabaseKey[]> {
       c.confdeltype as on_delete
     from pg_constraint c
     join pg_class child on child.oid = c.conrelid
+    join pg_namespace childspace on childspace.oid = child.relnamespace
     join pg_class parent on parent.oid = c.confrelid
-    join pg_namespace space on space.oid = child.relnamespace
-    where c.contype = 'f' and space.nspname = current_schema()
-    order by child.relname, c.conname
+    join pg_namespace parentspace on parentspace.oid = parent.relnamespace
+    where c.contype = 'f'
+    order by childspace.nspname, child.relname, c.conname
   `);
   return result.rows.map((row) => {
-    // 'c' cascades and 'n'/'d' rewrite the child; 'a' and 'r' refuse the delete.
-    const onDelete = String(row.on_delete);
+    const action = ACTIONS[String(row.on_delete)];
+    // An action nobody here has heard of is not a licence to ignore the key.
+    if (!action) {
+      throw new Error(
+        `Account deletion does not know what Postgres does to ${String(row.name)} on delete (${String(row.on_delete)}), so it will not proceed.`,
+      );
+    }
+    const columns = columnList(row.child_columns, row.name);
+    const parentColumns = columnList(row.parent_columns, row.name);
+    if (columns.length === 0 || columns.length !== parentColumns.length) {
+      throw new Error(
+        `Account deletion could not pair the columns of ${String(row.name)}, so it will not proceed.`,
+      );
+    }
     return {
       name: String(row.name),
+      schema: String(row.child_schema),
       table: String(row.child_table),
-      columns: columnList(row.child_columns, row.name),
+      columns,
+      parentSchema: String(row.parent_schema),
       parentTable: String(row.parent_table),
-      parentColumns: columnList(row.parent_columns, row.name),
-      blocks: onDelete === "a" || onDelete === "r",
-      cascades: onDelete === "c",
+      parentColumns,
+      onDelete: action,
+      refusesNull: row.child_refuses_null === true,
     };
   });
 }
@@ -313,24 +358,36 @@ function columnList(value: unknown, name: unknown): string[] {
 }
 
 /** Rows that are about to disappear, named by one of their columns. */
-type Doomed = { table: string; column: string; values: string[] };
+type Doomed = {
+  schema: string;
+  table: string;
+  column: string;
+  values: string[];
+};
 
 const HOPS = 10;
+
+const name = (key: DatabaseKey) =>
+  `${key.schema}.${key.table}.${key.columns.join(",")}`;
 
 /**
  * Refuses to let the transaction commit unless the account really is free of
  * every reference the database enforces.
  *
- * This is the guard the list of steps cannot be. Four reviews each closed one
- * gap in that list and each was defeated by the next, because a list is a claim
- * about which references were considered and the harm depends on which ones
- * survive. So this asks the second question, and asks it of Postgres: walk out
- * from the account's own row along the keys the database is enforcing, and if
- * anything still points at a row that is about to go, throw. The transaction
- * rolls back, better-auth never reaches the learner's sessions or credentials,
- * and they keep both their data and their way in.
+ * This is the guard the list of steps cannot be. Five reviews defeated that
+ * list, because a list is a claim about which references were CONSIDERED and
+ * the harm depends on which ones SURVIVE. So this asks the second question, and
+ * asks it of Postgres: walk out from the account's own row along the keys the
+ * database is enforcing, and if anything still points at a row that is about to
+ * go, throw. The transaction rolls back, better-auth never reaches the
+ * learner's sessions or credentials, and they keep both their data and their
+ * way in.
  *
- * It cannot inherit the steps' blind spot, because it never reads them.
+ * The rule underneath every branch below is that a reference this cannot
+ * positively prove harmless refuses the deletion. Refusing costs a learner one
+ * retry; being wrong the other way leaves them locked out of an account that
+ * still holds all their data. Both times this was defeated, the cause was the
+ * same: a key the model could not classify was skipped instead of refused.
  */
 export async function assertAccountReleased(
   db: Executor,
@@ -338,36 +395,56 @@ export async function assertAccountReleased(
   log?: Log,
 ) {
   const keys = await databaseKeys(db);
-  reportDisagreement(keys, log);
+  const home = await currentSchema(db);
+  reportDisagreement(keys, home, log);
 
   const leftovers: string[] = [];
-  let frontier: Doomed[] = [{ table: "users", column: "id", values: [userId] }];
+  let frontier: Doomed[] = [
+    { schema: home, table: "users", column: "id", values: [userId] },
+  ];
   for (let hop = 0; hop < HOPS && frontier.length > 0; hop++) {
     const next: Doomed[] = [];
     for (const doomed of frontier) {
-      for (const key of keys.filter((k) => k.parentTable === doomed.table)) {
-        // A composite key, or one onto some other unique column, cannot be
-        // checked against a set of single-column values. Refusing the deletion
-        // is the only honest answer: the alternative is a silent blind spot,
-        // which is the thing this function exists to end.
-        if (
-          key.columns.length !== 1 ||
-          key.parentColumns.length !== 1 ||
-          key.parentColumns[0] !== doomed.column
-        ) {
-          throw new Error(
-            `Account deletion cannot verify ${key.name} (${key.table}.${key.columns.join(",")} -> ${key.parentTable}.${key.parentColumns.join(",")}), so it will not proceed.`,
-          );
-        }
-        const remaining = await countReferencing(db, key, doomed.values);
+      const inbound = keys.filter(
+        (key) =>
+          key.parentSchema === doomed.schema &&
+          key.parentTable === doomed.table,
+      );
+      for (const key of inbound) {
+        const remaining = await countReferencing(db, key, doomed);
         if (remaining === 0) continue;
-        if (key.blocks) {
-          leftovers.push(`${key.table}.${key.columns[0]} (${remaining})`);
-          continue;
+        switch (key.onDelete) {
+          case "no-action":
+          case "restrict":
+            leftovers.push(`${name(key)} (${remaining})`);
+            break;
+          case "set-null":
+            // Postgres accepts `on delete set null` onto a column declared not
+            // null and fails only at delete time, so the rewrite has to be
+            // checked rather than assumed.
+            if (key.refusesNull) {
+              leftovers.push(
+                `${name(key)} (${remaining}, set null onto a column that refuses one)`,
+              );
+            }
+            break;
+          case "set-default":
+            // Whether the default satisfies the key depends on a row existing
+            // that this cannot see, so it is refused rather than assumed.
+            leftovers.push(
+              `${name(key)} (${remaining}, set default, which cannot be shown to satisfy the key)`,
+            );
+            break;
+          case "cascade":
+            next.push(...(await behind(db, keys, key, doomed)));
+            break;
+          default: {
+            const unreachable: never = key.onDelete;
+            throw new Error(
+              `Account deletion does not handle ${String(unreachable)} on ${key.name}, so it will not proceed.`,
+            );
+          }
         }
-        // A cascading child goes too, so whatever points at it is equally
-        // doomed and has to be walked in turn.
-        if (key.cascades) next.push(...(await behind(db, keys, key, doomed)));
       }
     }
     frontier = next;
@@ -384,6 +461,14 @@ export async function assertAccountReleased(
   }
 }
 
+async function currentSchema(db: Executor) {
+  const result = await db.execute(sql`select current_schema() as name`);
+  return String(result.rows[0]?.name ?? "public");
+}
+
+const qualified = (schema: string, table: string) =>
+  sql`${sql.identifier(schema)}.${sql.identifier(table)}`;
+
 /**
  * One bound parameter per value. Drizzle binds a JS array as a single one,
  * which Postgres then tries to read as an array literal.
@@ -394,17 +479,42 @@ const valueList = (values: string[]) =>
     sql`, `,
   );
 
+/**
+ * The doomed rows joined to the rows referencing them, through whatever columns
+ * the key is actually built on. Joining rather than comparing one column is what
+ * lets a composite key, or one onto a column other than the primary key, be
+ * evaluated instead of refused on sight — the earlier blanket refusal would have
+ * failed every deletion in the database over a key nothing referenced.
+ */
+function rowsReferencing(key: DatabaseKey, doomed: Doomed) {
+  const pairs = sql.join(
+    key.columns.map(
+      (column, index) =>
+        sql`child.${sql.identifier(column)} = parent.${sql.identifier(key.parentColumns[index]!)}`,
+    ),
+    sql` and `,
+  );
+  // A row pointing at itself goes with the row, so it is not a leftover.
+  const itself =
+    key.schema === doomed.schema && key.table === doomed.table
+      ? sql` and child.${sql.identifier(doomed.column)} not in (${valueList(doomed.values)})`
+      : sql.empty();
+  return sql`
+    from ${qualified(key.schema, key.table)} child
+    join ${qualified(key.parentSchema, key.parentTable)} parent on ${pairs}
+    where parent.${sql.identifier(doomed.column)} in (${valueList(doomed.values)})${itself}
+  `;
+}
+
 async function countReferencing(
   db: Executor,
   key: DatabaseKey,
-  values: string[],
+  doomed: Doomed,
 ) {
-  if (values.length === 0) return 0;
-  const result = await db.execute(sql`
-    select count(*)::int as count
-    from ${sql.identifier(key.table)}
-    where ${sql.identifier(key.columns[0])} in (${valueList(values)})
-  `);
+  if (doomed.values.length === 0) return 0;
+  const result = await db.execute(
+    sql`select count(*)::int as count ${rowsReferencing(key, doomed)}`,
+  );
   return Number(result.rows[0]?.count ?? 0);
 }
 
@@ -418,38 +528,56 @@ async function behind(
   const referenced = [
     ...new Set(
       keys
-        .filter((k) => k.parentTable === key.table)
+        .filter(
+          (k) => k.parentSchema === key.schema && k.parentTable === key.table,
+        )
         .flatMap((k) => k.parentColumns),
     ),
   ];
   const found: Doomed[] = [];
   for (const column of referenced) {
-    const result = await db.execute(sql`
-      select distinct ${sql.identifier(column)} as value
-      from ${sql.identifier(key.table)}
-      where ${sql.identifier(key.columns[0])} in (${valueList(doomed.values)})
-    `);
-    const values = result.rows.map((row) => String(row.value));
-    if (values.length > 0) found.push({ table: key.table, column, values });
+    const result = await db.execute(
+      sql`select distinct child.${sql.identifier(column)} as value ${rowsReferencing(key, doomed)}`,
+    );
+    const values = result.rows
+      .map((row) => String(row.value))
+      .filter(
+        (value) =>
+          key.schema !== doomed.schema ||
+          key.table !== doomed.table ||
+          column !== doomed.column ||
+          !doomed.values.includes(value),
+      );
+    if (values.length > 0) {
+      found.push({ schema: key.schema, table: key.table, column, values });
+    }
   }
   return found;
 }
 
 /**
  * The schema-derived list and the database can disagree — a key added by a
- * migration, or dropped by one. Say so, and say which of them is in charge: the
- * post-condition reads the database, so the database governs and the list is
- * what needs fixing.
+ * migration, or dropped by one, or one in a schema the file has never heard of.
+ * Say so, and say which of them is in charge: the post-condition reads the
+ * database, so the database governs and the list is what needs fixing.
  */
-function reportDisagreement(keys: DatabaseKey[], log?: Log) {
+function reportDisagreement(keys: DatabaseKey[], home: string, log?: Log) {
   if (!log) return;
   const cleared = clearedTables();
+  const blocks = (key: DatabaseKey) => key.onDelete !== "cascade";
   const live = keys
-    .filter((key) => key.blocks && cleared.includes(key.parentTable))
-    .map((key) => `${key.table}.${key.columns.join(",")}`);
+    .filter(
+      (key) =>
+        blocks(key) &&
+        key.parentSchema === home &&
+        cleared.includes(key.parentTable),
+    )
+    .map((key) =>
+      key.schema === home ? `${key.table}.${key.columns.join(",")}` : name(key),
+    );
   const listed = blockingReferences().map((reference) => reference.from);
-  const missing = live.filter((name) => !listed.includes(name));
-  const stale = listed.filter((name) => !live.includes(name));
+  const missing = live.filter((entry) => !listed.includes(entry));
+  const stale = listed.filter((entry) => !live.includes(entry));
   if (missing.length === 0 && stale.length === 0) return;
   log.warn(
     { missing, stale },
