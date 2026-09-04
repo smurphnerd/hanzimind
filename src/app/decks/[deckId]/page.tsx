@@ -31,6 +31,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -49,7 +50,7 @@ import { useHydrated } from "@/lib/use-hydrated";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
 import { DeckGraphPanel } from "@/components/deck-graph-panel";
 import {
-  SegmentedToggle,
+  SegmentedTabsList,
   type SegmentedOption,
 } from "@/components/segmented-toggle";
 import { EmptyState } from "@/components/empty-state";
@@ -230,6 +231,24 @@ function GlyphGroup({
   );
 }
 
+function ContentsHeading({ showingGraph }: { showingGraph: boolean }) {
+  return (
+    <div>
+      <h2 className="font-display text-2xl font-bold tracking-tight">
+        What&apos;s inside
+      </h2>
+      {/* Constituents are always part of a deck, so say so: the counts here are
+          larger than the word list the deck was created from, and that is the
+          deck the learner actually gets. */}
+      <p className="text-sm text-muted-foreground">
+        {showingGraph
+          ? "How the deck is built: every part points at what it helps build."
+          : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
+      </p>
+    </div>
+  );
+}
+
 function DeckOverviewContent() {
   const params = useParams();
   const deckId = params.deckId as string;
@@ -353,54 +372,52 @@ function DeckOverviewContent() {
 
       <CompositionBar typeCounts={deck.typeCounts} className="mb-8" />
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">
-            What&apos;s inside
-          </h2>
-          {/* Constituents are always part of a deck, so say so: the counts here are
-              larger than the word list the deck was created from, and that is the
-              deck the learner actually gets. */}
-          <p className="text-sm text-muted-foreground">
-            {showingGraph
-              ? "How the deck is built: every part points at what it helps build."
-              : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
-          </p>
-        </div>
-        {groups.length > 0 && (
-          <SegmentedToggle
-            options={DECK_VIEWS}
-            value={view}
-            onChange={setView}
-            label="Deck view"
-          />
-        )}
-      </div>
-
+      {/* An empty deck has nothing to switch between, so it gets the heading
+          without a Tabs root — a tab panel with no tab to select it is as wrong
+          as the other way round. */}
       {groups.length === 0 ? (
-        <EmptyState
-          heading="This deck is empty"
-          description="Nothing has been added to it yet. Try another deck, or create your own."
-          action={
-            <Button asChild variant="outline">
-              <Link href="/decks">Browse decks</Link>
-            </Button>
-          }
-        />
-      ) : showingGraph ? (
-        <DeckGraphPanel deckId={deckId} />
+        <>
+          <ContentsHeading showingGraph={false} />
+          <EmptyState
+            heading="This deck is empty"
+            description="Nothing has been added to it yet. Try another deck, or create your own."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/decks">Browse decks</Link>
+              </Button>
+            }
+          />
+        </>
       ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <GlyphGroup
-              key={group.type}
-              type={group.type}
-              label={group.label}
-              previewLimit={group.previewLimit}
-              items={group.items}
-            />
-          ))}
-        </div>
+        <Tabs
+          value={view}
+          onValueChange={(next) => setView(next as DeckView)}
+          // The children carry their own margins; the root is here to hold the
+          // selected value, not to lay anything out.
+          className="gap-0"
+        >
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <ContentsHeading showingGraph={showingGraph} />
+            <SegmentedTabsList options={DECK_VIEWS} label="Deck view" />
+          </div>
+
+          {/* flex-none over TabsContent's own flex-1: these panels size to their
+              content inside a page column, not to a share of it. */}
+          <TabsContent value="graph" className="flex-none">
+            <DeckGraphPanel deckId={deckId} />
+          </TabsContent>
+          <TabsContent value="standard" className="flex-none space-y-6">
+            {groups.map((group) => (
+              <GlyphGroup
+                key={group.type}
+                type={group.type}
+                label={group.label}
+                previewLimit={group.previewLimit}
+                items={group.items}
+              />
+            ))}
+          </TabsContent>
+        </Tabs>
       )}
 
       <DeckSettingsDialog

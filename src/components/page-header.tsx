@@ -1,9 +1,13 @@
 import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
-  /** The h1 text. Named `heading`, not `title`, so that a `title=` anywhere
-      outside `components/ui` is unambiguously the HTML tooltip attribute the
-      app no longer uses — which is what makes the grep for it a real check. */
+  /**
+   * The h1 text. Named `heading` rather than `title` so that the HTML attribute
+   * of that name means exactly one thing wherever it still appears outside
+   * `components/ui` — a mouse-only hover hint, which this app has replaced with
+   * `ui/tooltip`. Grepping for it is then a real check rather than a list to
+   * re-triage by hand.
+   */
   heading: React.ReactNode;
   description?: React.ReactNode;
   /** Rendered on the right on desktop, below the title on mobile. */

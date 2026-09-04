@@ -34,7 +34,7 @@ function depthOptions(maxLevel: number): SegmentedOption<number>[] {
     return {
       value: depth,
       label: depth === total ? "All" : String(depth),
-      title:
+      hint:
         depth === total
           ? `All ${total} levels`
           : `First ${depth} of ${total} levels`,
