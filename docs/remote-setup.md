@@ -138,32 +138,39 @@ docker compose -f development/docker-compose.yaml exec -T postgres \
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/migrate_reference \
   pnpm exec tsx src/server/database/migrate.ts
 
-# 2. The same three catalog queries against each. Save them side by side.
-cat > /tmp/catalog.sql <<'SQL'
-\pset pager off
-select table_name, column_name, data_type, is_nullable, column_default
-  from information_schema.columns where table_schema = 'public' order by 1, 2;
-select conrelid::regclass::text as tbl, conname, pg_get_constraintdef(oid)
-  from pg_constraint where connamespace = 'public'::regnamespace order by 1, 2;
-select tablename, indexname, indexdef
-  from pg_indexes where schemaname = 'public' order by 1, 2;
-SQL
-
+# 2. The same catalog dump from each. Save them side by side.
 docker compose -f development/docker-compose.yaml exec -T postgres \
-  psql -U postgres -d migrate_reference -f - < /tmp/catalog.sql > /tmp/expected.txt
-psql "$DATABASE_URL" -f /tmp/catalog.sql > /tmp/actual.txt
+  psql -X -U postgres -d migrate_reference -f - \
+  < scripts/schema-catalog.sql > /tmp/expected.txt
+
+docker run --rm -i postgres:17-alpine \
+  psql -X "$DATABASE_URL" -f - \
+  < scripts/schema-catalog.sql > /tmp/actual.txt
 
 diff -u /tmp/expected.txt /tmp/actual.txt
 ```
 
-CI runs this same comparison between a push-built database and a migrated one
-on every commit, so the two tools are not the suspect here — a difference means
-something happened to this particular database. An empty diff means the baseline
-describes the remote database and the cutover below is safe. **Anything else is a finding, not a formality.** Read it before
-going on: a column production has and `schema.ts` does not means the schema was
-pushed from a branch that never merged, and marking the baseline applied would
-freeze that difference in place forever, invisible to every later migration.
-Reconcile it first — usually by correcting `schema.ts` and regenerating, so the
+Both halves go through a container on purpose: there is no `psql` on the
+machines this program runs on, and the remote database is not reachable from
+the compose network, so the local one is queried through `compose exec` and the
+remote one through a throwaway `postgres:17-alpine` client that can reach the
+internet. The image is already pulled — it is the one the compose file uses. If
+you do have `psql` on your path, `psql -X "$DATABASE_URL" -f
+scripts/schema-catalog.sql` is the same command.
+
+`scripts/schema-catalog.sql` asks for relations, columns, constraints, indexes,
+types, sequences, triggers, functions, comments and extensions. Several of those
+sections are empty against today's schema, which is deliberate: an earlier
+version asked only about columns, constraints and indexes, and a control that
+injected five deliberate differences let a new enum type through.
+
+An empty diff means the baseline describes the remote database and the cutover
+below is safe. **Anything else is a finding, not a formality**, and it is about
+this particular database rather than about the tools. Read it before going on: a
+column production has and `schema.ts` does not means the schema was pushed from
+a branch that never merged, and marking the baseline applied would freeze that
+difference in place forever, invisible to every later migration. Reconcile it
+first — usually by correcting `schema.ts` and regenerating, so the
 baseline describes what is really there.
 
 Drop the reference database when done:
@@ -172,6 +179,9 @@ Drop the reference database when done:
 docker compose -f development/docker-compose.yaml exec -T postgres \
   psql -U postgres -c 'drop database migrate_reference'
 ```
+
+CI runs this same file between a push-built database and a migrated one on
+every commit, which is why the tools are not the suspect here.
 
 ### 5b. Mark the baseline applied
 
@@ -199,7 +209,8 @@ missing tables are already there.
 Confirm the row, then apply anything after the baseline:
 
 ```bash
-psql "$DATABASE_URL" -c 'select * from drizzle.__drizzle_migrations'
+docker run --rm postgres:17-alpine \
+  psql "$DATABASE_URL" -c 'select * from drizzle.__drizzle_migrations'
 pnpm db:migrate
 ```
 
