@@ -717,7 +717,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 6. With cards at levels 0 and 2 both due, start a session. Save `rules-lower-level-first.png`. Pass when the level-0 card is served first.
 - [ ] Lane 7. Answer a listening card correctly. Save `rules-listening.png`. Pass when `listening_level` alone advances.
 - [ ] Lane 8. Answer a writing card with the wrong character. Save `rules-writing-wrong.png`. Pass when the result shows incorrect and the expected character.
-- [ ] Lane 9. Run 20 answers in a row and compare the sequence to a trunk lane seeded identically. Save `rules-sequence-parity.png`. Pass when the served order is identical.
+- [ ] Lane 9. Run 20 answers in a row and compare the sequence to a trunk lane seeded identically. Save `rules-sequence-parity.png`. Pass when the served order is identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
 - [ ] Lane 10. Run the e2e suite. Save `rules-e2e.png`. Pass when 3 passed.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
@@ -771,7 +771,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 6. Open the deck progress panel. Save `svc-progress.png`. Pass when counts match a `psql` query over `user_vocab_items`.
 - [ ] Lane 7. Submit an answer and watch the network tab. Save `svc-one-roundtrip.png`. Pass when one RPC call returns both the result and the next card.
 - [ ] Lane 8. Study a character gated on a component not yet known. Save `svc-gate.png`. Pass when the component is served before the character.
-- [ ] Lane 9. Run 20 answers and compare the served sequence to a trunk lane seeded identically. Save `svc-sequence-parity.png`. Pass when identical.
+- [ ] Lane 9. Run 20 answers and compare the served sequence to a trunk lane seeded identically. Save `svc-sequence-parity.png`. Pass when identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
 - [ ] Lane 10. Run the e2e suite. Save `svc-e2e.png`. Pass when 3 passed.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
@@ -1158,7 +1158,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 6. Open the deck graph with a depth cut. Save `progress-graph.png`. Pass when levels match trunk for the same deck.
 - [ ] Lane 7. Study 亻 with all types on. Save `progress-meaning-only.png`. Pass when only understanding rows exist for it.
 - [ ] Lane 8. Answer the same card from two tabs. Save `progress-race.png`. Pass when one row advanced once.
-- [ ] Lane 9. Run 20 answers and compare the served order to a trunk lane seeded identically. Save `progress-sequence-parity.png`. Pass when identical.
+- [ ] Lane 9. Run 20 answers and compare the served order to a trunk lane seeded identically. Save `progress-sequence-parity.png`. Pass when identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
 - [ ] Lane 10. Run the e2e suite. Save `progress-e2e.png`. Pass when 3 passed.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
@@ -1979,7 +1979,7 @@ P0-SEC. A better-auth minor bump can change cookie or session shape and sign eve
 
 P2-HUNT. Lanes may file duplicates or non-bugs. The reconcile step dedupes and each fix PR reproduces before fixing. A non-bug is closed with a reason in the findings file.
 
-P3-STUDY-SVC. The served-card order is the product. Lane 9 of P3-RULES and P3-STUDY-SVC compares 20-card sequences against a trunk lane seeded identically. A drift fails the PR.
+P3-STUDY-SVC. The served-card order is the product. Lane 9 of P3-RULES and P3-STUDY-SVC compares 20-card sequences against a trunk lane seeded identically, over a deck with no ties. A drift fails the PR.
 
 P4-MIGRATE. Marking the baseline applied on production is a one-way step. The operator runs it by hand from the doc after the review gate, on a Neon branch first.
 
