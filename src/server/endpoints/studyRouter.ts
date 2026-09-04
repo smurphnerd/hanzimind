@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
 import {
@@ -29,23 +28,16 @@ export const studyRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
 
-      try {
-        await context.cradle.studyService.addDeck({
-          userId,
-          deckId: input.deckId,
-          readingEnabled: input.readingEnabled,
-          listeningEnabled: input.listeningEnabled,
-          understandingEnabled: input.understandingEnabled,
-          writingEnabled: input.writingEnabled,
-        });
+      await context.cradle.studyService.addDeck({
+        userId,
+        deckId: input.deckId,
+        readingEnabled: input.readingEnabled,
+        listeningEnabled: input.listeningEnabled,
+        understandingEnabled: input.understandingEnabled,
+        writingEnabled: input.writingEnabled,
+      });
 
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message: "Failed to add deck to study list",
-          cause: error,
-        });
-      }
+      return { success: true };
     }),
 
   updateDeckSettings: authProcedure
@@ -60,23 +52,16 @@ export const studyRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
 
-      try {
-        await context.cradle.studyService.updateDeckSettings({
-          userId,
-          deckId: input.deckId,
-          readingEnabled: input.readingEnabled,
-          listeningEnabled: input.listeningEnabled,
-          understandingEnabled: input.understandingEnabled,
-          writingEnabled: input.writingEnabled,
-        });
+      await context.cradle.studyService.updateDeckSettings({
+        userId,
+        deckId: input.deckId,
+        readingEnabled: input.readingEnabled,
+        listeningEnabled: input.listeningEnabled,
+        understandingEnabled: input.understandingEnabled,
+        writingEnabled: input.writingEnabled,
+      });
 
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message: "Failed to update deck settings",
-          cause: error,
-        });
-      }
+      return { success: true };
     }),
 
   submitAnswer: authProcedure
@@ -117,20 +102,12 @@ export const studyRouter = {
     )
     .output(z.object({ success: z.boolean() }))
     .handler(async ({ input, context }) => {
-      try {
-        await context.cradle.studyService.addSynonym({
-          userId: context.user.id,
-          vocabItemId: input.vocabItemId,
-          synonym: input.synonym,
-        });
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error ? error.message : "Failed to add synonym",
-          cause: error,
-        });
-      }
+      await context.cradle.studyService.addSynonym({
+        userId: context.user.id,
+        vocabItemId: input.vocabItemId,
+        synonym: input.synonym,
+      });
+      return { success: true };
     }),
 
   deckProgress: authProcedure

@@ -24,23 +24,19 @@ export class SmtpEmailAdapter implements EmailAdapter {
   ) {}
 
   public async sendEmail(args: SendEmailArgs): Promise<string> {
-    try {
-      const emailTransporter = nodemailer.createTransport(
-        this.options.smtpConnectionUrl,
-      );
+    const emailTransporter = nodemailer.createTransport(
+      this.options.smtpConnectionUrl,
+    );
 
-      const { html, text } = await renderBody(args.body);
+    const { html, text } = await renderBody(args.body);
 
-      const result = await emailTransporter.sendMail({
-        ...args,
-        from: args.from,
-        html,
-        text,
-      });
-      return result.messageId;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to send email");
-    }
+    const result = await emailTransporter.sendMail({
+      ...args,
+      from: args.from,
+      html,
+      text,
+    });
+    return result.messageId;
   }
 }
 
@@ -52,30 +48,26 @@ export class SESEmailAdapter implements EmailAdapter {
   }
 
   public async sendEmail(args: SendEmailArgs): Promise<string> {
-    try {
-      const { html, text } = await renderBody(args.body);
-      const result = await this.client.send(
-        new SendEmailCommand({
-          Source: args.from,
-          Destination: {
-            ToAddresses: [args.to],
+    const { html, text } = await renderBody(args.body);
+    const result = await this.client.send(
+      new SendEmailCommand({
+        Source: args.from,
+        Destination: {
+          ToAddresses: [args.to],
+        },
+        Message: {
+          Subject: { Data: args.subject },
+          Body: {
+            Text: { Data: text },
+            Html: { Data: html },
           },
-          Message: {
-            Subject: { Data: args.subject },
-            Body: {
-              Text: { Data: text },
-              Html: { Data: html },
-            },
-          },
-        }),
-      );
-      if (!result.MessageId) {
-        throw new Error("Result does not have a message id");
-      }
-      return result.MessageId;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to send email");
+        },
+      }),
+    );
+    if (!result.MessageId) {
+      throw new Error("Result does not have a message id");
     }
+    return result.MessageId;
   }
 }
 

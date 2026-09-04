@@ -16,6 +16,7 @@ import type {
   DeckGraphDto,
   DeckTypeCountsDto,
 } from "@/definitions/definitions";
+import { NotFoundError } from "@/server/endpoints/errors";
 
 export class DeckService {
   constructor(
@@ -153,7 +154,7 @@ export class DeckService {
       .where(eq(schema.decks.id, deckId));
 
     if (!deck) {
-      throw new Error("Deck not found");
+      throw new NotFoundError("Deck not found");
     }
 
     const whereConditions = and(
@@ -207,6 +208,15 @@ export class DeckService {
    * a projection of the corpus.
    */
   async getDeckGraph(args: { deckId: string }): Promise<DeckGraphDto> {
+    const [deck] = await this.deps.database
+      .select({ id: schema.decks.id })
+      .from(schema.decks)
+      .where(eq(schema.decks.id, args.deckId));
+
+    if (!deck) {
+      throw new NotFoundError("Deck not found");
+    }
+
     const rows = await this.deps.database
       .select({
         vocabItem: schema.vocabItems.vocabItem,

@@ -1,5 +1,7 @@
 import { ORPCError } from "@orpc/client";
 import { os, ValidationError } from "@orpc/server";
+
+import { toORPCError } from "./errors";
 import type { ResponseHeadersPluginContext } from "@orpc/server/plugins";
 
 import type { Cradle } from "@/server/initialization";
@@ -30,7 +32,7 @@ const loggingMiddleware = baseProcedure.middleware(
         });
       }
       context.cradle.logger.error(error);
-      throw error;
+      throw toORPCError(error);
     }
   },
 );

@@ -38,26 +38,20 @@ export class S3StorageAdapter {
     contentLength: number;
     eTag: string;
   }> {
-    try {
-      const command = new HeadObjectCommand({
-        Bucket: this.opts.bucketName,
-        Key: filePath,
-      });
-      const response = await this.s3.send(command);
-      if (!response.ContentType || !response.ContentLength || !response.ETag) {
-        throw new Error("Failed to get metadata");
-      }
-
-      return {
-        contentType: response.ContentType,
-        contentLength: response.ContentLength,
-        eTag: response.ETag,
-      };
-    } catch (error) {
-      throw error instanceof Error
-        ? error
-        : new Error("Failed to get metadata");
+    const command = new HeadObjectCommand({
+      Bucket: this.opts.bucketName,
+      Key: filePath,
+    });
+    const response = await this.s3.send(command);
+    if (!response.ContentType || !response.ContentLength || !response.ETag) {
+      throw new Error("Failed to get metadata");
     }
+
+    return {
+      contentType: response.ContentType,
+      contentLength: response.ContentLength,
+      eTag: response.ETag,
+    };
   }
 
   public async getSignedDownloadUrl(args: {
@@ -112,46 +106,36 @@ export class S3StorageAdapter {
     buffer: Buffer,
     contentType?: string,
   ): Promise<string> {
-    try {
-      const command = new PutObjectCommand({
-        Bucket: this.opts.bucketName,
-        Key: key,
-        Body: buffer,
-        ContentType: contentType,
-      });
-      const response = await this.s3.send(command);
-      const etag = response.ETag;
-      if (!etag) {
-        throw new Error("Failed to retrieve ETag");
-      }
-      return etag;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to upload file");
+    const command = new PutObjectCommand({
+      Bucket: this.opts.bucketName,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    });
+    const response = await this.s3.send(command);
+    const etag = response.ETag;
+    if (!etag) {
+      throw new Error("Failed to retrieve ETag");
     }
+    return etag;
   }
 
   public async downloadFile(
     key: string,
     range?: { start: number; end?: number | undefined },
   ): Promise<Buffer> {
-    try {
-      const command = new GetObjectCommand({
-        Bucket: this.opts.bucketName,
-        Key: key,
-        Range: range
-          ? `bytes=${range.start.toString()}-${range.end?.toString() ?? ""}`
-          : undefined,
-      });
-      const response = await this.s3.send(command);
-      if (!response.Body) {
-        throw new Error("Failed to download file");
-      }
-      return Buffer.from(await response.Body.transformToByteArray());
-    } catch (error) {
-      throw error instanceof Error
-        ? error
-        : new Error("Failed to download file");
+    const command = new GetObjectCommand({
+      Bucket: this.opts.bucketName,
+      Key: key,
+      Range: range
+        ? `bytes=${range.start.toString()}-${range.end?.toString() ?? ""}`
+        : undefined,
+    });
+    const response = await this.s3.send(command);
+    if (!response.Body) {
+      throw new Error("Failed to download file");
     }
+    return Buffer.from(await response.Body.transformToByteArray());
   }
 
   public async listObjects(
