@@ -72,6 +72,64 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm build
 
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The e2e job already migrates, through the lane it boots, but it takes
+    # fifteen minutes to say so and reports a browser failure when the real
+    # fault is a table. This job answers the same question in under a minute,
+    # and it is the only place the adoption path an existing database takes is
+    # exercised at all.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 1s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - name: An empty database gets every migration
+        run: |
+          out=$(pnpm exec tsx src/server/database/migrate.ts)
+          echo "$out"
+          grep -q 'Applied 1 migration' <<<"$out"
+
+      - name: A second run applies nothing
+        run: |
+          out=$(pnpm exec tsx src/server/database/migrate.ts)
+          echo "$out"
+          grep -q 'applied 0 migrations' <<<"$out"
+
+      - name: Adopting a database that is already migrated does nothing
+        run: |
+          out=$(pnpm exec tsx src/server/database/migrate.ts --baseline)
+          echo "$out"
+          grep -q 'Nothing to adopt' <<<"$out"
+
+      - name: A database built the old way adopts the baseline and stays put
+        env:
+          PUSHED_URL: postgres://postgres:postgres@localhost:5432/pushed
+        run: |
+          psql "$DATABASE_URL" -c 'create database pushed'
+          DATABASE_URL="$PUSHED_URL" pnpm exec drizzle-kit push --force
+          out=$(DATABASE_URL="$PUSHED_URL" pnpm exec tsx src/server/database/migrate.ts --baseline)
+          echo "$out"
+          grep -q 'Recorded 0000_baseline' <<<"$out"
+          out=$(DATABASE_URL="$PUSHED_URL" pnpm exec tsx src/server/database/migrate.ts)
+          echo "$out"
+          grep -q 'applied 0 migrations' <<<"$out"
+
   e2e:
     name: e2e
     runs-on: ubuntu-latest
