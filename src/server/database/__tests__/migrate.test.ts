@@ -39,6 +39,11 @@ describe("the checked-in migrations", () => {
   });
 
   it("creates no table schema.ts does not export", () => {
+    // Catches a hand-edited migration, which the drift case below cannot see:
+    // that one compares the snapshot to schema.ts, not the SQL to either.
+    // A table legitimately created by one migration and dropped by a later one
+    // would also fail here — that is the case to change this test for, and the
+    // only one.
     expect(schemaTables).toEqual(expect.arrayContaining(migratedTables));
   });
 
