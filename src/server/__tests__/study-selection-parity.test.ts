@@ -312,7 +312,14 @@ describe("selectNextCard serves the sequence trunk served", () => {
 
   for (const seed of [1, 7, 42, 1337, 90210]) {
     it(`should match trunk over twenty answers, seed ${seed}`, () => {
-      expect(sequenceOf(head, seed, 20)).toEqual(sequenceOf(trunk, seed, 20));
+      const headSequence = sequenceOf(head, seed, 20);
+      const trunkSequence = sequenceOf(trunk, seed, 20);
+      if (process.env.DUMP_PARITY) {
+        console.log(`seed ${seed}`);
+        console.log(`  trunk ${trunkSequence.join(" ")}`);
+        console.log(`  head  ${headSequence.join(" ")}`);
+      }
+      expect(headSequence).toEqual(trunkSequence);
     });
   }
 
