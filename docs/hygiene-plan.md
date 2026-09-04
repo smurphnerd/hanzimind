@@ -1015,7 +1015,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 - [ ] Create `drizzle/0000_baseline.sql` and `drizzle/meta/**`.
 - [ ] Create `src/server/database/migrate.ts`.
-- [ ] Edit `package.json`, `.github/workflows/ci.yml`, `drizzle.config.ts`, `docs/remote-setup.md`.
+- [ ] Edit `package.json`, `.github/workflows/ci.yml`, `drizzle.config.ts`, `docs/remote-setup.md`, `.prettierignore`, `CLAUDE.md`, `README.md`, `.claude/skills/verify-hanzimind/scripts/lane-up.sh` and `.claude/skills/verify-hanzimind/SKILL.md`. The last six were added after verification found the box naming six paths where the PR touches twelve. The lane script is the schema-creation step of every lane on the machine, so it merges only when no verification is running.
 
 **Build.**
 
@@ -1039,7 +1039,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 4. Run `drizzle-kit generate` with no schema change. Save `migrate-no-drift.png`. Pass when it reports no changes.
 - [ ] Lane 5. Seed and run the e2e suite on a migrated database. Save `migrate-e2e.png`. Pass when 3 passed.
 - [ ] Lane 6. Open the CI e2e job log. Save `migrate-ci.png`. Pass when it ran `db:migrate`.
-- [ ] Lane 7. Follow `docs/remote-setup.md` cutover steps against a Neon branch. Save `migrate-neon-branch.png`. Pass when the journal table has one row and the app boots against it.
+- [ ] Lane 7. Follow `docs/remote-setup.md` cutover steps against a Neon branch. Save `migrate-neon-branch.png`. Pass when the journal table holds one row and the app serves against the branch. Deferred to the production cutover gate, which is the operator's, because no agent on this machine can run it. There is no `neonctl`, no host `psql`, and the only credentials reaching a real Neon project are Doppler's, which the program forbids touching. Until the operator runs it, TLS to a `-pooler` endpoint with `sslmode=require` and whether the Neon role may `create schema drizzle` stay untested, and a verifier records the box as deferred rather than passed.
 - [ ] Lane 8. Grep the repo for `db:push`. Save `migrate-push-scoped.png`. Pass when only the scratch script and its doc line remain.
 - [ ] Lane 9. Study one card on the migrated lane. Save `migrate-study.png`. Pass when the answer persists.
 - [ ] Lane 10. Run `pnpm build`. Save `migrate-build.png`. Pass when the build completes.
