@@ -776,7 +776,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. p50 milliseconds of `study/getNextVocabItem` via `perf-probe.mjs` on the HSK 1 deck.
+- [ ] Metric. Response payload bytes for `study/getNextVocabItem` on the HSK 1 deck, and p50 milliseconds alongside it. Bytes are the claim, since the stroke columns stop crossing the wire, and bytes are not subject to machine load, which has defeated two timing comparisons in this program.
 - [ ] Probe. `perf-probe.mjs --rpc study/getNextVocabItem --n 30` at trunk and at the head, interleaved.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when p50 is not at least 20 percent below trunk, since the stroke JSONB no longer crosses the wire.
