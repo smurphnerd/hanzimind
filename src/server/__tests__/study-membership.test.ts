@@ -47,9 +47,13 @@ const userVocabItem: UserVocabItemDto = {
 function lane(offeredToThisLearner: boolean) {
   const studyService = {
     isStudyingItemInDeck: vi.fn(async () => offeredToThisLearner),
-    processAnswer: vi.fn(async () => true),
-    getUserVocabItem: vi.fn(async () => userVocabItem),
-    getNextVocabItem: vi.fn(async () => null),
+    // The router calls answerAndAdvance, which owns the order the three reads
+    // used to run in. The guard still has to refuse before it.
+    answerAndAdvance: vi.fn(async () => ({
+      correct: true,
+      userVocabItem,
+      nextVocabItem: null,
+    })),
     addSynonym: vi.fn(async () => undefined),
   };
 
@@ -97,14 +101,14 @@ describe("study writes are confined to a deck the learner studies", () => {
       );
     });
 
-    it("should not grade an item the learner is not studying in that deck", async () => {
+    it("should not reach the service for an item the learner is not studying in that deck", async () => {
       const { studyService, context } = lane(false);
 
       await call(studyRouter.submitAnswer, answer, { context }).catch(
         () => undefined,
       );
 
-      expect(studyService.processAnswer).not.toHaveBeenCalled();
+      expect(studyService.answerAndAdvance).not.toHaveBeenCalled();
     });
 
     it("should grade an item the learner is studying in that deck", async () => {
@@ -113,7 +117,7 @@ describe("study writes are confined to a deck the learner studies", () => {
       const result = await call(studyRouter.submitAnswer, answer, { context });
 
       expect(result.correct).toBe(true);
-      expect(studyService.processAnswer).toHaveBeenCalledOnce();
+      expect(studyService.answerAndAdvance).toHaveBeenCalledOnce();
     });
   });
 
@@ -167,9 +171,14 @@ describe("StudyAnswerDto", () => {
 
     await call(studyRouter.submitAnswer, stale, { context });
 
-    expect(studyService.processAnswer).toHaveBeenCalledWith(
-      { vocabItemId: ITEM_ID, studyType: "understanding", answer: "person" },
-      "learner-1",
-    );
+    expect(studyService.answerAndAdvance).toHaveBeenCalledWith({
+      userId: "learner-1",
+      deckId: DECK_ID,
+      answer: {
+        vocabItemId: ITEM_ID,
+        studyType: "understanding",
+        answer: "person",
+      },
+    });
   });
 });

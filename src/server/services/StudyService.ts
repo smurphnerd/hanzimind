@@ -13,7 +13,7 @@ import {
   type StudyAnswerDto,
 } from "@/definitions/definitions";
 import type { ITranslationChecker } from "./TranslationChecker";
-import type { VocabService } from "./VocabService";
+import { toVocabItemDto, type VocabService } from "./VocabService";
 import { CONSTITUENT_GATE_LEVEL } from "@/server/constants";
 import {
   NO_SYNONYMS,
@@ -23,7 +23,6 @@ import {
 import {
   canStudy,
   readingOf,
-  emptyStages,
   selectNextCard,
   summariseDeckProgress,
   type ProgressRollupItem,
@@ -34,6 +33,65 @@ import {
   isForeignKeyViolation,
   NotFoundError,
 } from "@/server/endpoints/errors";
+
+/**
+ * Which study types a saved deck is set to quiz, in a fixed order.
+ *
+ * The order is load-bearing rather than cosmetic. `selectNextCard` walks this
+ * array and picks with a strict `<`, so among types at the same level the
+ * earliest here wins. Two copies of this list drifting apart would change which
+ * card a learner sees without changing which item.
+ */
+export function enabledStudyTypes(userDeck: {
+  readingEnabled: boolean;
+  listeningEnabled: boolean;
+  understandingEnabled: boolean;
+  writingEnabled: boolean;
+}): StudyType[] {
+  const enabled: StudyType[] = [];
+  if (userDeck.readingEnabled) enabled.push("reading");
+  if (userDeck.listeningEnabled) enabled.push("listening");
+  if (userDeck.understandingEnabled) enabled.push("understanding");
+  if (userDeck.writingEnabled) enabled.push("writing");
+  return enabled;
+}
+
+/**
+ * The columns selection and the progress rollup decide on, and nothing more.
+ *
+ * Deliberately no `strokes`, `strokeMedians` or `strokeMatches`. A deck query
+ * pulls one row per item, 398 of them for HSK 1. The projection this replaces
+ * came to 653,443 bytes across those rows; these columns come to 50,173, so it
+ * is thirteen times smaller, and almost all of the difference is stroke JSONB.
+ *
+ * Nothing in the rules or the rollup reads that data, and the one card that
+ * renders it is an introduction, which fetches its own full row after selection
+ * rather than making every other row carry the weight.
+ */
+const cardColumns = {
+  id: schema.vocabItems.id,
+  vocabItem: schema.vocabItems.vocabItem,
+  translation: schema.vocabItems.translation,
+  pinyin: schema.vocabItems.pinyin,
+  audioUrl: schema.vocabItems.audioUrl,
+  vocabType: schema.vocabItems.vocabType,
+  phonetic: schema.vocabItems.phonetic,
+  script: schema.vocabItems.script,
+  decomposition: schema.vocabItems.decomposition,
+} as const;
+
+/** The learner's standing against an item, as the rules read it. */
+const progressColumns = {
+  seen: schema.userVocabItems.seen,
+  readingLevel: schema.userVocabItems.readingLevel,
+  listeningLevel: schema.userVocabItems.listeningLevel,
+  understandingLevel: schema.userVocabItems.understandingLevel,
+  writingLevel: schema.userVocabItems.writingLevel,
+  readingNextAt: schema.userVocabItems.readingNextAt,
+  listeningNextAt: schema.userVocabItems.listeningNextAt,
+  understandingNextAt: schema.userVocabItems.understandingNextAt,
+  writingNextAt: schema.userVocabItems.writingNextAt,
+} as const;
 
 export class StudyService {
   constructor(
@@ -116,77 +174,6 @@ export class StudyService {
 
       // Create userVocabItems for all vocab items in the deck
       // Items start with seen=false (default), levels at 0 (default), and no nextAt times
-      if (vocabItems.length > 0) {
-        await tx
-          .insert(schema.userVocabItems)
-          .values(
-            vocabItems.map((item) => ({
-              userId,
-              vocabItemId: item.vocabItemId,
-            })),
-          )
-          .onConflictDoNothing();
-      }
-    });
-  }
-
-  async updateDeckSettings(args: {
-    userId: string;
-    deckId: string;
-    readingEnabled: boolean;
-    listeningEnabled: boolean;
-    understandingEnabled: boolean;
-    writingEnabled: boolean;
-  }): Promise<void> {
-    const {
-      userId,
-      deckId,
-      readingEnabled,
-      listeningEnabled,
-      understandingEnabled,
-      writingEnabled,
-    } = args;
-
-    await this.deps.database.transaction(async (tx) => {
-      const updated = await tx
-        .update(schema.userDecks)
-        .set({
-          includeConstituents: true,
-          readingEnabled,
-          listeningEnabled,
-          understandingEnabled,
-          writingEnabled,
-        })
-        .where(
-          and(
-            eq(schema.userDecks.userId, userId),
-            eq(schema.userDecks.deckId, deckId),
-          ),
-        )
-        .returning({ deckId: schema.userDecks.deckId });
-
-      if (updated.length === 0) {
-        throw new NotFoundError("This deck is not on your study list");
-      }
-
-      // Back-fill progress rows for any deck item that doesn't have one yet,
-      // otherwise it gets served as a new card but can't be answered.
-      const vocabItems = await tx
-        .select({
-          vocabItemId: schema.deckVocabItems.vocabItemId,
-        })
-        .from(schema.deckVocabItems)
-        .innerJoin(
-          schema.vocabItems,
-          eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
-        )
-        .where(
-          and(
-            eq(schema.deckVocabItems.deckId, deckId),
-            eq(schema.vocabItems.disabled, false),
-          ),
-        );
-
       if (vocabItems.length > 0) {
         await tx
           .insert(schema.userVocabItems)
@@ -378,46 +365,88 @@ export class StudyService {
       checker: this.deps.translationChecker,
     });
 
-    // Get current level for this study type
     const levelField = `${answer.studyType}Level` as
       | "readingLevel"
       | "listeningLevel"
       | "understandingLevel"
       | "writingLevel";
-    const currentLevel = userVocabItem[levelField] ?? 0;
+    const nextAtField = `${answer.studyType}NextAt` as
+      | "readingNextAt"
+      | "listeningNextAt"
+      | "understandingNextAt"
+      | "writingNextAt";
 
-    // Stamped after grading resolves, because the semantic checker can take
-    // seconds and the interval runs from when the learner finished, not started.
-    const { nextLevel, nextAt } = nextReviewAt(
-      currentLevel,
-      answerCorrect,
-      new Date(),
-    );
+    // Read the level and write it back atomically.
+    //
+    // Grading happens above rather than inside, deliberately: the semantic
+    // checker runs an embedding model and can take seconds, and a row lock held
+    // across that would serialise every learner answering the same glyph.
+    //
+    // Without the lock this is a read outside any transaction followed by a
+    // write, so two answers landing together both read the old level and the
+    // second silently overwrites the first. The level is read again inside,
+    // because the value fetched before grading may be stale by now.
+    await this.deps.database.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ level: schema.userVocabItems[levelField] })
+        .from(schema.userVocabItems)
+        .where(
+          and(
+            eq(schema.userVocabItems.userId, userId),
+            eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
+          ),
+        )
+        .for("update");
 
-    // Update user vocab item with new level, next review time, and mark as seen
-    const updateData: Partial<typeof schema.userVocabItems.$inferInsert> = {
-      seen: true, // Mark the item as seen once they submit an answer
-    };
-    updateData[levelField] = nextLevel;
-    updateData[
-      `${answer.studyType}NextAt` as
-        | "readingNextAt"
-        | "listeningNextAt"
-        | "understandingNextAt"
-        | "writingNextAt"
-    ] = nextAt;
-
-    await this.deps.database
-      .update(schema.userVocabItems)
-      .set(updateData)
-      .where(
-        and(
-          eq(schema.userVocabItems.userId, userId),
-          eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
-        ),
+      // Stamped after grading resolves, because the interval runs from when
+      // the learner finished, not when they started.
+      const { nextLevel, nextAt } = nextReviewAt(
+        locked?.level ?? 0,
+        answerCorrect,
+        new Date(),
       );
 
+      await tx
+        .update(schema.userVocabItems)
+        .set({ seen: true, [levelField]: nextLevel, [nextAtField]: nextAt })
+        .where(
+          and(
+            eq(schema.userVocabItems.userId, userId),
+            eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
+          ),
+        );
+    });
+
     return answerCorrect;
+  }
+
+  /**
+   * Grade one answer and hand back everything the card needs next.
+   *
+   * One call rather than three, because the three were always run together in
+   * this order and the middle one only makes sense after the first. Keeping the
+   * order here also keeps it honest: the progress row must be read AFTER
+   * processAnswer has written it, or the result card shows the level the
+   * learner had before they answered.
+   */
+  async answerAndAdvance(args: {
+    userId: string;
+    deckId: string;
+    answer: StudyAnswerDto;
+  }): Promise<{
+    correct: boolean;
+    userVocabItem: UserVocabItemDto;
+    nextVocabItem: VocabItemStudyDto | null;
+  }> {
+    const { userId, deckId, answer } = args;
+
+    const correct = await this.processAnswer(answer, userId);
+    const [userVocabItem, nextVocabItem] = await Promise.all([
+      this.getUserVocabItem(userId, answer.vocabItemId),
+      this.getNextVocabItem(userId, deckId),
+    ]);
+
+    return { correct, userVocabItem, nextVocabItem };
   }
 
   async getNextVocabItem(
@@ -436,47 +465,17 @@ export class StudyService {
     const now = new Date();
 
     // Determine which study types are enabled
-    const enabledStudyTypes: StudyType[] = [];
-    if (userDeck.readingEnabled) enabledStudyTypes.push("reading");
-    if (userDeck.listeningEnabled) enabledStudyTypes.push("listening");
-    if (userDeck.understandingEnabled) enabledStudyTypes.push("understanding");
-    if (userDeck.writingEnabled) enabledStudyTypes.push("writing");
+    const enabled = enabledStudyTypes(userDeck);
 
-    if (enabledStudyTypes.length === 0) {
+    if (enabled.length === 0) {
       throw new InvalidInputError("No study types enabled for this deck");
     }
 
     // Fetch all vocab items in the deck with user progress
     const vocabItems = await this.deps.database
       .select({
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        translation: schema.vocabItems.translation,
-        pinyin: schema.vocabItems.pinyin,
-        audioUrl: schema.vocabItems.audioUrl,
-        vocabType: schema.vocabItems.vocabType,
-        phonetic: schema.vocabItems.phonetic,
-        script: schema.vocabItems.script,
-        decomposition: schema.vocabItems.decomposition,
-        etymologyHint: schema.vocabItems.etymologyHint,
-        etymologyType: schema.vocabItems.etymologyType,
-        etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
-        etymologySemantic: schema.vocabItems.etymologySemantic,
-        radical: schema.vocabItems.radical,
-        strokes: schema.vocabItems.strokes,
-        strokeMedians: schema.vocabItems.strokeMedians,
-        strokeMatches: schema.vocabItems.strokeMatches,
-        createdAt: schema.vocabItems.createdAt,
-        updatedAt: schema.vocabItems.updatedAt,
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
+        ...cardColumns,
+        ...progressColumns,
       })
       .from(schema.deckVocabItems)
       .innerJoin(
@@ -513,7 +512,7 @@ export class StudyService {
     // The rules themselves live in @/server/study-rules as pure functions so
     // they can be tested without a database.
     const selection = selectNextCard(vocabItems, {
-      enabledStudyTypes,
+      enabledStudyTypes: enabled,
       gateLevel: CONSTITUENT_GATE_LEVEL,
       now,
     });
@@ -525,29 +524,15 @@ export class StudyService {
 
     const selectedItem = selection.item;
 
-    // Return the full vocab item if this is the first time studying this item
+    // An introduction shows the whole dictionary entry, including stroke order,
+    // which is the one card that needs the columns the deck query leaves
+    // behind. One row, once, rather than several hundred rows every time.
     if (selection.studyType === "new") {
-      const reading = readingOf(selectedItem);
+      const row = await this.deps.vocabService.getVocabItem(
+        selectedItem.vocabItem,
+      );
       return {
-        id: selectedItem.id,
-        vocabItem: selectedItem.vocabItem,
-        translation: selectedItem.translation,
-        pinyin: reading.pinyin,
-        vocabType: selectedItem.vocabType,
-        script: selectedItem.script,
-        audioUrl: reading.audioUrl,
-        phonetic: selectedItem.phonetic,
-        decomposition: selectedItem.decomposition,
-        etymologyHint: selectedItem.etymologyHint,
-        etymologyType: selectedItem.etymologyType,
-        etymologyPhonetic: selectedItem.etymologyPhonetic,
-        etymologySemantic: selectedItem.etymologySemantic,
-        radical: selectedItem.radical,
-        strokes: selectedItem.strokes,
-        strokeMedians: selectedItem.strokeMedians,
-        strokeMatches: selectedItem.strokeMatches,
-        createdAt: selectedItem.createdAt,
-        updatedAt: selectedItem.updatedAt,
+        ...toVocabItemDto(row),
         studyType: "new",
         constituents: await this.deps.vocabService.getVocabItemParts({
           vocabItem: selectedItem.vocabItem,
@@ -597,44 +582,17 @@ export class StudyService {
     userId: string,
     vocabItemId: string,
   ): Promise<UserVocabItemDto> {
-    // Query for vocab item, user progress, user info, and memory aid in one query
+    // One row, so the full vocab record is worth selecting: UserVocabItemDto
+    // extends VocabItemDto and needs the stroke data the deck query drops.
+    // Selecting the table itself rather than naming columns is what lets
+    // toVocabItemDto take it, which is the only sanctioned way a row becomes a
+    // dictionary DTO.
     const result = await this.deps.database
       .select({
-        // Vocab item fields
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        translation: schema.vocabItems.translation,
-        pinyin: schema.vocabItems.pinyin,
-        vocabType: schema.vocabItems.vocabType,
-        script: schema.vocabItems.script,
-        audioUrl: schema.vocabItems.audioUrl,
-        phonetic: schema.vocabItems.phonetic,
-        decomposition: schema.vocabItems.decomposition,
-        etymologyHint: schema.vocabItems.etymologyHint,
-        etymologyType: schema.vocabItems.etymologyType,
-        etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
-        etymologySemantic: schema.vocabItems.etymologySemantic,
-        radical: schema.vocabItems.radical,
-        strokes: schema.vocabItems.strokes,
-        strokeMedians: schema.vocabItems.strokeMedians,
-        strokeMatches: schema.vocabItems.strokeMatches,
-        defaultMemoryAidId: schema.vocabItems.defaultMemoryAidId,
-        createdAt: schema.vocabItems.createdAt,
-        updatedAt: schema.vocabItems.updatedAt,
-        // User info
+        item: schema.vocabItems,
         username: schema.users.name,
-        // User progress fields
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
+        ...progressColumns,
         memoryAidId: schema.userVocabItems.memoryAidId,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
-        // Memory aid text
         memoryAid: schema.memoryAids.memoryAid,
       })
       .from(schema.vocabItems)
@@ -671,11 +629,11 @@ export class StudyService {
     // default's text with one small lookup when they have none.
     let memoryAidId = item.memoryAidId;
     let memoryAid = item.memoryAid;
-    if (!memoryAidId && item.defaultMemoryAidId) {
+    if (!memoryAidId && item.item.defaultMemoryAidId) {
       const fallback = await this.deps.database.query.memoryAids.findFirst({
         columns: { id: true, memoryAid: true },
         where: (memoryAids, { eq }) =>
-          eq(memoryAids.id, item.defaultMemoryAidId!),
+          eq(memoryAids.id, item.item.defaultMemoryAidId!),
       });
       if (fallback) {
         memoryAidId = fallback.id;
@@ -683,27 +641,8 @@ export class StudyService {
       }
     }
 
-    const reading = readingOf(item);
     return {
-      id: item.id,
-      vocabItem: item.vocabItem,
-      translation: item.translation,
-      pinyin: reading.pinyin,
-      vocabType: item.vocabType,
-      script: item.script,
-      audioUrl: reading.audioUrl,
-      phonetic: item.phonetic,
-      decomposition: item.decomposition,
-      etymologyHint: item.etymologyHint,
-      etymologyType: item.etymologyType,
-      etymologyPhonetic: item.etymologyPhonetic,
-      etymologySemantic: item.etymologySemantic,
-      radical: item.radical,
-      strokes: item.strokes,
-      strokeMedians: item.strokeMedians,
-      strokeMatches: item.strokeMatches,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
+      ...toVocabItemDto(item.item),
       userId,
       username: item.username,
       seen: item.seen,
@@ -718,40 +657,26 @@ export class StudyService {
       understandingNextAt: item.understandingNextAt,
       writingNextAt: item.writingNextAt,
       constituents: await this.deps.vocabService.getVocabItemParts({
-        vocabItem: item.vocabItem,
-        vocabType: item.vocabType,
-        decomposition: item.decomposition,
+        vocabItem: item.item.vocabItem,
+        vocabType: item.item.vocabType,
+        decomposition: item.item.decomposition,
       }),
     };
   }
 
   /**
-   * Each requested deck's standing for the current learner.
+   * Every deck this learner has saved, with its standing.
    *
    * Batched on purpose: the study list renders up to 50 decks, and a call per
-   * deck would be 50 round-trips for one screen. Unlike getNextVocabItem this
-   * tolerates a deck the viewer has not enrolled in — the caller may be showing
-   * any deck — and reports it as an empty garden rather than throwing.
+   * deck would be 50 round trips for one screen.
    *
-   * Returns one entry per requested id, in the order asked for.
+   * The caller does not say which decks, and there is no entry for one the
+   * learner has not saved. It used to take ids, which only `getUserDecks` could
+   * supply, so the page had to fetch its deck list and wait for it before it
+   * could ask for progress at all. The ids were never anything but the set this
+   * query already filters by, since it matches on `userId` too.
    */
-  async getDeckProgress(
-    userId: string,
-    deckIds: string[],
-  ): Promise<DeckProgressDto[]> {
-    if (deckIds.length === 0) return [];
-
-    const notEnrolled = (deckId: string): DeckProgressDto => ({
-      deckId,
-      total: 0,
-      unstudiable: 0,
-      seen: 0,
-      dueNow: 0,
-      newAvailable: 0,
-      locked: 0,
-      byStage: emptyStages(),
-    });
-
+  async getDeckProgress(userId: string): Promise<DeckProgressDto[]> {
     // Settings are per user-deck, so what counts as studiable differs between
     // decks and has to be read before the items can be bucketed.
     const userDecks = await this.deps.database
@@ -763,24 +688,12 @@ export class StudyService {
         writingEnabled: schema.userDecks.writingEnabled,
       })
       .from(schema.userDecks)
-      .where(
-        and(
-          eq(schema.userDecks.userId, userId),
-          inArray(schema.userDecks.deckId, [...new Set(deckIds)]),
-        ),
-      );
+      .where(eq(schema.userDecks.userId, userId));
 
-    if (userDecks.length === 0) return deckIds.map(notEnrolled);
+    if (userDecks.length === 0) return [];
 
     const enabledByDeck = new Map<string, StudyType[]>(
-      userDecks.map((deck) => {
-        const enabled: StudyType[] = [];
-        if (deck.readingEnabled) enabled.push("reading");
-        if (deck.listeningEnabled) enabled.push("listening");
-        if (deck.understandingEnabled) enabled.push("understanding");
-        if (deck.writingEnabled) enabled.push("writing");
-        return [deck.deckId, enabled];
-      }),
+      userDecks.map((deck) => [deck.deckId, enabledStudyTypes(deck)]),
     );
 
     // The same join getNextVocabItem selects from, widened to every enrolled
@@ -789,22 +702,8 @@ export class StudyService {
     const rows = await this.deps.database
       .select({
         deckId: schema.deckVocabItems.deckId,
-        vocabItem: schema.vocabItems.vocabItem,
-        vocabType: schema.vocabItems.vocabType,
-        pinyin: schema.vocabItems.pinyin,
-        translation: schema.vocabItems.translation,
-        audioUrl: schema.vocabItems.audioUrl,
-        phonetic: schema.vocabItems.phonetic,
-        decomposition: schema.vocabItems.decomposition,
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
+        ...cardColumns,
+        ...progressColumns,
       })
       .from(schema.deckVocabItems)
       .innerJoin(
@@ -834,14 +733,11 @@ export class StudyService {
 
     const now = new Date();
 
-    return deckIds.map((deckId) => {
-      const enabledStudyTypes = enabledByDeck.get(deckId);
-      if (!enabledStudyTypes) return notEnrolled(deckId);
-
+    return [...enabledByDeck].map(([deckId, enabled]) => {
       return summariseDeckProgress({
         deckId,
         items: itemsByDeck.get(deckId) ?? [],
-        enabledStudyTypes,
+        enabledStudyTypes: enabled,
         gateLevel: CONSTITUENT_GATE_LEVEL,
         now,
       });
