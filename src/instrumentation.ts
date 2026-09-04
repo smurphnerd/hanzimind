@@ -6,11 +6,13 @@ import { digestOf, requestIdOf } from "@/lib/request-id";
 /**
  * Nothing in this file may touch `@/server/initialization`.
  *
- * Next builds instrumentation as its own entry with a disjoint chunk graph, so
- * the container it would resolve is a SECOND container, holding second copies
- * of every singleton in it. That is not a subtlety: warming the grading model
- * here loaded a second ~90 MB copy and left the one that grades answers cold.
- * The warm-up now lives in `@/server/warmup`, called from the RPC route.
+ * Turbopack compiles this entry with its own module ids, and the process-wide
+ * module registry dedupes by id, so nothing resolved here is ever the instance a
+ * request sees. The container it would build is a SECOND container, holding
+ * second copies of every singleton in it. That is not a subtlety: warming the
+ * grading model here loaded a second ~90 MB copy and left the one that grades
+ * answers cold. The warm-up now lives in `@/server/warmup`, called from the RPC
+ * route, which shares the app's container.
  *
  * A logger is the one dependency safe to duplicate — two pino instances write
  * the same lines to the same stdout — so this builds its own from

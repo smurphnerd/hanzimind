@@ -21,6 +21,17 @@ import { container } from "@/server/initialization";
  * The body says only what a caller needs to route traffic. No version, no
  * uptime, no error text: this answers to anyone, and the detail belongs in the
  * log line the failure writes.
+ *
+ * One thing this check is NOT: insulated from the app it reports on. Every route
+ * entry shares one container and therefore one pg pool, so the probe competes
+ * for the same ten connections as every RPC call — verified by driving three
+ * routes in sequence and watching the probe run on the backend the RPC route had
+ * opened. Under saturation this can report a degraded database when the database
+ * is fine and the pool is merely full. A private connection would separate the
+ * two, at the cost of a connection held open for a check that runs twice a
+ * second at most; sharing is the right trade until an incident says otherwise,
+ * but read a 503 here as "this instance cannot reach Postgres", not as "Postgres
+ * is down".
  */
 export const dynamic = "force-dynamic";
 

@@ -64,9 +64,11 @@ async function handleRequest(request: Request) {
   return result;
 }
 
-// Called from here, and only here, because this is the module graph that grades
-// answers: `study/*` is the one path that reaches the semantic checker, and the
-// checker that matters is the one THIS graph's container holds. See warmup.ts.
+// Called from an app route entry rather than from instrumentation.ts, which is
+// compiled with its own module ids and so resolves a second container — see
+// warmup.ts for the evidence. This entry rather than another because grading
+// arrives over `study/*`; the app's route entries share one container, so any
+// of them would warm the same checker.
 warmGradingModel(container.cradle);
 
 export const GET = handleRequest;
