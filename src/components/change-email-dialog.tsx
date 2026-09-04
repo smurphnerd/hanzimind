@@ -37,7 +37,9 @@ export function ChangeEmailDialog(props: {
       }
     },
     onSuccess: () => {
-      toast.success(`Confirm the change from ${props.currentEmail}.`);
+      toast.success(
+        `Step one sent to ${props.currentEmail}. Two emails to go.`,
+      );
       setOpen(false);
       setNewEmail("");
     },
@@ -57,8 +59,12 @@ export function ChangeEmailDialog(props: {
         <DialogHeader>
           <DialogTitle>Change your email</DialogTitle>
           <DialogDescription>
-            We send the confirmation to {props.currentEmail}, the address on
-            file. Your account keeps it until you click that link.
+            Changing it takes two emails. First we send a confirmation to{" "}
+            {props.currentEmail}, the address on file. Clicking that sends a
+            second email to the new address, and clicking the one in there is
+            what makes the change. Your account keeps its current address until
+            both are done, and if you ask more than once, use only the most
+            recent pair: an older link still works for an hour.
           </DialogDescription>
         </DialogHeader>
         <Field>

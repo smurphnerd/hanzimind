@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Cradle } from "@/server/initialization";
-import { buildAuthOptions } from "@/server/auth";
+import { buildAuthOptions, getAuth } from "@/server/auth";
 
 const fakeLogger = () => {
   const child = {
@@ -30,16 +30,46 @@ describe("buildAuthOptions", () => {
     expect(options.rateLimit.customRules).toEqual({
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 5 },
-      "/forget-password": { window: 60, max: 5 },
+      "/request-password-reset": { window: 60, max: 5 },
     });
+  });
+
+  // A rule keyed on a path better-auth does not serve is dead: matching is an
+  // exact string compare, so the route silently keeps whatever default applies.
+  // The first version of this config keyed the reset rule "/forget-password",
+  // which no route answers, and a shape assertion could not tell.
+  it("keys every custom rule on a path this auth instance actually serves", () => {
+    const auth = getAuth(deps, {
+      authSecret: "secret",
+      baseUrl: "http://localhost:3000",
+      systemEmailFrom: "from@hanzimind.test",
+    });
+    const served = new Set(
+      Object.values(auth.api).map(
+        (endpoint: { path?: string }) => endpoint.path ?? "",
+      ),
+    );
+    for (const key of Object.keys(options.rateLimit.customRules)) {
+      expect(served, `${key} is not a route`).toContain(key);
+    }
   });
 
   it("keeps a session for 30 days, refreshes it daily and caches it in the cookie", () => {
     expect(options.session).toEqual({
       expiresIn: 2592000,
       updateAge: 86400,
-      cookieCache: { enabled: true, maxAge: 300 },
+      cookieCache: { enabled: true, maxAge: 60 },
     });
+  });
+
+  it("revokes existing sessions when a password is reset", () => {
+    expect(options.emailAndPassword.revokeSessionsOnPasswordReset).toBe(true);
+  });
+
+  it("caches the session in the cookie for no longer than the revocation delay it buys", () => {
+    // The cache is what makes a revoked session outlive the revocation, so its
+    // maxAge is the window an evicted cookie keeps working.
+    expect(options.session.cookieCache.maxAge).toBeLessThanOrEqual(60);
   });
 
   it("requires a password of at least 10 characters", () => {
@@ -141,6 +171,64 @@ describe("buildAuthOptions", () => {
       expect.objectContaining({ kind: "delete-account", to: "a@b.test" }),
       "Failed to send an auth email",
     );
+  });
+
+  it("refuses when another learner studies a deck this account published, and names it", async () => {
+    const started: string[] = [];
+    const studied = {
+      ...deps,
+      database: {
+        selectDistinct: () => ({
+          from: () => ({
+            innerJoin: () => ({ where: async () => [{ name: "HSK 1" }] }),
+          }),
+        }),
+        transaction: async () => {
+          started.push("transaction");
+        },
+      },
+    } as unknown as Cradle;
+
+    await expect(
+      buildAuthOptions(studied, {
+        authSecret: "secret",
+        baseUrl: "http://localhost:3000",
+        systemEmailFrom: "from@hanzimind.test",
+      }).user.deleteUser.beforeDelete({ id: "u1" } as never),
+    ).rejects.toThrow(/"HSK 1"/);
+    expect(started, "it started deleting before refusing").toEqual([]);
+  });
+
+  it("clears the learner's own state, and their unstudied decks, before the account is deleted", async () => {
+    const calls: string[] = [];
+    const tx = {
+      delete: (table: { _: { name: string } }) => {
+        calls.push(`delete ${table?._?.name ?? "?"}`);
+        return { where: async () => undefined };
+      },
+      update: () => ({ set: () => ({ where: async () => undefined }) }),
+      select: () => ({
+        from: () => ({ where: async () => [{ id: "deck-1" }] }),
+      }),
+    };
+    const clean = {
+      ...deps,
+      database: {
+        selectDistinct: () => ({
+          from: () => ({ innerJoin: () => ({ where: async () => [] }) }),
+        }),
+        transaction: async (run: (t: typeof tx) => Promise<void>) => run(tx),
+      },
+    } as unknown as Cradle;
+
+    await buildAuthOptions(clean, {
+      authSecret: "secret",
+      baseUrl: "http://localhost:3000",
+      systemEmailFrom: "from@hanzimind.test",
+    }).user.deleteUser.beforeDelete({ id: "u1" } as never);
+
+    // five own-state deletes, then deck_vocab_items, user_decks and decks
+    expect(calls).toHaveLength(8);
   });
 
   it("sends the verification email through the adapter", async () => {
