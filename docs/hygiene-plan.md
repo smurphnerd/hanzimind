@@ -765,7 +765,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 - [ ] Lane 1. Study 亻 in a deck. Save `svc-component-silent.png`. Pass when the card shows no reading and no play button.
 - [ ] Lane 2. Study 艮. Save `svc-phonetic-reads.png`. Pass when reading and listening cards are both served over a session.
-- [ ] Lane 3. Answer the same card from two tabs within a second. Save `svc-race.png`. Pass when the level advanced exactly once.
+- [ ] Lane 3. Answer the same card CORRECTLY from two tabs within a second. Save `svc-race.png`. Pass when neither write is lost, so the level advances twice where trunk advances once. Advancing exactly once is the defect, not the fix, and two incorrect answers cannot tell a locked write from an unlocked one.
 - [ ] Lane 4. Save a deck, change modes, save again. Save `svc-upsert.png`. Pass when one `user_decks` row exists with the new modes.
 - [ ] Lane 5. Inspect the SQL log for one `getNextVocabItem`. Save `svc-no-strokes.png`. Pass when no query selects the `strokes` column.
 - [ ] Lane 6. Open the deck progress panel. Save `svc-progress.png`. Pass when counts match a `psql` query over `user_vocab_items`.
