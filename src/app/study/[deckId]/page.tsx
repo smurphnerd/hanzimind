@@ -56,14 +56,23 @@ function StudySession() {
   // One answer per card, tracked on the card object itself.
   //
   // A ref, because `isPending` is React state and is still false for a second
-  // Enter arriving in the same tick. The card rather than a boolean, because a
-  // boolean released on settle reopens the window it was closing: the release
-  // runs with the response, and a keypress landing between it and React
-  // committing the next screen submits the same card again — the double level
-  // advance this guard exists to stop. Cards arrive fresh from the server, so
+  // Enter arriving in the same tick.
+  //
+  // The card rather than a boolean, which is the belt-and-braces half. A
+  // boolean released in `onSettled` is released *with the response*, so on
+  // paper a keypress landing between that release and React committing the
+  // next screen resubmits the same card. That race was never demonstrated:
+  // fifteen queued Enter presses, plus resubmits chained off the response's
+  // own resolution at microtask, setTimeout 0, setTimeout 1 and rAF, produced
+  // exactly one POST here AND against a trunk production build. React flushes
+  // that update in a microtask, so the window is sub-microtask and nothing
+  // schedulable from outside can land in it.
+  //
+  // Kept anyway, because it is stronger by construction rather than by that
+  // timing holding: the card object comes fresh from the server every time, so
   // reference identity is exactly "this instance of this card", and an item
-  // legitimately re-served later is a different object. Cleared on failure, so
-  // a lost answer can still be retried.
+  // legitimately re-served later is a different object that answers normally.
+  // Cleared on failure, so a lost answer can still be retried.
   const answeredCard = useRef<VocabItemStudyDto | null>(null);
 
   const submitAnswerMutation = useMutation(
