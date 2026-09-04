@@ -14,111 +14,26 @@ import {
 } from "@/definitions/definitions";
 import type { ITranslationChecker } from "./TranslationChecker";
 import type { VocabService } from "./VocabService";
+import { CONSTITUENT_GATE_LEVEL } from "@/server/constants";
 import {
-  SPACED_REPETITION_INTERVALS,
-  CONSTITUENT_GATE_LEVEL,
-  REQUIRE_PINYIN_TONES,
-} from "@/server/constants";
+  NO_SYNONYMS,
+  gradeAnswer,
+  nextReviewAt,
+} from "@/server/study-scheduling";
 import {
   canStudy,
-  isUnlocked,
   readingOf,
-  servableStudyTypes,
-  weakestServableLevel,
+  emptyStages,
+  selectNextCard,
+  summariseDeckProgress,
+  type ProgressRollupItem,
   writableType,
-  VOCAB_TYPE_PRIORITY,
-  type StudiableItem,
 } from "@/server/study-rules";
-import { growthStage } from "@/lib/growth";
-import { pinyinMatches } from "@/lib/pinyin";
 import {
   InvalidInputError,
   isForeignKeyViolation,
   NotFoundError,
 } from "@/server/endpoints/errors";
-
-/** What the rollup reads for one item: the study rules' shape plus its due times. */
-export interface ProgressRollupItem extends StudiableItem {
-  readingNextAt: Date | null;
-  listeningNextAt: Date | null;
-  understandingNextAt: Date | null;
-  writingNextAt: Date | null;
-}
-
-const emptyStages = (): number[] => [0, 0, 0, 0, 0, 0];
-
-/**
- * Roll one deck's items up into the figures the study card shows.
- *
- * Pure and outside the class for the same reason study-rules is: the two traps
- * here ship silently otherwise. Mastery must be the minimum over the types the
- * item can *actually* be quizzed on — a plain minimum over every enabled type
- * pins components at level 0 forever — and an item with nothing servable must
- * stay out of `byStage` altogether, since `weakestServableLevel` returns
- * Infinity for it and `growthStage(Infinity)` reads as a harmless-looking
- * "Not started". See DeckProgressDto for the full semantics.
- */
-export function summariseDeckProgress(args: {
-  deckId: string;
-  items: readonly ProgressRollupItem[];
-  enabledStudyTypes: readonly StudyType[];
-  gateLevel: number;
-  now: Date;
-}): DeckProgressDto {
-  const { deckId, items, enabledStudyTypes, gateLevel, now } = args;
-
-  // The gate resolves parts by glyph against the rest of the deck, exactly as
-  // card selection does.
-  const byVocabItem = new Map(items.map((item) => [item.vocabItem, item]));
-
-  const byStage = emptyStages();
-  let total = 0;
-  let unstudiable = 0;
-  let seen = 0;
-  let dueNow = 0;
-  let newAvailable = 0;
-  let locked = 0;
-
-  for (const item of items) {
-    const servable = servableStudyTypes(item, enabledStudyTypes);
-
-    if (servable.length === 0) {
-      unstudiable++;
-      continue;
-    }
-
-    total++;
-    byStage[growthStage(weakestServableLevel(item, enabledStudyTypes)).index]++;
-
-    if (item.seen) {
-      // Answered at least once — which says nothing about the level, since a
-      // wrong answer leaves the item seen at 0.
-      seen++;
-      // A type that has never been scheduled is due immediately, matching how
-      // getNextVocabItem treats a null nextAt.
-      const isDue = servable.some((type) => {
-        const nextAt = item[`${type}NextAt`];
-        return nextAt === null || nextAt <= now;
-      });
-      if (isDue) dueNow++;
-    } else if (isUnlocked(item, byVocabItem, enabledStudyTypes, gateLevel)) {
-      newAvailable++;
-    } else {
-      locked++;
-    }
-  }
-
-  return {
-    deckId,
-    total,
-    unstudiable,
-    seen,
-    dueNow,
-    newAvailable,
-    locked,
-    byStage,
-  };
-}
 
 export class StudyService {
   constructor(
@@ -316,6 +231,35 @@ export class StudyService {
   }
 
   /**
+   * The meanings this learner has accepted for this item, verbatim as stored.
+   *
+   * Fetched only where the lookup this replaces ran, an understanding card with
+   * a non-blank answer, so the query count on every other path is unchanged.
+   * The predicate loses its third column and now returns the learner's whole
+   * set for the item rather than at most one row, which is the same index and a
+   * handful of rows.
+   */
+  private async acceptedSynonyms(
+    userId: string,
+    answer: StudyAnswerDto,
+  ): Promise<ReadonlySet<string>> {
+    if (answer.studyType !== "understanding") return NO_SYNONYMS;
+    if (!answer.answer.trim()) return NO_SYNONYMS;
+
+    const rows = await this.deps.database
+      .select({ synonym: schema.userVocabSynonyms.synonym })
+      .from(schema.userVocabSynonyms)
+      .where(
+        and(
+          eq(schema.userVocabSynonyms.userId, userId),
+          eq(schema.userVocabSynonyms.vocabItemId, answer.vocabItemId),
+        ),
+      );
+
+    return new Set(rows.map((row) => row.synonym));
+  }
+
+  /**
    * Record an extra meaning the user wants accepted for an item in future.
    * Idempotent — re-adding the same synonym is a no-op.
    */
@@ -341,56 +285,6 @@ export class StudyService {
         }
         throw error;
       });
-  }
-
-  private getNextReviewTime(
-    currentLevel: number,
-    correct: boolean,
-  ): { nextLevel: number; nextAt: Date } {
-    const now = new Date();
-
-    if (!correct) {
-      // Incorrect answer: reset to level 0 and review in 1 minute
-      return {
-        nextLevel: 0,
-        nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.INCORRECT),
-      };
-    }
-
-    // Correct answer: advance level and set next review time
-    switch (currentLevel) {
-      case 0:
-        return {
-          nextLevel: 1,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_0),
-        };
-      case 1:
-        return {
-          nextLevel: 2,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_1),
-        };
-      case 2:
-        return {
-          nextLevel: 3,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_2),
-        };
-      case 3:
-        return {
-          nextLevel: 4,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_3),
-        };
-      case 4:
-        return {
-          nextLevel: 5,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_4),
-        };
-      case 5:
-      default:
-        return {
-          nextLevel: 5,
-          nextAt: new Date(now.getTime() + SPACED_REPETITION_INTERVALS.LEVEL_5),
-        };
-    }
   }
 
   async processAnswer(
@@ -476,52 +370,13 @@ export class StudyService {
       return true;
     }
 
-    let answerCorrect = false;
-
-    // Check if the answer is correct based on study type.
-    // Pinyin is compared in canonical form so notation (nv3 / nü3 / nǚ,
-    // spaced or not, any case) never decides right vs wrong.
-    if (answer.studyType === "reading") {
-      answerCorrect = pinyinMatches(answer.answer, vocabItem.pinyin, {
-        requireTones: REQUIRE_PINYIN_TONES,
-      });
-    } else if (answer.studyType === "listening") {
-      answerCorrect =
-        pinyinMatches(answer.answer, vocabItem.pinyin, {
-          requireTones: REQUIRE_PINYIN_TONES,
-        }) || answer.answer.trim() === vocabItem.vocabItem.trim();
-    } else if (answer.studyType === "understanding") {
-      // A meaning the user has explicitly accepted for this item always
-      // counts, and costs one indexed lookup.
-      const normalized = answer.answer.trim().toLowerCase();
-      const ownSynonym = normalized
-        ? await this.deps.database.query.userVocabSynonyms.findFirst({
-            where: (s, { eq, and }) =>
-              and(
-                eq(s.userId, userId),
-                eq(s.vocabItemId, answer.vocabItemId),
-                eq(s.synonym, normalized),
-              ),
-          })
-        : undefined;
-
-      if (ownSynonym) {
-        answerCorrect = true;
-      } else {
-        if (!vocabItem.translation) {
-          throw new Error(
-            `Vocab item ${answer.vocabItemId} has no translation to check against`,
-          );
-        }
-        answerCorrect = await this.deps.translationChecker.checkSimilarity(
-          answer.answer,
-          vocabItem.translation,
-        );
-      }
-    } else {
-      // writing
-      answerCorrect = answer.answer.trim() === vocabItem.vocabItem.trim();
-    }
+    const answerCorrect = await gradeAnswer({
+      card: vocabItem,
+      studyType: answer.studyType,
+      answer: answer.answer,
+      synonyms: await this.acceptedSynonyms(userId, answer),
+      checker: this.deps.translationChecker,
+    });
 
     // Get current level for this study type
     const levelField = `${answer.studyType}Level` as
@@ -531,10 +386,12 @@ export class StudyService {
       | "writingLevel";
     const currentLevel = userVocabItem[levelField] ?? 0;
 
-    // Calculate next level and review time
-    const { nextLevel, nextAt } = this.getNextReviewTime(
+    // Stamped after grading resolves, because the semantic checker can take
+    // seconds and the interval runs from when the learner finished, not started.
+    const { nextLevel, nextAt } = nextReviewAt(
       currentLevel,
       answerCorrect,
+      new Date(),
     );
 
     // Update user vocab item with new level, next review time, and mark as seen
@@ -655,106 +512,21 @@ export class StudyService {
     // things built from them unlock as those parts mature.
     // The rules themselves live in @/server/study-rules as pure functions so
     // they can be tested without a database.
-    const byVocabItem = new Map(vocabItems.map((i) => [i.vocabItem, i]));
+    const selection = selectNextCard(vocabItems, {
+      enabledStudyTypes,
+      gateLevel: CONSTITUENT_GATE_LEVEL,
+      now,
+    });
 
-    // Filter and score vocab items for each enabled study type
-    const candidates = vocabItems
-      .map((item) => {
-        // Calculate shared scoring metrics
-        const vocabTypePriority = VOCAB_TYPE_PRIORITY[item.vocabType];
-
-        const decompositionLength =
-          item.vocabType === "character" && item.decomposition
-            ? item.decomposition.length
-            : 999;
-
-        // Unseen items are introductions — only offer them once their
-        // constituents are known well enough.
-        if (!item.seen) {
-          if (
-            !isUnlocked(
-              item,
-              byVocabItem,
-              enabledStudyTypes,
-              CONSTITUENT_GATE_LEVEL,
-            )
-          ) {
-            return null;
-          }
-          // An intro card is pointless if nothing about it can be quizzed.
-          if (servableStudyTypes(item, enabledStudyTypes).length === 0) {
-            return null;
-          }
-          return {
-            ...item,
-            selectedStudyType: "new" as const,
-            isNew: true,
-            minLevel: -1,
-            vocabTypePriority,
-            decompositionLength,
-            randomTiebreaker: Math.random(),
-          };
-        }
-
-        // For seen items, find the study type with lowest level that's due
-        let selectedStudyType: StudyType | null = null;
-        let minLevel = Infinity;
-
-        for (const studyType of enabledStudyTypes) {
-          if (!canStudy(item, studyType)) continue;
-
-          const level = item[`${studyType}Level`] ?? 0;
-          const nextAt = item[`${studyType}NextAt`];
-          const isDue = nextAt === null || nextAt <= now;
-
-          if (isDue && level < minLevel) {
-            minLevel = level;
-            selectedStudyType = studyType;
-          }
-        }
-
-        // Skip items with no due study types
-        if (selectedStudyType === null) return null;
-
-        return {
-          ...item,
-          selectedStudyType,
-          isNew: false,
-          minLevel,
-          vocabTypePriority,
-          decompositionLength,
-          randomTiebreaker: Math.random(),
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-
-    if (candidates.length === 0) {
+    if (!selection) {
       // Nothing due — the caller renders the session-complete screen.
       return null;
     }
 
-    // Sort by:
-    // 1. Due reviews before brand-new items, so a big deck doesn't front-load
-    //    every introduction before you review anything (Anki's
-    //    "show new cards after reviews").
-    // 2. Minimum level (ascending - lower level first)
-    // 3. Vocab type priority (ascending - components first, then characters)
-    // 4. Decomposition length (ascending - shorter first for characters)
-    // 5. Random tiebreaker
-    candidates.sort((a, b) => {
-      if (a.isNew !== b.isNew) return a.isNew ? 1 : -1;
-      if (a.minLevel !== b.minLevel) return a.minLevel - b.minLevel;
-      if (a.vocabTypePriority !== b.vocabTypePriority)
-        return a.vocabTypePriority - b.vocabTypePriority;
-      if (a.decompositionLength !== b.decompositionLength)
-        return a.decompositionLength - b.decompositionLength;
-      return a.randomTiebreaker - b.randomTiebreaker;
-    });
-
-    const selectedItem = candidates[0];
+    const selectedItem = selection.item;
 
     // Return the full vocab item if this is the first time studying this item
-    if (!selectedItem.seen) {
+    if (selection.studyType === "new") {
       const reading = readingOf(selectedItem);
       return {
         id: selectedItem.id,
@@ -786,7 +558,7 @@ export class StudyService {
     }
 
     // Return only the fields needed for the selected study type
-    const studyType = selectedItem.selectedStudyType;
+    const studyType = selection.studyType;
 
     if (studyType === "reading") {
       return {

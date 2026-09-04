@@ -4,7 +4,7 @@ import type { StudyType } from "@/definitions/definitions";
 import {
   summariseDeckProgress,
   type ProgressRollupItem,
-} from "../StudyService";
+} from "@/server/study-rules";
 
 const ALL_TYPES: StudyType[] = [
   "reading",
