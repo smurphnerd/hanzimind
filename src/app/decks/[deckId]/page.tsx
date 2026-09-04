@@ -377,7 +377,10 @@ function DeckOverviewContent() {
           as the other way round. */}
       {groups.length === 0 ? (
         <>
-          <ContentsHeading showingGraph={false} />
+          {/* mb-4 because the flex row that carried it went with the toggle. */}
+          <div className="mb-4">
+            <ContentsHeading showingGraph={false} />
+          </div>
           <EmptyState
             heading="This deck is empty"
             description="Nothing has been added to it yet. Try another deck, or create your own."
