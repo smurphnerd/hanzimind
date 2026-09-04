@@ -1,7 +1,8 @@
-import * as Sentry from "@sentry/nextjs";
+import { ORPCError } from "@orpc/client";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
+import * as Sentry from "@sentry/nextjs";
 import { headers } from "next/headers";
 
 import {
@@ -12,9 +13,16 @@ import {
 import { appRouter } from "@/server/endpoints/router";
 import { container } from "@/server/initialization";
 
+/**
+ * Every procedure in the router is built on `commonProcedure`, so by the time an
+ * error reaches the interceptor loggingMiddleware has already mapped it to an
+ * ORPCError with a status. Anything still raw here failed before a procedure ran
+ * — a body the codec could not decode — which is a caller's mistake and, from a
+ * scanner, an unbounded one. Reporting it would let anyone fill the error
+ * budget from outside; the log line is enough.
+ */
 function isServerFault(error: unknown): boolean {
-  const status = (error as { status?: unknown })?.status;
-  return typeof status !== "number" || status >= 500;
+  return error instanceof ORPCError && error.status >= 500;
 }
 
 const handler = new RPCHandler(appRouter, {
