@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 pnpm install                    # Install dependencies
 pnpm dev-containers             # Start Docker services (PostgreSQL, MinIO)
-pnpm db:push                    # Push database schema changes
+pnpm db:migrate                 # Apply the checked-in migrations in drizzle/
 pnpm db:seed                    # Seed database with vocabulary data
 ```
 
@@ -91,7 +91,10 @@ The API uses **oRPC** (not tRPC) for type-safe RPC communication between client 
 ### Database (Drizzle ORM + PostgreSQL)
 
 - Schema: `src/server/database/schema.ts`
-- Migrations: Use `pnpm db:push` to sync schema
+- Migrations: `pnpm db:generate` writes one from `schema.ts`, `pnpm db:migrate` applies it.
+  Edit `schema.ts`, generate, and commit both — `migrate.test.ts` fails the build if the two
+  disagree. `pnpm db:migrate --baseline` adopts a database that already has the tables and no
+  journal, which is how an existing database crosses over; see `docs/remote-setup.md`
 - Seeding: `src/server/database/seed/` contains seed scripts
 
 **Key tables:**

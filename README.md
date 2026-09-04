@@ -31,10 +31,10 @@ pnpm install
 
 ### 3. Set Up the Database
 
-First, push the database schema to create the tables:
+First, apply the migrations in `drizzle/` to create the tables:
 
 ```bash
-pnpm db:push
+pnpm db:migrate
 ```
 
 Then, populate the database with the initial vocabulary list:
@@ -103,7 +103,11 @@ The default values above work with the Docker development containers. For produc
 - `pnpm dev` - Start the Next.js development server
 - `pnpm dev-containers` - Start development containers (Docker)
 - `pnpm db:seed` - Seed the database with vocabulary
-- `pnpm db:push` - Push database schema changes
+- `pnpm db:migrate` - Apply the checked-in migrations in `drizzle/`
+- `pnpm db:generate` - Write a new migration after editing `schema.ts`
+- `pnpm db:push:scratch` - Shove `schema.ts` straight into a throwaway database, writing no
+  migration. For a scratch database you are willing to drop; anything shared, and anything
+  another person or a CI job will connect to, wants `db:migrate` instead.
 - `pnpm email` - Start the email development server
 - `pnpm build` - Build the application for production
 - `pnpm start` - Start the production server

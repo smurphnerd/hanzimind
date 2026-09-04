@@ -74,14 +74,33 @@ to `endpoint/bucketName`, which is not publicly readable on R2.
 audio is served from a different host than the API endpoint (the usual R2
 setup), the public domain must also be allowed, or the browser blocks playback.
 
-## 4. Apply schema and seed
+## 4. Create the schema on a new database
 
 With Doppler configured:
 
 ```bash
-pnpm db:push     # create the tables
+pnpm db:migrate  # apply drizzle/*.sql
 pnpm db:seed     # ~9.5k dictionary entries + audio
 ```
+
+`db:migrate` applies every migration in `drizzle/` that the journal does not
+already record, inside one transaction, and records what it applied in
+`drizzle.__drizzle_migrations`. Running it twice is a no-op: the second run
+prints `Already up to date, applied 0 migrations`. It needs only `DATABASE_URL`,
+so it can be pointed at a database Doppler knows nothing about:
+
+```bash
+DATABASE_URL=postgres://… pnpm exec tsx src/server/database/migrate.ts
+```
+
+`pnpm db:generate` writes a new migration after `schema.ts` changes. Commit the
+`.sql` file and the `meta/` files together — `migrate.test.ts` fails when the
+schema file and the migrations disagree, or when a journal entry has no file.
+
+`pnpm db:push:scratch` still exists and still shoves `schema.ts` straight into a
+database without writing a migration. It is for a throwaway database you are
+willing to drop. Never point it at anything shared: it leaves no record of what
+it did, so the next `db:migrate` has no way to know.
 
 The seed is **idempotent and resumable**: it loads existing characters once,
 inserts in batches with `onConflictDoNothing`, and skips anything already
@@ -91,19 +110,118 @@ Runtime is dominated by TTS (~325 ms per character). `SEED_BATCH_SIZE` in
 `src/server/database/seed/seed-dictionary.ts` controls concurrency — 12 takes
 roughly 5 minutes; raise it if the TTS endpoint tolerates more.
 
-## 5. Repointing existing audio URLs
+## 5. Cutting an existing database over to migrations
 
-`pnpm db:migrate-audio-urls` rewrites rows whose `audio_url` starts with
-`endpoint/bucketName` to use `cloudfrontDistributionUrl` instead. It only
-rewrites the **prefix** — the object keys are unchanged — so it is the right
-tool when the same files are reachable at a new public domain.
+A database created before migrations existed — production, or any database built
+by the old `db:push` — has all the tables and no journal. A plain `db:migrate`
+there would try to `CREATE TABLE "accounts"` again and fail. It fails cleanly,
+because drizzle runs the whole thing in one transaction and Postgres rolls back
+DDL, but it fails.
 
-It does **not** copy objects between buckets. Moving from the local s3mock to
-R2 means the audio files themselves don't exist in R2 yet, so re-run
-`pnpm db:seed` after clearing `audio_url` (or against an empty database)
-rather than migrating the URLs.
+The cutover is one command. Do the drift check below first.
 
-## 6. Verify
+### 5a. Check for drift, read-only
+
+The baseline was generated from `schema.ts`, not read out of any database, so it
+describes what the schema file says. If the schema was ever pushed straight
+into production from a working copy that differed, the two can disagree — and the
+whole cutover assumes they do not. Build a reference database from the migration
+and compare the two catalogs. Nothing here writes to the remote database.
+
+```bash
+# 1. A local reference database with nothing in it but the migration.
+docker compose -f development/docker-compose.yaml up -d postgres
+docker compose -f development/docker-compose.yaml exec -T postgres \
+  psql -U postgres -c 'create database migrate_reference'
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/migrate_reference \
+  pnpm exec tsx src/server/database/migrate.ts
+
+# 2. The same three catalog queries against each. Save them side by side.
+cat > /tmp/catalog.sql <<'SQL'
+\pset pager off
+select table_name, column_name, data_type, is_nullable, column_default
+  from information_schema.columns where table_schema = 'public' order by 1, 2;
+select conrelid::regclass::text as tbl, conname, pg_get_constraintdef(oid)
+  from pg_constraint where connamespace = 'public'::regnamespace order by 1, 2;
+select tablename, indexname, indexdef
+  from pg_indexes where schemaname = 'public' order by 1, 2;
+SQL
+
+docker compose -f development/docker-compose.yaml exec -T postgres \
+  psql -U postgres -d migrate_reference -f - < /tmp/catalog.sql > /tmp/expected.txt
+psql "$PRODUCTION_DATABASE_URL" -f /tmp/catalog.sql > /tmp/actual.txt
+
+diff -u /tmp/expected.txt /tmp/actual.txt
+```
+
+An empty diff means the baseline describes the remote database and the cutover
+below is safe. **Anything else is a finding, not a formality.** Read it before
+going on: a column production has and `schema.ts` does not means the schema was
+pushed from a branch that never merged, and marking the baseline applied would
+freeze that difference in place forever, invisible to every later migration.
+Reconcile it first — usually by correcting `schema.ts` and regenerating, so the
+baseline describes what is really there.
+
+Drop the reference database when done:
+
+```bash
+docker compose -f development/docker-compose.yaml exec -T postgres \
+  psql -U postgres -c 'drop database migrate_reference'
+```
+
+### 5b. Mark the baseline applied
+
+```bash
+pnpm db:migrate --baseline
+```
+
+This writes one row into `drizzle.__drizzle_migrations` — the sha256 of
+`drizzle/0000_baseline.sql` and its journal timestamp — saying the baseline has
+already run. It does not touch a single table.
+
+It decides what to do by looking, and is safe to run twice:
+
+| What it finds                      | What it does                                    |
+| ---------------------------------- | ----------------------------------------------- |
+| The journal already has rows       | Nothing. Says how many are recorded.            |
+| Every table in the baseline exists | Records the baseline.                           |
+| None of them exist                 | Nothing. Tells you to run `db:migrate` instead. |
+| Only some of them exist            | **Refuses**, names the missing tables, exits 1. |
+
+That last row is the one to take seriously. A half-built database has no right
+answer, and a journal row there would tell every later migration that the
+missing tables are already there.
+
+Confirm the row, then apply anything after the baseline:
+
+```bash
+psql "$DATABASE_URL" -c 'select * from drizzle.__drizzle_migrations'
+pnpm db:migrate
+```
+
+On a database that was already current, the second command prints
+`Already up to date, applied 0 migrations`. That is the whole cutover.
+
+## 6. Repointing existing audio URLs
+
+Moving audio to a new public domain means rewriting the `endpoint/bucketName`
+prefix in `vocab_items.audio_url`. There is no script for this: the one that
+used to do it (`src/server/database/migrations/migrate-audio-urls.ts`) was
+deleted as dead code, and this page went on naming it. It was a prefix rewrite
+and nothing more:
+
+```sql
+update vocab_items
+   set audio_url = replace(audio_url, 'https://OLD-ENDPOINT/BUCKET', 'https://NEW-PUBLIC-DOMAIN')
+ where audio_url like 'https://OLD-ENDPOINT/BUCKET%';
+```
+
+The object keys are unchanged, so this is only right when the same files are
+already reachable at the new domain. Moving from the local s3mock to R2 is not
+that case — the audio does not exist in R2 yet — so re-run `pnpm db:seed`
+against an empty `audio_url` instead of rewriting the prefix.
+
+## 7. Verify
 
 ```bash
 pnpm typecheck
