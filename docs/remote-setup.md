@@ -129,6 +129,18 @@ whole cutover assumes they do not. Build a reference database from the migration
 and compare the two catalogs. Nothing here writes to the remote database, and
 nothing here touches your own dev containers.
 
+**Read this before you run it.** A clean result is `diff` printing nothing and
+exiting 0: the baseline describes your database exactly, and you can go on to
+5b. A dirty result is any difference at all — a column, constraint, index or
+type your database has and the baseline does not, or the reverse — and it means
+this database has drifted from `schema.ts`, almost always because a schema was
+pushed straight into it from a branch that never merged. **If it comes back
+dirty, stop and do not run 5b.** Marking the baseline applied would record that
+your database already matches a description it does not match, and every later
+migration would then build on that lie without being able to see it. Reconcile
+first: decide which side is right, correct `schema.ts` if the database is, run
+`pnpm db:generate`, and re-run this check until it is clean.
+
 ```bash
 # A scratch compose project, so none of this can touch the dev containers a
 # `pnpm dev-containers` shares across every worktree. Its own name, its own
@@ -165,15 +177,6 @@ types, sequences, triggers, functions, comments and extensions. Several of those
 sections are empty against today's schema, which is deliberate: an earlier
 version asked only about columns, constraints and indexes, and a control that
 injected five deliberate differences let a new enum type through.
-
-An empty diff means the baseline describes the remote database and the cutover
-below is safe. **Anything else is a finding, not a formality**, and it is about
-this particular database rather than about the tools. Read it before going on: a
-column production has and `schema.ts` does not means the schema was pushed from
-a branch that never merged, and marking the baseline applied would freeze that
-difference in place forever, invisible to every later migration. Reconcile it
-first — usually by correcting `schema.ts` and regenerating, so the
-baseline describes what is really there.
 
 Throw the scratch project away when done, volume and all:
 
