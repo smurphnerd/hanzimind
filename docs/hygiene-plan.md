@@ -540,7 +540,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **You see.**
 
-- [ ] A bad `vocabItemId` yields a 400 with "Item is not in this deck", a stopped database yields a 500 with "Something went wrong", and the server log shows each error once.
+- [ ] A stopped database yields a 500 with "Something went wrong", and the server log shows each error once. The "Item is not in this deck" 400 is P2-STUDY's build box, not this one; P2-STUDY must land the guard, and if both PRs carry it the stronger version wins the rebase.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
