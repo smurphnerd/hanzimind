@@ -215,7 +215,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
 
-- [ ] Lane 1. Run `pnpm test-e2e` on a fresh lane. Save `e2e-local-pass.png`. Pass when 3 passed.
+- [ ] Lane 1. Run `pnpm test-e2e` on a fresh lane. Save `e2e-local-pass.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 2. Break the sign-in selector and rerun. Save `e2e-fails-loud.png`. Pass when 1 failed with a trace path printed.
 - [ ] Lane 3. Open the PR's `e2e` check log. Save `e2e-ci-green.png`. Pass when the job ran the three specs and is green.
 - [ ] Lane 4. Force the CI e2e job red with a wrong password and download the trace artifact. Save `e2e-trace-artifact.png`. Pass when the artifact contains `trace.zip`.
@@ -330,7 +330,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 4. Create a deck with a new sentence so TTS runs at request time. Save `deps-tts-live.png`. Pass when the sentence entry has a working play button.
 - [ ] Lane 5. Run `pnpm build`. Save `deps-build.png`. Pass when the build completes and no route grew.
 - [ ] Lane 6. Run `pnpm audit --prod`. Save `deps-audit.png`. Pass when the total advisory count dropped from trunk.
-- [ ] Lane 7. Run the e2e suite. Save `deps-e2e.png`. Pass when 3 passed.
+- [ ] Lane 7. Run the e2e suite. Save `deps-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 8. Open `/dictionary/人` and toggle to the graph view. Save `deps-graph.png`. Pass when the graph renders, proving `d3-force` and `react-force-graph-2d` survived.
 - [ ] Lane 9. Load `/` in dark mode. Save `deps-theme.png`. Pass when the theme toggle still works, proving `next-themes` survived.
 - [ ] Lane 10. Run `pnpm lint`. Save `deps-lint.png`. Pass when zero errors.
@@ -389,7 +389,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 6. Run `git worktree list` and `ls -a` locally. Save `dead-local-clean.png`. Pass when the stale worktree and `.env.local-backup` are gone.
 - [ ] Lane 7. Open `/admin/vocab` and toggle a component's Phonetic switch. Save `dead-admin-edit.png`. Pass when the row updates, proving `AdminService.updateVocabItem` survived the `setVocabType` deletion.
 - [ ] Lane 8. Sign in as an admin. Save `dead-admin-gate.png`. Pass when `/admin` renders, proving admin gating no longer depends on `admin-access.ts`.
-- [ ] Lane 9. Run the e2e suite. Save `dead-e2e.png`. Pass when 3 passed.
+- [ ] Lane 9. Run the e2e suite. Save `dead-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 10. Run `pnpm build`. Save `dead-build.png`. Pass when the build completes.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
@@ -500,7 +500,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. POST a `submitAnswer` with a `vocabItemId` from another deck via curl. Save `study-foreign-item.png`. Pass when the response is 400 and `user_vocab_items` gained no row.
 - [ ] Lane 8. Inspect the submit request body in the network tab. Save `study-payload.png`. Pass when it has no `userId` and one `deckId`.
 - [ ] Lane 9. Replay every study row in `docs/hygiene-findings.md`. Save `study-findings-closed.png`. Pass when none reproduce.
-- [ ] Lane 10. Run the e2e suite. Save `study-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `study-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -556,7 +556,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 6. Trigger one service error and grep the dev log. Save `api-logged-once.png`. Pass when the error appears exactly once.
 - [ ] Lane 7. Open `/dictionary/zzz` for an unknown word. Save `api-word-404.png`. Pass when the response is 404 and the page shows a not-found state.
 - [ ] Lane 8. Run every admin mutation once with a bad id. Save `api-admin-errors.png`. Pass when each returns a generic message.
-- [ ] Lane 9. Run the happy paths from the e2e suite. Save `api-e2e.png`. Pass when 3 passed.
+- [ ] Lane 9. Run the happy paths from the e2e suite. Save `api-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 10. Diff the `vocab/search` response shape against trunk for 人. Save `api-search-shape.png`. Pass when the keys are identical and no admin-only column appears.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
@@ -611,7 +611,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Load `/` in dark mode. Save `client-no-bg-white.png`. Pass when no element has a white background.
 - [ ] Lane 8. Create a memory aid and immediately close the dialog. Save `client-aid-awaited.png`. Pass when the aid appears without a console error.
 - [ ] Lane 9. Replay every client row in `docs/hygiene-findings.md`. Save `client-findings-closed.png`. Pass when none reproduce.
-- [ ] Lane 10. Run the e2e suite. Save `client-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `client-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -718,7 +718,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Answer a listening card correctly. Save `rules-listening.png`. Pass when `listening_level` alone advances.
 - [ ] Lane 8. Answer a writing card with the wrong character. Save `rules-writing-wrong.png`. Pass when the result shows incorrect and the expected character.
 - [ ] Lane 9. Run 20 answers in a row and compare the sequence to a trunk lane seeded identically. Save `rules-sequence-parity.png`. Pass when the served order is identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
-- [ ] Lane 10. Run the e2e suite. Save `rules-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `rules-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -772,7 +772,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Submit an answer and watch the network tab. Save `svc-one-roundtrip.png`. Pass when one RPC call returns both the result and the next card.
 - [ ] Lane 8. Study a character gated on a component not yet known. Save `svc-gate.png`. Pass when the component is served before the character.
 - [ ] Lane 9. Run 20 answers and compare the served sequence to a trunk lane seeded identically. Save `svc-sequence-parity.png`. Pass when identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
-- [ ] Lane 10. Run the e2e suite. Save `svc-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `svc-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -826,7 +826,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Open a deck as its creator and as another learner. Save `decks-header.png`. Pass when both see the same header fields.
 - [ ] Lane 8. Create a deck with a sentence. Save `decks-sentence.png`. Pass when the sentence, its words and their characters all appear.
 - [ ] Lane 9. Create a deck reusing 10 existing words. Save `decks-existing.png`. Pass when no duplicate `vocab_items` rows and no new audio objects.
-- [ ] Lane 10. Run the e2e suite. Save `decks-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `decks-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -880,7 +880,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Add a synonym from the result card. Save `session-synonym.png`. Pass when the synonym persists in `user_vocab_items`.
 - [ ] Lane 8. Toggle Details and Graph on the first-sight card. Save `session-graph.png`. Pass when the graph renders.
 - [ ] Lane 9. Run through 20 cards at 390 pixels wide. Save `session-mobile.png`. Pass when nothing overflows horizontally.
-- [ ] Lane 10. Run the e2e suite. Save `session-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `session-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -938,7 +938,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Create a memory aid from all three dialogs. Save `shared-aid-form.png`. Pass when the form is identical and all three persist.
 - [ ] Lane 8. Load `/` signed in. Save `shared-stat-tile.png`. Pass when the tiles match `src/components/stat-tile.tsx` styling.
 - [ ] Lane 9. Play audio from the dictionary results table. Save `shared-audio.png`. Pass when it plays and a failure shows the shared toast.
-- [ ] Lane 10. Run the e2e suite. Save `shared-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `shared-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -989,7 +989,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Load `/decks` and check the Saved badge. Save `shadcn-saved-badge.png`. Pass when it renders as `ui/badge`.
 - [ ] Lane 8. Load every page in dark mode. Save `shadcn-dark.png`. Pass when no badge or tooltip is unreadable.
 - [ ] Lane 9. Load `/admin/suggestions` and check status pills. Save `shadcn-status.png`. Pass when each status has a variant and a text label.
-- [ ] Lane 10. Run the e2e suite. Save `shadcn-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `shadcn-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1037,7 +1037,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 2. Run `db:migrate` twice. Save `migrate-idempotent.png`. Pass when the second run applies zero migrations.
 - [ ] Lane 3. Run `db:migrate` on a database created by trunk's `db:push`, after marking the baseline applied per the doc. Save `migrate-adopt.png`. Pass when it applies nothing and the app boots.
 - [ ] Lane 4. Run `drizzle-kit generate` with no schema change. Save `migrate-no-drift.png`. Pass when it reports no changes.
-- [ ] Lane 5. Seed and run the e2e suite on a migrated database. Save `migrate-e2e.png`. Pass when 3 passed.
+- [ ] Lane 5. Seed and run the e2e suite on a migrated database. Save `migrate-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 6. Open the CI e2e job log. Save `migrate-ci.png`. Pass when it ran `db:migrate`.
 - [ ] Lane 7. Follow `docs/remote-setup.md` cutover steps against a Neon branch. Save `migrate-neon-branch.png`. Pass when the journal table holds one row and the app serves against the branch. Deferred to the production cutover gate, which is the operator's, because no agent on this machine can run it. There is no `neonctl`, no host `psql`, and the only credentials reaching a real Neon project are Doppler's, which the program forbids touching. Until the operator runs it, TLS to a `-pooler` endpoint with `sslmode=require` and whether the Neon role may `create schema drizzle` stay untested, and a verifier records the box as deferred rather than passed.
 - [ ] Lane 8. Grep the repo for `db:push`. Save `migrate-push-scoped.png`. Pass when only the scratch script and its doc line remain.
@@ -1100,7 +1100,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Save a deck and study one card. Save `index-study.png`. Pass when both persist.
 - [ ] Lane 8. Submit three suggestions quickly. Save `index-ratelimit.png`. Pass when the rate limit still trips at the same count as trunk.
 - [ ] Lane 9. Search the dictionary for `shui`. Save `index-search.png`. Pass when results match trunk.
-- [ ] Lane 10. Run the e2e suite. Save `index-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `index-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1215,7 +1215,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Study 亻 with all types on. Save `progress-meaning-only.png`. Pass when only understanding rows exist for it.
 - [ ] Lane 8. Answer the same card from two tabs. Save `progress-race.png`. Pass when one row advanced once.
 - [ ] Lane 9. Run 20 answers and compare the served order to a trunk lane seeded identically. Save `progress-sequence-parity.png`. Pass when identical. The deck must be built so no two candidates tie on the deterministic keys, because HSK 1 has dozens of ties, the random tiebreak decides them, and whether the drawn item is phonetic changes the next card's study type. P3-RULES measured the head disagreeing with itself across five runs on HSK 1, four distinct sequences, so a tied deck produces false failures.
-- [ ] Lane 10. Run the e2e suite. Save `progress-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `progress-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1271,7 +1271,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Attempt to embed the app in an iframe from another origin. Save `headers-frame.png`. Pass when the browser blocks it.
 - [ ] Lane 8. Load `/` and read `strict-transport-security`. Save `headers-hsts.png`. Pass when max-age is 31536000.
 - [ ] Lane 9. Run the stroke animation. Save `headers-strokes.png`. Pass when it animates with no style violation.
-- [ ] Lane 10. Run the e2e suite in production mode. Save `headers-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite in production mode. Save `headers-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1326,7 +1326,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Stop Mailpit and sign up. Save `auth-send-logged.png`. Pass when the log shows the send failure and the UI shows a retry message.
 - [ ] Lane 8. Count `betterAuth` constructions across 50 requests via a log line. Save `auth-singleton.png`. Pass when exactly one.
 - [ ] Lane 9. Open the reset link twice. Save `auth-reset-once.png`. Pass when the second use fails.
-- [ ] Lane 10. Run the e2e suite. Save `auth-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `auth-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1384,7 +1384,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 7. Send two verification emails. Save `obs-smtp-reuse.png`. Pass when the log shows one transport creation.
 - [ ] Lane 8. Set `SENTRY_DSN` to a local sink and throw. Save `obs-sentry.png`. Pass when the event arrives with the request id.
 - [ ] Lane 9. Click retry on an error page after restarting Postgres. Save `obs-retry.png`. Pass when the page recovers without a full reload.
-- [ ] Lane 10. Run the e2e suite. Save `obs-e2e.png`. Pass when 3 passed.
+- [ ] Lane 10. Run the e2e suite. Save `obs-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1433,7 +1433,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 5. Create a deck and read its id. Save `upgrade-nanoid.png`. Pass when the id has the same length as trunk's.
 - [ ] Lane 6. Resolve every service from the container at boot. Save `upgrade-awilix.png`. Pass when no resolution error.
 - [ ] Lane 7. Run `pnpm build`. Save `upgrade-build.png`. Pass when it completes.
-- [ ] Lane 8. Run the e2e suite. Save `upgrade-e2e.png`. Pass when 3 passed.
+- [ ] Lane 8. Run the e2e suite. Save `upgrade-e2e.png`. Pass when the suite passes, which is 4 specs as of P3-SHADCN adding the segmented-control regression test. Check the count against the suite rather than against this line.
 - [ ] Lane 9. Run `pnpm email` and open the preview. Save `upgrade-email-dev.png`. Pass when all templates render.
 - [ ] Lane 10. Run `pnpm audit --prod`. Save `upgrade-audit.png`. Pass when critical and high are 0.
 
