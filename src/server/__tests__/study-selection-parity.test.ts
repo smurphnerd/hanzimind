@@ -169,8 +169,24 @@ const MINUTE = 60 * 1000;
  * comparator, both passed, because no two candidates ever reached those keys.
  *
  * So the ties are explicit. `沐`/`河` tie on everything above decomposition
- * length and differ on it. `休`/`床` tie on all four deterministic keys, so only
- * the tiebreak separates them.
+ * length and differ on it.
+ *
+ * The pair that actually reaches the tiebreak is `亻` against `艮`, the
+ * meaning-only component against the phonetic one: they decide the first card
+ * of seed 1, which is what makes an inline-random mutation fail. `休`/`床` also
+ * tie on all four deterministic keys, but the twenty-step window exhausts
+ * before they reach the top two, so they carry nothing. Protect 亻/艮 when
+ * editing this deck.
+ *
+ * Not exhaustive. Both introductions here are structurally impossible to lock,
+ * so the two `continue` branches in `selectNextCard`'s unseen arm are never
+ * taken, and a mutation that draws the tiebreak before them slips through. That
+ * is a fixture gap rather than a code gap: the production tiebreak is unseeded,
+ * so a permutation of independent draws is unobservable.
+ *
+ * The five seeds buy about two distinct sequences, not five. Seeds 7, 42, 1337
+ * and 90210 all produce the same twenty cards and only seed 1 differs. The
+ * teeth come from the mutation results, not the seed count.
  */
 function buildDeck(): ScorableItem[] {
   const due = new Date(NOW.getTime() - MINUTE);
