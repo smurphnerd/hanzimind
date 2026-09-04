@@ -1053,8 +1053,8 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lane 7 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-MIGRATE-review-neon.png`.
-- [ ] Record a 30 to 60 second video of the cutover on a Neon branch. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-MIGRATE-review.mp4`.
+- [ ] Copy the adoption run with the before-and-after row counts into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-MIGRATE-review-adopt.png`. Lane 7's screenshot has no source now that its box is deferred to the operator's cutover gate, and this is the same evidence without Neon.
+- [ ] Record a 30 to 60 second terminal transcript of the cutover on a data-bearing lane, captured with `script(1)`, which macOS ships. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-MIGRATE-review.txt`. A transcript rather than a video because no screen recorder exists on this machine and none will be installed to make an artifact prettier; the only one present films the operator's own display. Not a Neon branch either, since that is deferred. Boot the lane from a worktree at trunk, whose `lane-up.sh` still uses `drizzle-kit push`, so the database has production's shape with no journal and nothing hand-edited about the bookkeeping under test.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1112,7 +1112,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 4 and lane 5 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-INDEX-review-cascade.png`.
-- [ ] Record a 30 to 60 second video of the migration applying on a data-bearing lane. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-INDEX-review.mp4`.
+- [ ] Record a 30 to 60 second video of the migration applying on a data-bearing lane. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-INDEX-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1227,7 +1227,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 2 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-PROGRESS-review-parity.png`.
-- [ ] Record a 30 to 60 second video of the migration and a study session after it. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-PROGRESS-review.mp4`.
+- [ ] Record a 30 to 60 second video of the migration and a study session after it. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-PROGRESS-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1338,7 +1338,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-AUTH-review-flows.png`.
-- [ ] Record a 30 to 60 second video of reset, change email and delete. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-AUTH-review.mp4`.
+- [ ] Record a 30 to 60 second video of reset, change email and delete. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-AUTH-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1551,7 +1551,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 9 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-SHELL-review-mobile.png`.
-- [ ] Record a 30 to 60 second video of the mobile nav. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-SHELL-review.mp4`.
+- [ ] Record a 30 to 60 second video of the mobile nav. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-SHELL-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1608,7 +1608,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STUDY-UX-review-session.png`.
-- [ ] Record a 30 to 60 second video of a session. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STUDY-UX-review.mp4`.
+- [ ] Record a 30 to 60 second video of a session. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STUDY-UX-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1662,7 +1662,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-FORMS-review-auth.png`.
-- [ ] Record a 30 to 60 second video of sign-up and sign-in. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-FORMS-review.mp4`.
+- [ ] Record a 30 to 60 second video of sign-up and sign-in. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-FORMS-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1717,7 +1717,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 3 and lane 6 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STATES-review-states.png`.
-- [ ] Record a 30 to 60 second video of the dictionary with URL state and the error retry. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STATES-review.mp4`.
+- [ ] Record a 30 to 60 second video of the dictionary with URL state and the error retry. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-STATES-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1771,7 +1771,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-HOME-review-home.png`.
-- [ ] Record a 30 to 60 second video of the dashboard updating after answers. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-HOME-review.mp4`.
+- [ ] Record a 30 to 60 second video of the dashboard updating after answers. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-HOME-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1826,7 +1826,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 6 and lane 7 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-A11Y-review-a11y.png`.
-- [ ] Record a 30 to 60 second video of keyboard-only navigation through a session. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-A11Y-review.mp4`.
+- [ ] Record a 30 to 60 second video of keyboard-only navigation through a session. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P5-A11Y-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
@@ -1986,7 +1986,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Review gate.** The operator reviews before merge.
 
 - [ ] Copy lane 1 and lane 2 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P6-LEGAL-review-pages.png`.
-- [ ] Record a 30 to 60 second video scrolling both pages. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P6-LEGAL-review.mp4`.
+- [ ] Record a 30 to 60 second video scrolling both pages. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P6-LEGAL-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**
