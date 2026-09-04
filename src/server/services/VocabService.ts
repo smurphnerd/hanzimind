@@ -551,6 +551,12 @@ export class VocabService {
    * actually inserted, so deck membership built from it would silently drop the
    * word a concurrent create won the race for. Membership is resolved by reading
    * back the glyphs, which finds the row whoever wrote it.
+   *
+   * Sorted by glyph, which is what keeps the waiting above from becoming a
+   * deadlock. A multi-row insert takes its index entries in the order of the
+   * VALUES list, so two creates sharing two new words in opposite orders would
+   * each hold what the other is waiting for and Postgres would kill one of them.
+   * Any order both agree on fixes that; the glyph is the one they both have.
    */
   async insertVocabItems(
     executor: Executor,
@@ -560,9 +566,13 @@ export class VocabService {
       return;
     }
 
+    const ordered = [...prepared].sort((a, b) =>
+      a.vocabItem < b.vocabItem ? -1 : a.vocabItem > b.vocabItem ? 1 : 0,
+    );
+
     await executor
       .insert(schema.vocabItems)
-      .values(prepared)
+      .values(ordered)
       .onConflictDoNothing({ target: schema.vocabItems.vocabItem });
   }
 

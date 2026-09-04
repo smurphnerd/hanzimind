@@ -605,6 +605,27 @@ describe("insertVocabItems", () => {
     );
   });
 
+  // Two creates sharing two new words in opposite orders would each hold the
+  // index entry the other is waiting for, and Postgres would kill one of them.
+  // Any order both agree on fixes it; the glyph is the one they both have.
+  it("takes its rows in an order every create agrees on", async () => {
+    const forward = await captureInsert([
+      { ...prepared, vocabItem: "谢谢" },
+      { ...prepared, vocabItem: "朋友" },
+    ]);
+    const reverse = await captureInsert([
+      { ...prepared, vocabItem: "朋友" },
+      { ...prepared, vocabItem: "谢谢" },
+    ]);
+
+    // Only the glyphs: the rest of each row is a generated id and a timestamp.
+    const glyphs = (statement?: { values: unknown[] }) =>
+      statement?.values.filter((value) => value === "朋友" || value === "谢谢");
+
+    expect(glyphs(forward[0])).toEqual(["朋友", "谢谢"]);
+    expect(glyphs(reverse[0])).toEqual(["朋友", "谢谢"]);
+  });
+
   it("issues no statement when there is nothing to write", async () => {
     expect(await captureInsert([])).toEqual([]);
   });
