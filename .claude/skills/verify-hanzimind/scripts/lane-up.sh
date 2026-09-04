@@ -80,8 +80,17 @@ DEEPL_API_KEY=${DEEPL_API_KEY:-lane-no-deepl}
 SEED_TEST_USER=1
 EOF
 
-(cd "$REPO" && lane_env && pnpm exec drizzle-kit push --force >"$LANE_DIR/db-push.log" 2>&1) ||
-	{ printf 'lane %s: drizzle-kit push failed, see %s\n' "$LANE" "$LANE_DIR/db-push.log" >&2; exit 1; }
+# Adopt, then apply — the same pair docs/remote-setup.md gives for production,
+# so every lane boot exercises the documented cutover. A fresh volume has
+# nothing to adopt and the second command creates everything. A lane whose
+# database was built by the old `drizzle-kit push` has the tables and no
+# journal: the first command records the baseline as already applied, and the
+# second then has nothing to do instead of failing on a table that exists. A
+# lane that is already current gets two no-ops.
+(cd "$REPO" && lane_env &&
+	pnpm exec tsx src/server/database/migrate.ts --baseline &&
+	pnpm exec tsx src/server/database/migrate.ts) >"$LANE_DIR/db-migrate.log" 2>&1 ||
+	{ printf 'lane %s: db:migrate failed, see %s\n' "$LANE" "$LANE_DIR/db-migrate.log" >&2; exit 1; }
 
 cache_key=$(seed_cache_key)
 cache_root="${HANZIMIND_LANE_CACHE:-$HOME/.cache/hanzimind-lanes}"
