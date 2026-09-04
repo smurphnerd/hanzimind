@@ -1077,7 +1077,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Build.**
 
 - [ ] Add indexes on `memoryAids.vocabItemId`, `suggestions(createdById, createdAt)`, `suggestions.status`, `userDecks.deckId`, `userVocabItems.memoryAidId`, `deckVocabItems.vocabItemId`, `vocabItems(disabled, vocabType)`, and a trigram or lower-cased index for the ILIKE search columns.
-- [ ] Add `onDelete: "cascade"` to `userVocabItems`, `deckVocabItems`, `userDecks`, `memoryAids` user references, and `onDelete: "restrict"` to `decks.createdById`.
+- [ ] Add `onDelete: "cascade"` to `userVocabItems`, `deckVocabItems`, `userDecks`, `memoryAids` user references. Leave `decks.createdById` without a cascade so a published deck cannot vanish under the learners studying it, and match P4-AUTH's hook, which deletes an authored deck no other learner has saved and refuses the account deletion only when one has.
 - [ ] Drop `userDecks.includeConstituents` and its readers.
 - [ ] Generate the migration and check it in.
 
