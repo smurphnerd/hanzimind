@@ -35,15 +35,6 @@ import {
 } from "@/server/endpoints/errors";
 
 /**
- * The columns selection and the progress rollup decide on, and nothing more.
- *
- * Deliberately no `strokes`, `strokeMedians` or `strokeMatches`. A deck query
- * pulls one row per item, several hundred for HSK 1, and the stroke JSONB is by
- * far the widest thing on each of them. Nothing in the rules reads it, and the
- * one card that renders it is an introduction, which fetches its own full row
- * after selection rather than making every other row carry the weight.
- */
-/**
  * Which study types a saved deck is set to quiz, in a fixed order.
  *
  * The order is load-bearing rather than cosmetic. `selectNextCard` walks this
@@ -65,6 +56,16 @@ export function enabledStudyTypes(userDeck: {
   return enabled;
 }
 
+/**
+ * The columns selection and the progress rollup decide on, and nothing more.
+ *
+ * Deliberately no `strokes`, `strokeMedians` or `strokeMatches`. A deck query
+ * pulls one row per item, 398 for HSK 1, and the stroke JSONB is by far the
+ * widest thing on each of them: 634,024 bytes against the 50,173 these columns
+ * come to. Nothing in the rules or the rollup reads it, and the one card that
+ * renders it is an introduction, which fetches its own full row after selection
+ * rather than making every other row carry the weight.
+ */
 const cardColumns = {
   id: schema.vocabItems.id,
   vocabItem: schema.vocabItems.vocabItem,
@@ -662,22 +663,16 @@ export class StudyService {
   }
 
   /**
-   * Each requested deck's standing for the current learner.
+   * Every deck this learner has saved, with its standing.
    *
    * Batched on purpose: the study list renders up to 50 decks, and a call per
-   * deck would be 50 round-trips for one screen. Unlike getNextVocabItem this
-   * tolerates a deck the viewer has not enrolled in — the caller may be showing
-   * any deck — and reports it as an empty garden rather than throwing.
+   * deck would be 50 round trips for one screen.
    *
-   * Returns one entry per requested id, in the order asked for.
-   */
-  /**
-   * Every saved deck's standing, for the study list.
-   *
-   * The caller does not say which decks. It used to, which meant the page had
-   * to fetch its deck list first and wait for it before asking for progress:
-   * two sequential round trips for one screen, and the ids were only ever the
-   * ones this query already filters by.
+   * The caller does not say which decks, and there is no entry for one the
+   * learner has not saved. It used to take ids, which only `getUserDecks` could
+   * supply, so the page had to fetch its deck list and wait for it before it
+   * could ask for progress at all. The ids were never anything but the set this
+   * query already filters by, since it matches on `userId` too.
    */
   async getDeckProgress(userId: string): Promise<DeckProgressDto[]> {
     // Settings are per user-deck, so what counts as studiable differs between

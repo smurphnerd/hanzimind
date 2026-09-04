@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import {
-  useSuspenseQuery,
+  useSuspenseQueries,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -172,15 +172,17 @@ function StudyContent() {
     settings: DeckSettings;
   } | null>(null);
 
-  const { data } = useSuspenseQuery(
-    orpc.decks.getUserDecks.queryOptions({ input: DECKS_INPUT }),
-  );
-
-  // Independent of the deck list above, so the two run together rather than
-  // one waiting on the other's ids.
-  const { data: progress } = useSuspenseQuery(
-    orpc.study.deckProgress.queryOptions({ input: {} }),
-  );
+  // One hook, not two. Two `useSuspenseQuery` calls in one component do not
+  // run together: the first suspends the component before the second is ever
+  // reached, so the second only starts once the first has resolved. That is a
+  // waterfall regardless of whether the queries depend on each other, and it
+  // survived making `deckProgress` independent of the deck list.
+  const [{ data }, { data: progress }] = useSuspenseQueries({
+    queries: [
+      orpc.decks.getUserDecks.queryOptions({ input: DECKS_INPUT }),
+      orpc.study.deckProgress.queryOptions({ input: {} }),
+    ],
+  });
 
   const progressByDeck = new Map(
     progress.map((entry) => [entry.deckId, entry]),
