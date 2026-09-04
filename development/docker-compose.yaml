@@ -22,7 +22,7 @@ services:
     user: root
     # The JVM sizes its heap from the cgroup limit. Without one it takes most of
     # the Docker VM and the next s3mock fails to start.
-    mem_limit: 512m
+    mem_limit: 1g
     ports:
       - "${S3_PORT:-9090}:9090"
     environment:

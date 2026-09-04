@@ -15,9 +15,9 @@ A signed-in learner fills in a name, a description, and one vocabulary item per 
 
 ## How to get to it (user POV)
 
-- Sign in, open `Decks` in the header, and choose the `Create Deck` button in the page header.
+- Sign in, open `Decks` in the header, and choose the `Create Deck` link in the page header.
 - Sign in and open `http://localhost:PORT/decks/new` directly.
-- On an empty `/decks` page, choose the `Create Deck` button inside the `No decks yet` empty state.
+- On an empty `/decks` page, choose the `Create Deck` link inside the `No decks yet` empty state.
 
 ## Driving it with claude-in-chrome
 
@@ -35,7 +35,7 @@ Preconditions:
 - **Fill the deck.** Run `form_input` with the `Deck Name` ref and value `Verify deck`. Run `form_input` with the `Description` ref and value `Verification deck of dictionary characters`. Click into `Vocabulary Items` and type the six characters one per line. Run `computer` `left_click` on the `Vocabulary Items` ref, then `computer` `type` with `人`, `computer` `key` with `Return`, and repeat for `大`, `一`, `我`, `你`, `好`. Run `get_page_text` and confirm the textarea shows six lines.
 - **Before screenshot.** Run `computer` `screenshot` with `save_to_disk` set. The image shows the filled form with `Create Deck` still enabled.
 - **Submit.** Run `find` with `Create Deck button`, then `computer` `left_click` on that ref. The button text reads `Creating...` while the request runs. A toast reads `Deck created!` and the URL becomes `/decks/<id>` where `<id>` is a UUID.
-- **Resulting deck.** Run `get_page_text` on the deck page. The `h1` is `Verify deck`, the description matches what was typed, the stat row reads `@Verify Learner`, `N items`, and `0 learners`, and the heading `What's inside` sits above a card titled `Characters` and a card titled `Components`. The `Characters` card holds chips for `人`, `大`, `一`, `我`, `你`, `好` and also `尔`, `女`, `子`, which arrived as parts. The `Components` card holds at least `亻`, `扌`, `戈`. `N items` is larger than 6 because parts are always included.
+- **Resulting deck.** Run `get_page_text` on the deck page. The `h1` is `Verify deck`, the description matches what was typed, the stat row reads `@Verify Learner`, `N items`, and `0 learners`, and the heading `What's inside` sits above a card titled `Components` and, below it, a card titled `Characters`. The `Characters` card holds chips for `人`, `大`, `一`, `我`, `你`, `好` and also `尔`, `女`, `子`, which arrived as parts. The `Components` card holds at least `亻`, `扌`, `戈`. `N items` is larger than 6 because parts are always included.
 - **After screenshot.** Run `computer` `screenshot` with `save_to_disk` set. The image shows the deck page with the `Save Deck` button and the grouped chips.
 - **Unknown single character.** Return to `/decks/new`, fill a name and description, and enter one line that is not in the dictionary, for example a Latin letter such as `Q`. Choose `Create Deck`. A toast reads `Failed to create vocab item: Q`. No deck is created. A single character has no source other than the dictionary seed, so this fails before any external call.
 - **Unknown compound.** Enter one line with two or more characters that the seed does not hold, for example `你好`. Choose `Create Deck`. The server translates the word with DeepL and generates audio before it can insert it. With a placeholder `DEEPL_API_KEY` the DeepL request is rejected, the toast reads `Failed to create vocab item: 你好`, and no deck is created. Report this path as blocked by the missing key, not as a failure of the form.
