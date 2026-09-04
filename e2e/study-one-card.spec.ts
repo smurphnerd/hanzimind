@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type APIRequestContext, expect, test } from "@playwright/test";
 
 import { rpc } from "./fixtures";
 
@@ -13,6 +13,16 @@ type Card = {
 type Entry = { vocabItem: string; pinyin: string; translation: string | null };
 
 type Deck = { vocabItems: { id: string; vocabItem: string }[] };
+
+async function glyphForCard(
+  request: APIRequestContext,
+  card: NonNullable<Card>,
+) {
+  const deck = await rpc<Deck>(request, "decks/getById", { deckId: DECK_ID });
+  const glyph = deck.vocabItems.find((item) => item.id === card.id)?.vocabItem;
+  expect(glyph, `card ${card.id} is not in the deck`).toBeTruthy();
+  return glyph!;
+}
 
 test("answering one card in HSK 1 correctly shows the result card with a level", async ({
   page,
@@ -54,12 +64,8 @@ test("answering one card in HSK 1 correctly shows the result card with a level",
   const input = page.getByRole("textbox");
   await expect(input).toBeVisible();
 
-  // A listening or writing card hides its glyph, so the deck's item list maps
-  // the card's id back to it.
   expect(card, "no quiz card followed the intro").not.toBeNull();
-  const deck = await rpc<Deck>(request, "decks/getById", { deckId: DECK_ID });
-  const glyph = deck.vocabItems.find((item) => item.id === card!.id)?.vocabItem;
-  expect(glyph, `card ${card!.id} is not in the deck`).toBeTruthy();
+  const glyph = await glyphForCard(request, card!);
   const entry = await rpc<Entry>(request, "vocab/get", { vocabItem: glyph });
   const answer = {
     reading: entry.pinyin,

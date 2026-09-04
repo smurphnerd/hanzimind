@@ -59,7 +59,7 @@ ok      vocab_items has 9642 rows
 ok      running GIT_SHA 0fafff91e811 matches git rev-parse HEAD
 ```
 
-The last check reads the SHA from the running process, not from the env file or an old log. It runs only when the ping passed, notes the length of `dev.log`, calls an auth procedure without a session so the server writes a fresh `UNAUTHORIZED` line, and looks for the SHA in the lines added after that point. Every log line carries the `GIT_SHA` the process started with, so a lane started on an older checkout fails this check until it is restarted, and a stopped lane reports `no running server to read GIT_SHA from`. Run doctor first whenever anything looks off.
+The last check reads the SHA from the running process, not from the env file or an old log. It runs only when the ping passed, notes the length of `dev.log`, calls an auth procedure without a session so the server writes a fresh `UNAUTHORIZED` line, and looks for the SHA in the lines added after that point. Every log line carries the `GIT_SHA` the process started with, so a lane started on an older checkout fails this check until it is restarted, and a stopped lane reports `no running server to read GIT_SHA from`. Run doctor first whenever anything looks off. Every lane script is safe to call from a script that is itself fed on stdin: `lane_psql` redirects the `docker compose exec` it runs from `/dev/null`, because compose reads the caller's stdin even with `-T` and used to swallow every line after a `doctor.sh` call in a heredoc.
 
 ## Drive
 

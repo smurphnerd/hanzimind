@@ -1,0 +1,130 @@
+# Hygiene findings
+
+Twenty-nine confirmed product defects, found by driving all nine feature files of
+`.claude/skills/verify-hanzimind` across three lanes at `8ec61e2`, plus the survey seeds and
+the sightings earlier swarms had recorded. Every row was seen live: either the worker
+captured it, or it was replayed against a running lane while this file was written.
+
+Each row names the PR that fixes it. **P2-STUDY** is the study session, **P2-API** is server
+procedures, error mapping and input bounds, **P2-CLIENT** is client state, caching, hydration
+and server prefetch, **P2-FOUND** is everything else.
+
+Severity. **Blocker** stops a learner finishing a core flow. **Major** breaks a feature, loses
+a learner's data, or leaks internals. **Minor** is wrong with a workaround. **Cosmetic** is
+text or layout.
+
+Evidence paths are relative to `hanzimind-evidence/owner-P2-HUNT/` on the machine that ran the
+hunt. `worker-1` drove sign-in, study and profile on lane 5; `worker-2` drove dictionary and
+both deck files on lane 6; `worker-3` drove both admin files and memory aids on lane 7. Each
+worker's own `findings.md` holds the full repro and the screenshots behind its rows.
+
+Two rows sat in a later PR's natural territory: 20 (no mobile navigation) is what P5-SHELL
+exists to fix, and 26 (production CSP) was P4-HEADERS' subject, which has since fixed it. They are assigned inside the
+P2 set as the plan requires, and either owner can claim them instead.
+
+| #   | Finding                                                                                                                                     | Severity | Fixing PR | Source                                                                                                              | Evidence                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Enter is captured window-wide during a card, so no other control can be used from the keyboard                                              | major    | P2-STUDY  | `study/[deckId]/page.tsx:170-181`, `:380-396`                                                                       | `worker-1/study-submit-enter-on-theme-toggle.png`, `worker-1/study-notes.txt`                                                                      |
+| 2   | A failed `study.submitAnswer` is silent: no toast, no message, the answer is lost                                                           | major    | P2-STUDY  | `study/[deckId]/page.tsx:590-629`                                                                                   | `row2-submitanswer-silent.txt`, `row2-submitanswer-silent.png`, `worker-3/api-seeds.log.txt`                                                       |
+| 3   | The writing card's input carries `text-2xlhanzi`, so typed glyphs render at 14px in the Latin font                                          | minor    | P2-STUDY  | `study/[deckId]/page.tsx:308`                                                                                       | `worker-1/study-writing-card.png`, `worker-1/study-notes.txt`                                                                                      |
+| 4   | The intro card's `Continue` is below the fold at 1280x800 and at 390px                                                                      | minor    | P2-STUDY  | `study/[deckId]/page.tsx:183-207`                                                                                   | `worker-1/study-new-card-desktop.png`, `worker-1/study-new-card-mobile.png`                                                                        |
+| 5   | An empty deck and a finished deck both say "you've cleared every card in this session"                                                      | minor    | P2-STUDY  | `study/[deckId]/page.tsx:536-559`, `:661-667`; `StudyService.ts:621-624`, `:706-709`                                | `worker-2/emptydeck-study.png`, `worker-2/onechar-revisit.png`                                                                                     |
+| 6   | User-reachable states throw plain `Error`s, so four procedures answer 500                                                                   | major    | P2-API    | `StudyService.ts:210`, `:550`; `adminRouter.ts:96-103`; `suggestionsRouter.ts:55-58`                                | `worker-1/study-notes.txt`, `worker-2/decks-api.txt`, `worker-3/api-seeds.log.txt`, `worker-3/admin-vocab.log.txt`, `worker-3/suggestions-run.txt` |
+| 7   | `study.addSynonym` and `vocab.createMemoryAid` return the raw failed SQL and its bound parameters                                           | major    | P2-API    | `studyRouter.ts:130`, `vocabRouter.ts:103`                                                                          | `worker-3/api-seeds.log.txt`, `worker-3/api-seeds-run.txt`                                                                                         |
+| 8   | A database outage answers `404` with the raw failed SQL and its bound parameters, which also ship in the server-rendered HTML               | major    | P2-API    | `vocabRouter.ts:36-52`                                                                                              | `row8-db-outage.txt`, `hanzimind-evidence/swarm-P2-HUNT-2/worker-1/row8-verify.txt`, `hanzimind-evidence/swarm-P2-HUNT-2/worker-1/row8-page.txt`   |
+| 9   | A memory aid has no length limit; 5,000 characters stretch the entry page to 60,000px                                                       | major    | P2-API    | `vocabRouter.ts:89`                                                                                                 | `worker-3/aid-entry-mobile-overflow-5000char.png`, `worker-3/aid-manage-dialog-overflow-5000char.png`                                              |
+| 10  | `decks/create` accepts a blank name, producing a nameless public card with no accessible name                                               | minor    | P2-API    | `decksRouter.ts:43-45`, `decks/page.tsx:153-158`                                                                    | `worker-2/deckcreate-api.txt`, `worker-2/decks-blank-name-cards.png`                                                                               |
+| 11  | A disabled glyph is dropped from a new deck with `Deck created!` and no notice                                                              | minor    | P2-API    | `decksRouter.ts:56-64`                                                                                              | `worker-2/deckcreate-observations.txt`                                                                                                             |
+| 12  | Sign-out leaves the query cache populated, so the previous learner's decks stay on screen, provided the walk back stays inside one document | major    | P2-CLIENT | `profile/page.tsx:23-34`, `orpc.client.tsx:19-26`, `:41-59`                                                         | `worker-1/cache-after-signout-study.png`, `worker-1/profile-notes.txt`                                                                             |
+| 13  | `/study`, `/study/[deckId]` and `/decks/[deckId]` fire a cookie-less SSR RPC that 401s, then discard the render                             | major    | P2-CLIENT | `orpc.client.tsx:47-49`; `study/page.tsx:174,178`; `study/[deckId]/page.tsx:567`; `decks/[deckId]/page.tsx:261-263` | `worker-1/dev-log-1-before-smtp-restart.txt`, `worker-1/prod-server.log`, `worker-2/deck-detail-devlog.txt`                                        |
+| 14  | `Save Deck` on the deck page silently resets the learner's study modes                                                                      | major    | P2-CLIENT | `decks/[deckId]/page.tsx:254-259`, `:324-328`, `:402-404`                                                           | `worker-2/deck-detail-save-dialog.png`, `worker-2/decks-observations.txt`                                                                          |
+| 15  | Signed-out `/decks/[deckId]` shows a raw error instead of a sign-in path                                                                    | minor    | P2-CLIENT | `decks/[deckId]/page.tsx` (no gate), `error-boundary.tsx:53`                                                        | `worker-2/deck-detail-signed-out.png`                                                                                                              |
+| 16  | `/study` costs two sequential client round trips because the second query needs the first's ids                                             | minor    | P2-CLIENT | `study/page.tsx:174-182`                                                                                            | `worker-1/decks-timing-prod.txt`, `worker-1/decks-timing-dev.txt`                                                                                  |
+| 17  | Controls are painted before hydration and swallow the first click                                                                           | minor    | P2-CLIENT | `dictionary/[word]/page.tsx:1`                                                                                      | `worker-2/dict-hydration-timing.txt`                                                                                                               |
+| 18  | `ReactQueryDevtools` is mounted unconditionally in the app provider                                                                         | minor    | P2-CLIENT | `orpc.client.tsx:11`, `:56`                                                                                         | `row18-29-devtools-and-footer.png`, `row2-18-29-citations.txt`                                                                                     |
+| 19  | Signing up with an address that already has an account reports success                                                                      | major    | P2-FOUND  | `auth.tsx:38-41` (better-auth returns a synthetic 200)                                                              | `worker-1/signup-duplicate.png`, `row19-duplicate-signup-mail.txt`                                                                                 |
+| 20  | Below 640px there is no navigation at all: no menu, no section links, no Admin entry                                                        | major    | P2-FOUND  | `header.tsx:46`                                                                                                     | `worker-2/decks-browse-mobile.png`, `worker-2/decks-browse-mobile.aria.txt`, `worker-3/admin-menu-mobile-header.png`                               |
+| 21  | The verification email is fire-and-forget, so an SMTP failure is an unhandled rejection and the visitor is still told it was sent           | minor    | P2-FOUND  | `auth.tsx:46`                                                                                                       | `worker-1/signup-email-econnrefused.txt`                                                                                                           |
+| 22  | A dictionary results row cannot be reached from the keyboard                                                                                | minor    | P2-FOUND  | `dictionary/page.tsx:171-178`                                                                                       | `worker-2/followup-observations.txt`                                                                                                               |
+| 23  | The results-table play button has no accessible name                                                                                        | minor    | P2-FOUND  | `dictionary/page.tsx:184-192`                                                                                       | `worker-2/dict-search-ren-desktop.aria.txt`                                                                                                        |
+| 24  | Four more controls carry no accessible name or state                                                                                        | minor    | P2-FOUND  | `dictionary/page.tsx:87-97`; `decks/page.tsx:150-160`, `:419-426`; `deck-settings-dialog.tsx:151-158`               | `worker-2/decks-observations.txt`, `worker-2/decks-save-dialog.aria.txt`                                                                           |
+| 25  | The report dialog's Sign in link makes the sign-in page build a `//` callback URL                                                           | minor    | P2-FOUND  | `signin/page.client.tsx:25-28`, `report-issue-dialog.tsx:143`                                                       | `worker-3/aid-report-dialog.png`, `worker-3/gates.log.txt`                                                                                         |
+| 26  | Production ships a CSP with `unsafe-inline` and `unsafe-eval` in `script-src`, fixed on trunk by P4-HEADERS before this PR landed           | minor    | done      | `proxy.ts:28` at the hunt SHA, now `server/csp.ts:32-37`                                                            | `worker-1/prod-csp-header.txt`, `worker-1/prod-build.txt`                                                                                          |
+| 27  | The header nav never marks the current page                                                                                                 | cosmetic | P2-FOUND  | `header.tsx:46-58`                                                                                                  | `worker-1/profile-notes.txt`, `worker-1/header-on-profile.png`                                                                                     |
+| 28  | Mika's sleeping "z" lands in the extracted text of every empty state                                                                        | cosmetic | P2-FOUND  | `mika.tsx:130-141`                                                                                                  | `worker-2/dict-empty-desktop.png`, `worker-3/admin-suggestions-stray-z.png`                                                                        |
+| 29  | The footer's copyright year is hardcoded to 2025                                                                                            | cosmetic | P2-FOUND  | `footer.tsx:12`                                                                                                     | `row18-29-devtools-and-footer.png`, `row2-18-29-citations.txt`                                                                                     |
+
+Counts. 29 rows: 0 blocker, 11 major, 15 minor, 3 cosmetic. Twenty-eight are open, assigned
+P2-STUDY 5, P2-API 6, P2-CLIENT 7, P2-FOUND 10. Row 26 is already fixed: P4-HEADERS landed a
+nonce-based `script-src` at 4705f34 while this PR was in review, so `unsafe-eval` is now
+development-only and no unsafe keyword remains in production's script directive. It keeps its row
+and its number because the hunt found it, and it is marked done rather than assigned.
+
+## What earlier swarms had seen
+
+Every item in `hanzimind-evidence/product-findings.md`, checked live at this head. Five of the
+fourteen did not survive the check, which is the point of confirming them.
+
+Confirmed and carried into the table above: the `/study` server render logging UNAUTHORIZED
+(13); the same on `/decks/[deckId]` and `/study/[deckId]` (13); the study `Continue` button
+outside the first screen (4); the report dialog's sign-in link (25, with the diagnosis
+corrected below); `ReactQueryDevtools` mounted unconditionally (18); the stray "z" on
+`/admin/suggestions` (28, cause identified as the sleeping mascot and found in four more empty
+states); the `/decks` card link with no accessible name (10, and only for a deck saved with a
+blank name).
+
+Not reproduced, with what was measured instead:
+
+- **`/decks` paints skeletons for 10 to 25 s.** No. First deck card at 618, 599 and 748 ms warm
+  in development and 362, 289 and 238 ms warm in production; the skeleton itself appears at
+  513 to 589 ms and 156 to 189 ms. The served HTML always carries skeletons and never content,
+  and `decks/browse` and `decks/getUserDecks` answer in parallel at about 600 ms in development
+  and 240 ms in production. So the wait is neither the saved-decks query nor hydration: it is an
+  ordinary client fetch after mount, and it is under a second.
+  `worker-1/decks-timing-dev.txt`, `worker-1/decks-timing-prod.txt`, `worker-2/decks-skeleton-timing.txt`.
+- **Decomposition part tiles have empty accessible names.** No. On `/dictionary/很` the tiles are
+  links named `彳 meaning` and `艮 sound`. `worker-2/dict-entry-hen.aria.txt`.
+- **`get_page_text` returns empty for seconds after a row click.** A harness effect, not the page.
+  `<main>` holds text 90 to 254 ms after load. `worker-2/dict-row-open-timing.txt`.
+- **The header marks Study active on `/`.** No: the nav has no active state on any route, which
+  is finding 27. The darker link in the original sighting was the pointer resting on it after a
+  click. `worker-1/profile-notes.txt`.
+- **Sign-in with an invalid email never reaches the app's own validation.** Correct as designed
+  and not a defect. `not-an-email` is stopped by the native `type=email` check with no request
+  sent; `a@b` passes the native check, reaches the app's rule and is refused inline.
+  `worker-1/signin-validation-a-at-b.png`.
+
+Two diagnoses were wrong in the original notes and are corrected here. The report dialog does
+**not** double-encode its redirect: `%2Fdictionary%2F%25E4%25BA%25BB` is the correctly encoded
+path, and the actual defect is the leading slash that makes the sign-in page build a `//`
+callback (25). The sleeping "z" is **not** announced by screen readers: its `<svg>` carries
+`role="img"` with a label, so the character is presentational. It still lands in extracted text,
+which is why 28 stays, as cosmetic.
+
+## Coverage
+
+Nine feature files, three lanes, desktop at 1280x800 and mobile at 390px, signed in and signed
+out wherever the entry point allows.
+
+| Feature file              | Lane | Coverage                                                                          |
+| ------------------------- | ---- | --------------------------------------------------------------------------------- |
+| `sign-in.md`              | 5    | every sub-feature driven                                                          |
+| `profile-and-signout.md`  | 5    | every sub-feature driven                                                          |
+| `study-session.md`        | 5    | every sub-feature driven; `study-complete` closed by the verdict swarm, see below |
+| `dictionary.md`           | 6    | every sub-feature driven                                                          |
+| `deck-browse-and-save.md` | 6    | every sub-feature driven                                                          |
+| `deck-create.md`          | 6    | every sub-feature driven                                                          |
+| `admin-vocab.md`          | 7    | every sub-feature driven                                                          |
+| `admin-suggestions.md`    | 7    | every sub-feature driven                                                          |
+| `memory-aids.md`          | 7    | every sub-feature driven                                                          |
+
+All nine files are complete. `study-complete` was the last sub-feature to close. The hunt's own
+three attempts failed on Playwright's stability check while the mutation landed, `element is not
+stable` then `element was detached from the DOM` in `worker-1/run-study.txt:53` and
+`worker-1/run-study-3.txt:16`, and the verdict swarm then drove it end to end. It built a two-item deck through `decks/create`, saved it with
+understanding only so each item is a single card, answered both, and reached `All done! Great
+work, you've cleared every card in this session.` with `study/nextVocabItem` returning null for
+that deck. A plain click on `Continue` worked both times against a button at y=1049 in an 800px
+viewport, because Playwright scrolls before it clicks, so finding 4's geometry is real but never
+blocked the sub-feature. The completion run is in
+`hanzimind-evidence/swarm-P2-HUNT/worker-2/study-complete.txt` and `.png`.
