@@ -60,9 +60,11 @@ export function enabledStudyTypes(userDeck: {
  * The columns selection and the progress rollup decide on, and nothing more.
  *
  * Deliberately no `strokes`, `strokeMedians` or `strokeMatches`. A deck query
- * pulls one row per item, 398 for HSK 1, and the stroke JSONB is by far the
- * widest thing on each of them: 634,024 bytes against the 50,173 these columns
- * come to. Nothing in the rules or the rollup reads it, and the one card that
+ * pulls one row per item, 398 of them for HSK 1. The projection this replaces
+ * came to 653,443 bytes across those rows; these columns come to 50,173, so it
+ * is thirteen times smaller, and almost all of the difference is stroke JSONB.
+ *
+ * Nothing in the rules or the rollup reads that data, and the one card that
  * renders it is an introduction, which fetches its own full row after selection
  * rather than making every other row carry the weight.
  */
