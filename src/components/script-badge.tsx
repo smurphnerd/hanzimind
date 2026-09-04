@@ -1,4 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Script } from "@/definitions/definitions";
 
@@ -12,21 +17,21 @@ import type { Script } from "@/definitions/definitions";
  */
 const SCRIPT_META: Record<
   Script,
-  { label: string; title: string; className: string }
+  { label: string; hint: string; className: string }
 > = {
   simplified: {
     label: "Simp",
-    title: "Simplified — has a distinct traditional counterpart",
+    hint: "Simplified — has a distinct traditional counterpart",
     className: "border-transparent bg-type-compound-soft text-type-compound",
   },
   traditional: {
     label: "Trad",
-    title: "Traditional — has a distinct simplified counterpart",
+    hint: "Traditional — has a distinct simplified counterpart",
     className: "border-transparent bg-type-sentence-soft text-type-sentence",
   },
   both: {
     label: "Both",
-    title: "Written the same way in both scripts",
+    hint: "Written the same way in both scripts",
     className: "text-muted-foreground",
   },
 };
@@ -44,12 +49,21 @@ export function ScriptBadge({
   const meta = SCRIPT_META[script] ?? SCRIPT_META.both;
 
   return (
-    <Badge
-      variant="outline"
-      title={meta.title}
-      className={cn("font-display font-bold", meta.className, className)}
-    >
-      {meta.label}
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* A Badge is a span, and a span is not in the tab order, so the hint
+            this replaced was mouse-only — three words of "Simp" and nothing
+            else for anyone who does not hover. tabIndex makes the trigger
+            reachable; the focus ring is already in badgeVariants. */}
+        <Badge
+          variant="outline"
+          tabIndex={0}
+          className={cn(meta.className, className)}
+        >
+          {meta.label}
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{meta.hint}</TooltipContent>
+    </Tooltip>
   );
 }

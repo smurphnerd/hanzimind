@@ -1,7 +1,10 @@
 import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
-  title: React.ReactNode;
+  /** The h1 text. Named `heading`, not `title`, so that a `title=` anywhere
+      outside `components/ui` is unambiguously the HTML tooltip attribute the
+      app no longer uses — which is what makes the grep for it a real check. */
+  heading: React.ReactNode;
   description?: React.ReactNode;
   /** Rendered on the right on desktop, below the title on mobile. */
   action?: React.ReactNode;
@@ -10,7 +13,7 @@ interface PageHeaderProps {
 
 /** The shared page title block, so every screen sets the same rhythm. */
 export function PageHeader({
-  title,
+  heading,
   description,
   action,
   className,
@@ -24,7 +27,7 @@ export function PageHeader({
     >
       <div className="min-w-0 space-y-1">
         <h1 className="font-display text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
-          {title}
+          {heading}
         </h1>
         {description && (
           <p className="text-sm text-muted-foreground sm:text-base">

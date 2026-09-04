@@ -3,7 +3,8 @@ import { Mika, type MikaPose } from "@/components/mika";
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
-  title: string;
+  /** The line in bold. `heading` rather than `title` — see `page-header.tsx`. */
+  heading: string;
   description?: string;
   pose?: MikaPose;
   action?: React.ReactNode;
@@ -18,7 +19,7 @@ interface EmptyStateProps {
  * design and deliberately modest.
  */
 export function EmptyState({
-  title,
+  heading,
   description,
   pose = "sleep",
   action,
@@ -34,7 +35,7 @@ export function EmptyState({
     >
       <Mika pose={pose} size={88} />
       <div className="space-y-1">
-        <p className="font-display text-lg font-bold">{title}</p>
+        <p className="font-display text-lg font-bold">{heading}</p>
         {description && (
           <p className="mx-auto max-w-sm text-sm text-muted-foreground">
             {description}

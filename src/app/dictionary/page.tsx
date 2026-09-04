@@ -215,7 +215,7 @@ function DictionaryContent() {
 
       {showNoResults && (
         <EmptyState
-          title={`No results found for \u201c${submittedQuery}\u201d`}
+          heading={`No results found for \u201c${submittedQuery}\u201d`}
           description={
             isChineseQuery(submittedQuery)
               ? "This word isn't in the database yet."

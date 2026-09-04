@@ -232,7 +232,7 @@ function AdminSuggestionsContent() {
     return (
       <EmptyState
         pose="peek"
-        title="Couldn't load the queue"
+        heading="Couldn't load the queue"
         description="Something went wrong fetching the suggestions."
         action={
           <Button asChild variant="outline">
@@ -283,7 +283,7 @@ function AdminSuggestionsContent() {
 
         {!isPending && items.length === 0 && (
           <EmptyState
-            title="Nothing to review"
+            heading="Nothing to review"
             description={
               statusFilter === "open"
                 ? "No open suggestions — the garden is tidy."
@@ -324,7 +324,7 @@ export default function AdminSuggestionsPage() {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <PageHeader
-        title="Suggestions"
+        heading="Suggestions"
         description="What learners have reported. Resolving or rejecting one keeps a note against it, so the next reviewer can see what was decided."
       />
 

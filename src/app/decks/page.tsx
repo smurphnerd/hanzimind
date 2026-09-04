@@ -193,7 +193,7 @@ function DeckGrid({
     return (
       <EmptyState
         pose="peek"
-        title="Couldn't load decks"
+        heading="Couldn't load decks"
         description={
           error instanceof Error && /unauthorized/i.test(error.message)
             ? "Please sign in to browse decks."
@@ -206,7 +206,7 @@ function DeckGrid({
   if (data.decks.length === 0) {
     return (
       <EmptyState
-        title={search ? `No decks match “${search}”` : "No decks yet"}
+        heading={search ? `No decks match “${search}”` : "No decks yet"}
         description={
           search
             ? "Try a different word, or plant a deck of your own."
@@ -312,7 +312,7 @@ function DecksContent() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <PageHeader
-        title="Vocabulary Decks"
+        heading="Vocabulary Decks"
         description="Browse what the community has planted, then add a deck to your garden."
         action={
           <Button size="lg" asChild>
@@ -358,7 +358,7 @@ function DecksContent() {
           }
           onSave={handleSaveDeck}
           isPending={addDeckMutation.isPending}
-          title={
+          heading={
             selectedDeck.isSaved
               ? "Update Study Settings"
               : "Add Deck to Study List"

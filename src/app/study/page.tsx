@@ -223,13 +223,13 @@ function StudyContent() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <PageHeader
-        title="My study decks"
+        heading="My study decks"
         description="Watch each deck grow, and pick up wherever you left off."
       />
 
       {data.decks.length === 0 ? (
         <EmptyState
-          title="No decks yet"
+          heading="No decks yet"
           description="Add a deck to your study list and Mika will start growing it with you."
           action={
             <Button asChild size="lg">
@@ -273,7 +273,7 @@ function StudyContent() {
           }
           onSave={handleUpdateSettings}
           isPending={updateSettingsMutation.isPending}
-          title="Update study settings"
+          heading="Update study settings"
           description="Choose how this deck quizzes you."
           saveButtonText="Update settings"
         />

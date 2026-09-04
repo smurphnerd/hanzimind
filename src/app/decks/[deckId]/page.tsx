@@ -31,6 +31,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useORPC } from "@/lib/orpc.client";
 import {
   DEFAULT_DECK_SETTINGS,
@@ -125,18 +130,25 @@ function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
         meta.softClass,
       )}
     >
-      <Link
-        href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
-        title={translationOf(item)}
-        className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
-      >
-        <span className="hanzi text-xl leading-tight break-words text-foreground">
-          {item.vocabItem}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">
-          {subtitle}
-        </span>
-      </Link>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
+            className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
+          >
+            <span className="hanzi text-xl leading-tight break-words text-foreground">
+              {item.vocabItem}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {subtitle}
+            </span>
+          </Link>
+        </TooltipTrigger>
+        {/* The chip already shows the pinyin where there is one, so the meaning
+            is the half that gets truncated away — which is exactly what the
+            hint was for. */}
+        <TooltipContent>{translationOf(item)}</TooltipContent>
+      </Tooltip>
       {canPlayAudio(item.audioUrl) && (
         <Button
           variant="ghost"
@@ -304,7 +316,7 @@ function DeckOverviewContent() {
 
       <PageHeader
         className="mb-4"
-        title={deck.deckName}
+        heading={deck.deckName}
         description={deck.description.trim() || "No description yet."}
         action={
           <Button
@@ -367,7 +379,7 @@ function DeckOverviewContent() {
 
       {groups.length === 0 ? (
         <EmptyState
-          title="This deck is empty"
+          heading="This deck is empty"
           description="Nothing has been added to it yet. Try another deck, or create your own."
           action={
             <Button asChild variant="outline">
@@ -398,7 +410,7 @@ function DeckOverviewContent() {
         onSettingsChange={setSaveSettings}
         onSave={handleSaveDeck}
         isPending={saveDeckMutation.isPending}
-        title={isSaved ? "Study Settings" : "Add Deck to Study List"}
+        heading={isSaved ? "Study Settings" : "Add Deck to Study List"}
         description={
           isSaved
             ? `Change how you study “${deck.deckName}”.`
@@ -423,7 +435,7 @@ export default function DeckOverviewPage() {
       <div className="container mx-auto max-w-5xl px-4 py-8">
         <EmptyState
           pose="peek"
-          title="Sign in to see this deck"
+          heading="Sign in to see this deck"
           description="Decks and your study settings live with your account."
           action={
             <Button asChild>
