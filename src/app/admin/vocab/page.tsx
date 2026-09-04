@@ -26,7 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditableCell } from "@/components/editable-cell";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ManageMemoryAidsDialog } from "@/components/manage-memory-aids-dialog";
 import { ScriptBadge } from "@/components/script-badge";
@@ -453,9 +452,7 @@ export default function AdminVocabPage() {
         </p>
       </div>
 
-      <ErrorBoundary>
-        <AdminVocabContent />
-      </ErrorBoundary>
+      <AdminVocabContent />
     </div>
   );
 }

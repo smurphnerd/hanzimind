@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useORPC } from "@/lib/orpc.client";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useHydrated } from "@/lib/use-hydrated";
 import { StudyLoading } from "@/components/study-loading";
 import { GrowthTracker } from "@/components/growth-tracker";
 import { ItemTypeBadge } from "@/components/item-type-badge";
@@ -731,10 +732,11 @@ function StudyPageContent() {
 }
 
 export default function StudyPage() {
+  const hydrated = useHydrated();
   return (
     <ErrorBoundary>
       <Suspense fallback={<StudyLoading />}>
-        <StudyPageContent />
+        {hydrated ? <StudyPageContent /> : <StudyLoading />}
       </Suspense>
     </ErrorBoundary>
   );

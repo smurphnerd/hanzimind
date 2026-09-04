@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -17,6 +17,7 @@ import {
 import {
   useSuspenseQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -30,10 +31,14 @@ import {
 } from "@/components/ui/collapsible";
 import { useORPC } from "@/lib/orpc.client";
 import {
+  DEFAULT_DECK_SETTINGS,
   DeckSettingsDialog,
+  SAVED_DECKS_INPUT,
   type DeckSettings,
 } from "@/components/deck-settings-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { authClient } from "@/lib/authClient";
+import { useHydrated } from "@/lib/use-hydrated";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
 import { DeckGraphPanel } from "@/components/deck-graph-panel";
 import {
@@ -251,16 +256,34 @@ function DeckOverviewContent() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<DeckView>("standard");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [saveSettings, setSaveSettings] = useState<DeckSettings>({
-    readingEnabled: true,
-    listeningEnabled: true,
-    understandingEnabled: true,
-    writingEnabled: true,
-  });
+  const [saveSettings, setSaveSettings] = useState<DeckSettings>(
+    DEFAULT_DECK_SETTINGS,
+  );
 
   const { data: deck } = useSuspenseQuery(
     orpc.decks.getById.queryOptions({ input: { deckId } }),
   );
+
+  const {
+    data: savedDecks,
+    isPending: isSavedPending,
+    isError: isSavedError,
+  } = useQuery(
+    orpc.decks.getUserDecks.queryOptions({ input: SAVED_DECKS_INPUT }),
+  );
+  const savedSettings = useMemo(() => {
+    const saved = savedDecks?.decks.find(
+      (candidate: { id: string }) => candidate.id === deckId,
+    );
+    if (!saved) return undefined;
+    return {
+      readingEnabled: saved.readingEnabled,
+      listeningEnabled: saved.listeningEnabled,
+      understandingEnabled: saved.understandingEnabled,
+      writingEnabled: saved.writingEnabled,
+    };
+  }, [savedDecks, deckId]);
+  const isSaved = savedSettings !== undefined;
 
   const saveDeckMutation = useMutation(
     orpc.study.addDeck.mutationOptions({
@@ -321,9 +344,22 @@ function DeckOverviewContent() {
         title={deck.deckName}
         description={deck.description.trim() || "No description yet."}
         action={
-          <Button size="lg" onClick={() => setShowSaveDialog(true)}>
+          <Button
+            size="lg"
+            variant={isSaved ? "secondary" : "default"}
+            // Until the stored row arrives this cannot tell a saved deck from a
+            // new one, and study.addDeck upserts all four mode columns, so a
+            // click before then writes the defaults over the learner's choices.
+            // isPending is false once a query has failed, so a 500 has to be
+            // held too, not just the wait.
+            disabled={isSavedPending || isSavedError}
+            onClick={() => {
+              setSaveSettings(savedSettings ?? DEFAULT_DECK_SETTINGS);
+              setShowSaveDialog(true);
+            }}
+          >
             <BookOpen className="size-5" />
-            Save Deck
+            {isSaved ? "Study Settings" : "Save Deck"}
           </Button>
         }
       />
@@ -399,15 +435,43 @@ function DeckOverviewContent() {
         onSettingsChange={setSaveSettings}
         onSave={handleSaveDeck}
         isPending={saveDeckMutation.isPending}
-        title="Add Deck to Study List"
-        description="Configure your study settings for this deck."
-        saveButtonText="Add to Study List"
+        title={isSaved ? "Study Settings" : "Add Deck to Study List"}
+        description={
+          isSaved
+            ? `Change how you study “${deck.deckName}”.`
+            : "Configure your study settings for this deck."
+        }
+        saveButtonText={isSaved ? "Save Settings" : "Add to Study List"}
       />
     </div>
   );
 }
 
 export default function DeckOverviewPage() {
+  const params = useParams();
+  const deckId = params.deckId as string;
+  const hydrated = useHydrated();
+  const { data: session, isPending } = authClient.useSession();
+
+  if (!hydrated || isPending) return <DeckDetailLoading />;
+
+  if (!session) {
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <EmptyState
+          pose="peek"
+          title="Sign in to see this deck"
+          description="Decks and your study settings live with your account."
+          action={
+            <Button asChild>
+              <Link href={`/signin?redirectUrl=decks/${deckId}`}>Sign in</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<DeckDetailLoading />}>

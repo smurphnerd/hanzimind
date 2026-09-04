@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -31,11 +31,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { useORPC } from "@/lib/orpc.client";
 import {
+  DEFAULT_DECK_SETTINGS,
   DeckSettingsDialog,
+  SAVED_DECKS_INPUT,
   type DeckSettings,
 } from "@/components/deck-settings-dialog";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { DecksLoading, DeckGridSkeleton } from "@/components/decks-loading";
+import { DeckGridSkeleton } from "@/components/decks-loading";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
@@ -44,21 +45,6 @@ import { cn } from "@/lib/utils";
 import type { DeckDto } from "@/definitions/definitions";
 
 const DECKS_PER_PAGE = 12;
-
-/**
- * The user's whole study list in one lookup, so a card can seed its dialog with
- * the settings already in effect. `study.addDeck` upserts, so a deck missing
- * from this list opens with the defaults below and silently overwrites whatever
- * the learner actually chose — hence the endpoint's maximum perPage.
- */
-const SAVED_DECKS_INPUT = { page: 1, perPage: 100 };
-
-const DEFAULT_DECK_SETTINGS: DeckSettings = {
-  readingEnabled: true,
-  listeningEnabled: true,
-  understandingEnabled: true,
-  writingEnabled: true,
-};
 
 /** Smallest unit first, so the strip reads the order the deck is actually learned in. */
 const COMPOSITION_ORDER = [
@@ -240,7 +226,11 @@ function DeckGrid({
     placeholderData: keepPreviousData,
   });
 
-  const { data: savedDecks, isPending: isSavedPending } = useQuery(
+  const {
+    data: savedDecks,
+    isPending: isSavedPending,
+    isError: isSavedError,
+  } = useQuery(
     orpc.decks.getUserDecks.queryOptions({ input: SAVED_DECKS_INPUT }),
   );
 
@@ -312,7 +302,7 @@ function DeckGrid({
             key={deck.id}
             deck={deck}
             savedSettings={savedSettings.get(deck.id)}
-            isSavedPending={isSavedPending}
+            isSavedPending={isSavedPending || isSavedError}
             onSelectDeck={onSelectDeck}
           />
         ))}
@@ -463,11 +453,5 @@ function DecksContent() {
 }
 
 export default function DecksPage() {
-  return (
-    <ErrorBoundary>
-      <Suspense fallback={<DecksLoading />}>
-        <DecksContent />
-      </Suspense>
-    </ErrorBoundary>
-  );
+  return <DecksContent />;
 }

@@ -30,6 +30,23 @@ export type DeckSettings = {
   writingEnabled: boolean;
 };
 
+/**
+ * The learner's whole study list in one lookup, so a page can seed this dialog
+ * with the settings already in effect. `study.addDeck` upserts all four mode
+ * columns, so a caller that opens on the defaults below and confirms silently
+ * overwrites whatever the learner chose. Hold the control until this query has
+ * either answered or failed, and note the endpoint's maximum perPage: a learner
+ * with more than 100 saved decks is missing from this list.
+ */
+export const SAVED_DECKS_INPUT = { page: 1, perPage: 100 };
+
+export const DEFAULT_DECK_SETTINGS: DeckSettings = {
+  readingEnabled: true,
+  listeningEnabled: true,
+  understandingEnabled: true,
+  writingEnabled: true,
+};
+
 interface StudyMode {
   key: keyof DeckSettings;
   label: string;

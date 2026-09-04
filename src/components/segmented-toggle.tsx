@@ -19,6 +19,7 @@ interface SegmentedToggleProps<T extends string | number> {
   /** Names the group for a screen reader — required, since it has no visible label. */
   label: string;
   className?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export function SegmentedToggle<T extends string | number>({
   onChange,
   label,
   className,
+  disabled = false,
 }: SegmentedToggleProps<T>) {
   return (
     <div
@@ -53,6 +55,7 @@ export function SegmentedToggle<T extends string | number>({
           variant={option.value === value ? "default" : "ghost"}
           aria-pressed={option.value === value}
           title={option.title}
+          disabled={disabled}
           onClick={() => onChange(option.value)}
         >
           {option.label}

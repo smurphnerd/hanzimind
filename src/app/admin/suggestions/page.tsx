@@ -16,7 +16,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { PageHeader } from "@/components/page-header";
 import { useORPC } from "@/lib/orpc.client";
@@ -290,7 +289,9 @@ function AdminSuggestionsContent() {
 
         {items.map((suggestion) => (
           <SuggestionRow
-            key={suggestion.id}
+            // Keyed on the note as well as the row, so a refetch after a review
+            // restarts the textarea from what the server now holds.
+            key={`${suggestion.id}:${suggestion.adminNote ?? ""}`}
             suggestion={suggestion}
             isSaving={savingId === suggestion.id}
             onReview={(status, adminNote) => {
@@ -340,9 +341,7 @@ export default function AdminSuggestionsPage() {
         description="What learners have reported. Resolving or rejecting one keeps a note against it, so the next reviewer can see what was decided."
       />
 
-      <ErrorBoundary>
-        <AdminSuggestionsContent />
-      </ErrorBoundary>
+      <AdminSuggestionsContent />
     </div>
   );
 }

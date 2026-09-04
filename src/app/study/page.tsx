@@ -34,6 +34,7 @@ import {
 import { DeckProgressBar, GrowthLegend } from "@/components/deck-progress-bar";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useHydrated } from "@/lib/use-hydrated";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
 import { StudyLoading } from "@/components/study-loading";
@@ -279,10 +280,11 @@ function StudyContent() {
 }
 
 export default function StudyPage() {
+  const hydrated = useHydrated();
   return (
     <ErrorBoundary>
       <Suspense fallback={<StudyLoading />}>
-        <StudyContent />
+        {hydrated ? <StudyContent /> : <StudyLoading />}
       </Suspense>
     </ErrorBoundary>
   );

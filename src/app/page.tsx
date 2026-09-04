@@ -94,7 +94,7 @@ export default function Home() {
               asChild
               variant="secondary"
               size="icon"
-              className="size-12 shrink-0 bg-white text-primary hover:bg-white/90"
+              className="size-12 shrink-0 bg-card text-primary hover:bg-card/90"
             >
               <Link href="/study" aria-label="Resume studying">
                 <ArrowRight className="size-5" />

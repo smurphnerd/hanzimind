@@ -168,9 +168,9 @@ function DictionaryContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.map((result, index) => (
+                {results.map((result) => (
                   <TableRow
-                    key={index}
+                    key={result.id}
                     className="cursor-pointer hover:bg-muted"
                     onClick={() => {
                       window.location.href = `/dictionary/${encodeURIComponent(result.vocabItem)}`;
