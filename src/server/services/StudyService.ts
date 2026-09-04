@@ -13,7 +13,7 @@ import {
   type StudyAnswerDto,
 } from "@/definitions/definitions";
 import type { ITranslationChecker } from "./TranslationChecker";
-import type { VocabService } from "./VocabService";
+import { toVocabItemDto, type VocabService } from "./VocabService";
 import { CONSTITUENT_GATE_LEVEL } from "@/server/constants";
 import {
   NO_SYNONYMS,
@@ -34,6 +34,40 @@ import {
   isForeignKeyViolation,
   NotFoundError,
 } from "@/server/endpoints/errors";
+
+/**
+ * The columns selection and the progress rollup decide on, and nothing more.
+ *
+ * Deliberately no `strokes`, `strokeMedians` or `strokeMatches`. A deck query
+ * pulls one row per item, several hundred for HSK 1, and the stroke JSONB is by
+ * far the widest thing on each of them. Nothing in the rules reads it, and the
+ * one card that renders it is an introduction, which fetches its own full row
+ * after selection rather than making every other row carry the weight.
+ */
+const cardColumns = {
+  id: schema.vocabItems.id,
+  vocabItem: schema.vocabItems.vocabItem,
+  translation: schema.vocabItems.translation,
+  pinyin: schema.vocabItems.pinyin,
+  audioUrl: schema.vocabItems.audioUrl,
+  vocabType: schema.vocabItems.vocabType,
+  phonetic: schema.vocabItems.phonetic,
+  script: schema.vocabItems.script,
+  decomposition: schema.vocabItems.decomposition,
+} as const;
+
+/** The learner's standing against an item, as the rules read it. */
+const progressColumns = {
+  seen: schema.userVocabItems.seen,
+  readingLevel: schema.userVocabItems.readingLevel,
+  listeningLevel: schema.userVocabItems.listeningLevel,
+  understandingLevel: schema.userVocabItems.understandingLevel,
+  writingLevel: schema.userVocabItems.writingLevel,
+  readingNextAt: schema.userVocabItems.readingNextAt,
+  listeningNextAt: schema.userVocabItems.listeningNextAt,
+  understandingNextAt: schema.userVocabItems.understandingNextAt,
+  writingNextAt: schema.userVocabItems.writingNextAt,
+} as const;
 
 export class StudyService {
   constructor(
@@ -449,34 +483,8 @@ export class StudyService {
     // Fetch all vocab items in the deck with user progress
     const vocabItems = await this.deps.database
       .select({
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        translation: schema.vocabItems.translation,
-        pinyin: schema.vocabItems.pinyin,
-        audioUrl: schema.vocabItems.audioUrl,
-        vocabType: schema.vocabItems.vocabType,
-        phonetic: schema.vocabItems.phonetic,
-        script: schema.vocabItems.script,
-        decomposition: schema.vocabItems.decomposition,
-        etymologyHint: schema.vocabItems.etymologyHint,
-        etymologyType: schema.vocabItems.etymologyType,
-        etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
-        etymologySemantic: schema.vocabItems.etymologySemantic,
-        radical: schema.vocabItems.radical,
-        strokes: schema.vocabItems.strokes,
-        strokeMedians: schema.vocabItems.strokeMedians,
-        strokeMatches: schema.vocabItems.strokeMatches,
-        createdAt: schema.vocabItems.createdAt,
-        updatedAt: schema.vocabItems.updatedAt,
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
+        ...cardColumns,
+        ...progressColumns,
       })
       .from(schema.deckVocabItems)
       .innerJoin(
@@ -525,29 +533,15 @@ export class StudyService {
 
     const selectedItem = selection.item;
 
-    // Return the full vocab item if this is the first time studying this item
+    // An introduction shows the whole dictionary entry, including stroke order,
+    // which is the one card that needs the columns the deck query leaves
+    // behind. One row, once, rather than several hundred rows every time.
     if (selection.studyType === "new") {
-      const reading = readingOf(selectedItem);
+      const row = await this.deps.vocabService.getVocabItem(
+        selectedItem.vocabItem,
+      );
       return {
-        id: selectedItem.id,
-        vocabItem: selectedItem.vocabItem,
-        translation: selectedItem.translation,
-        pinyin: reading.pinyin,
-        vocabType: selectedItem.vocabType,
-        script: selectedItem.script,
-        audioUrl: reading.audioUrl,
-        phonetic: selectedItem.phonetic,
-        decomposition: selectedItem.decomposition,
-        etymologyHint: selectedItem.etymologyHint,
-        etymologyType: selectedItem.etymologyType,
-        etymologyPhonetic: selectedItem.etymologyPhonetic,
-        etymologySemantic: selectedItem.etymologySemantic,
-        radical: selectedItem.radical,
-        strokes: selectedItem.strokes,
-        strokeMedians: selectedItem.strokeMedians,
-        strokeMatches: selectedItem.strokeMatches,
-        createdAt: selectedItem.createdAt,
-        updatedAt: selectedItem.updatedAt,
+        ...toVocabItemDto(row),
         studyType: "new",
         constituents: await this.deps.vocabService.getVocabItemParts({
           vocabItem: selectedItem.vocabItem,
@@ -789,22 +783,8 @@ export class StudyService {
     const rows = await this.deps.database
       .select({
         deckId: schema.deckVocabItems.deckId,
-        vocabItem: schema.vocabItems.vocabItem,
-        vocabType: schema.vocabItems.vocabType,
-        pinyin: schema.vocabItems.pinyin,
-        translation: schema.vocabItems.translation,
-        audioUrl: schema.vocabItems.audioUrl,
-        phonetic: schema.vocabItems.phonetic,
-        decomposition: schema.vocabItems.decomposition,
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
+        ...cardColumns,
+        ...progressColumns,
       })
       .from(schema.deckVocabItems)
       .innerJoin(
