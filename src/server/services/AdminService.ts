@@ -10,6 +10,7 @@ import {
   type Script,
   type VocabType,
 } from "@/definitions/definitions";
+import { InvalidInputError, NotFoundError } from "@/server/endpoints/errors";
 
 /**
  * Reads and writes the vocabulary classification for the admin screen.
@@ -167,7 +168,7 @@ export class AdminService {
     });
 
     if (!existing) {
-      throw new Error(`Vocab item not found: ${args.id}`);
+      throw new NotFoundError("Vocab item not found");
     }
 
     const update: {
@@ -188,7 +189,7 @@ export class AdminService {
     if (args.translation !== undefined) {
       const translation = args.translation.trim();
       if (translation.length === 0) {
-        throw new Error(
+        throw new InvalidInputError(
           `Refusing to clear the definition of ${existing.vocabItem}: every component is quizzed on its meaning`,
         );
       }

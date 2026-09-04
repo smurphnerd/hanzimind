@@ -13,6 +13,7 @@ import {
   type SuggestionKind,
   type SuggestionStatus,
 } from "@/definitions/definitions";
+import { foreignKeyConstraint, NotFoundError } from "@/server/endpoints/errors";
 
 /** The joined shape the review queue reads, shared so every read path agrees. */
 const REVIEW_SELECTION = {
@@ -92,7 +93,17 @@ export class SuggestionService {
         vocabItemId: args.vocabItemId ?? null,
         memoryAidId: args.memoryAidId ?? null,
       })
-      .returning(OWN_SELECTION);
+      .returning(OWN_SELECTION)
+      .catch((error: unknown) => {
+        const constraint = foreignKeyConstraint(error);
+        if (constraint?.includes("memory_aid")) {
+          throw new NotFoundError("Memory aid not found");
+        }
+        if (constraint?.includes("vocab_item")) {
+          throw new NotFoundError("Vocab item not found");
+        }
+        throw error;
+      });
 
     if (!row) {
       throw new Error("Failed to record the suggestion");
@@ -206,7 +217,7 @@ export class SuggestionService {
       .returning({ id: schema.suggestions.id });
 
     if (!updated) {
-      throw new Error(`Suggestion not found: ${args.id}`);
+      throw new NotFoundError("Suggestion not found");
     }
 
     this.deps.logger.info(
@@ -223,7 +234,7 @@ export class SuggestionService {
     );
 
     if (!refreshed) {
-      throw new Error(`Suggestion not found after review: ${args.id}`);
+      throw new NotFoundError("Suggestion not found");
     }
 
     return refreshed;

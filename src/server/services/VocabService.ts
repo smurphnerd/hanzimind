@@ -31,6 +31,11 @@ import {
   VocabItemDetailedDto,
   VocabItemDto,
 } from "@/definitions/definitions";
+import {
+  InvalidInputError,
+  isForeignKeyViolation,
+  NotFoundError,
+} from "@/server/endpoints/errors";
 
 /**
  * The corpus only changes when an admin edits vocabulary, so the index is built
@@ -124,7 +129,7 @@ export class VocabService {
     });
 
     if (!vocabItemRes) {
-      throw new Error(`Vocab item not found: ${vocabItem}`);
+      throw new NotFoundError(`Vocab item not found: ${vocabItem}`);
     }
 
     return vocabItemRes;
@@ -262,7 +267,13 @@ export class VocabService {
         memoryAid: args.memoryAid,
         public: args.public ?? false,
       })
-      .returning();
+      .returning()
+      .catch((error: unknown) => {
+        if (isForeignKeyViolation(error)) {
+          throw new NotFoundError("Vocab item not found");
+        }
+        throw error;
+      });
 
     if (!memoryAidRow) {
       throw new Error("Failed to create memory aid");
@@ -296,7 +307,7 @@ export class VocabService {
     });
 
     if (!item) {
-      throw new Error(`Vocab item not found: ${vocabItemId}`);
+      throw new NotFoundError("Vocab item not found");
     }
 
     const defaultMemoryAidId = item.defaultMemoryAidId;
@@ -350,7 +361,9 @@ export class VocabService {
       });
 
       if (!aid) {
-        throw new Error("That memory aid does not belong to this glyph");
+        throw new InvalidInputError(
+          "That memory aid does not belong to this glyph",
+        );
       }
     }
 
@@ -408,75 +421,65 @@ export class VocabService {
   }
 
   async addVocabItem(vocabItem: string): Promise<void> {
-    try {
-      // Already stored — including as a disabled row, which still owns the glyph.
-      const existing = await this.getStoredVocabItems([vocabItem]);
-      if (existing.length > 0) {
-        return;
-      }
-
-      // Check if it's a sentence by cutting it
-      const parts = this.deps.translator.cutSentence(vocabItem);
-
-      let componentsToAdd: string[];
-      let translation: string;
-      let vocabType: VocabType;
-
-      // Is a sentence (multiple parts)
-      if (parts.length > 1) {
-        translation = await this.deps.translator.translateSentence(vocabItem);
-        componentsToAdd = parts;
-        vocabType = VocabTypeEnum.enum.sentence;
-      } else if (vocabItem.length > 1) {
-        // Is a compound word
-        translation = await this.deps.translator.translateSentence(vocabItem);
-        componentsToAdd = vocabItem.split("");
-        vocabType = VocabTypeEnum.enum.compound;
-      } else {
-        // Is a single character should be in the dictionary
-        throw new Error(
-          `Cannot add vocab item with single character: ${vocabItem}`,
-        );
-      }
-
-      const pinyinParts: string[] = [];
-      for (const part of parts) {
-        pinyinParts.push(this.deps.translator.getPinyin(part));
-      }
-      const pinyin = pinyinParts.join(" ");
-
-      if (!pinyin) {
-        throw new Error(`No pinyin found for vocab item: ${vocabItem}`);
-      }
-
-      // Generate audio and get URL
-      const audioUrl = await this.deps.tts.getVocabAudio(vocabItem);
-
-      // Recursively create components
-      for (const component of componentsToAdd) {
-        await this.addVocabItem(component);
-      }
-
-      // Create the vocab item
-      await this.deps.database
-        .insert(schema.vocabItems)
-        .values({
-          vocabItem,
-          translation,
-          pinyin,
-          vocabType,
-          audioUrl,
-        })
-        .returning({ id: schema.vocabItems.id });
-    } catch (error) {
-      this.deps.logger.error(
-        { error, vocabItem },
-        "Error adding vocab item with components",
-      );
-      throw error instanceof Error
-        ? error
-        : new Error("Failed to add vocab item with components");
+    // Already stored — including as a disabled row, which still owns the glyph.
+    const existing = await this.getStoredVocabItems([vocabItem]);
+    if (existing.length > 0) {
+      return;
     }
+
+    // Check if it's a sentence by cutting it
+    const parts = this.deps.translator.cutSentence(vocabItem);
+
+    let componentsToAdd: string[];
+    let translation: string;
+    let vocabType: VocabType;
+
+    // Is a sentence (multiple parts)
+    if (parts.length > 1) {
+      translation = await this.deps.translator.translateSentence(vocabItem);
+      componentsToAdd = parts;
+      vocabType = VocabTypeEnum.enum.sentence;
+    } else if (vocabItem.length > 1) {
+      // Is a compound word
+      translation = await this.deps.translator.translateSentence(vocabItem);
+      componentsToAdd = vocabItem.split("");
+      vocabType = VocabTypeEnum.enum.compound;
+    } else {
+      // Is a single character should be in the dictionary
+      throw new InvalidInputError(
+        `Cannot add vocab item with single character: ${vocabItem}`,
+      );
+    }
+
+    const pinyinParts: string[] = [];
+    for (const part of parts) {
+      pinyinParts.push(this.deps.translator.getPinyin(part));
+    }
+    const pinyin = pinyinParts.join(" ");
+
+    if (!pinyin) {
+      throw new Error(`No pinyin found for vocab item: ${vocabItem}`);
+    }
+
+    // Generate audio and get URL
+    const audioUrl = await this.deps.tts.getVocabAudio(vocabItem);
+
+    // Recursively create components
+    for (const component of componentsToAdd) {
+      await this.addVocabItem(component);
+    }
+
+    // Create the vocab item
+    await this.deps.database
+      .insert(schema.vocabItems)
+      .values({
+        vocabItem,
+        translation,
+        pinyin,
+        vocabType,
+        audioUrl,
+      })
+      .returning({ id: schema.vocabItems.id });
   }
 
   async searchVocabItems(args: {

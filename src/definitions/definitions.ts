@@ -129,6 +129,15 @@ export const AdminVocabCountDto = z.object({
 });
 export type AdminVocabCountDto = z.infer<typeof AdminVocabCountDto>;
 
+export const SearchVocabItemsDto = z.object({
+  items: z.array(VocabItemDto),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+  totalPages: z.number(),
+});
+export type SearchVocabItemsDto = z.infer<typeof SearchVocabItemsDto>;
+
 export const VocabItemDetailedDto = VocabItemDto.extend({
   memoryAids: z.array(MemoryAidDto).nullable(),
   /** Total number of memory aids visible to the viewer, not just the current page. */
@@ -408,6 +417,12 @@ export type SuggestionStatus = z.infer<typeof SuggestionStatusEnum>;
 
 /** Free text a learner types when reporting a problem. */
 export const SUGGESTION_BODY_MAX = 1000;
+
+export const MEMORY_AID_MAX = 1000;
+
+export const DECK_NAME_MAX = 80;
+export const DECK_DESCRIPTION_MAX = 500;
+export const DECK_ITEMS_MAX = 200;
 
 /**
  * How many suggestions one account may file per hour. Enforced by counting the

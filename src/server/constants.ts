@@ -26,10 +26,7 @@ export const TRANSLATION_SIMILARITY_THRESHOLDS = {
    * Threshold for Jaccard similarity-based translation checker.
    * Uses word-level similarity with semicolon-separated definition support.
    *
-   * 0.6 (60% similarity) allows for:
-   * - Minor word differences (e.g., "to eat" vs "to consume")
-   * - Partial phrase matches (e.g., "give birth" vs "to give birth to")
-   * - Synonym variations while rejecting completely different meanings
+   * The pairs this admits and rejects are pinned by TranslationChecker.test.ts.
    */
   JACCARD: 0.2,
 

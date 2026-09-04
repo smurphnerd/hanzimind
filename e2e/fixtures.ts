@@ -44,8 +44,9 @@ export async function currentUserId(request: APIRequestContext) {
 
 // Grading an understanding answer loads the semantic similarity model on first
 // use, five seconds on a fresh dev server and a 90 MB download when lane-up.sh
-// has not prefetched it. One throwaway answer on a component outside every
-// deck loads it before any spec waits on a result card.
+// has not prefetched it. One throwaway answer loads it before any spec waits on
+// a result card. The item is read out of the deck rather than named here: the
+// server rejects an answer for an item the deck does not hold.
 export async function warmUpGrading(request: APIRequestContext) {
   const userId = await currentUserId(request);
   await rpc(request, "study/addDeck", {
@@ -55,16 +56,20 @@ export async function warmUpGrading(request: APIRequestContext) {
     understandingEnabled: true,
     writingEnabled: true,
   });
-  const item = await rpc<{ id: string }>(request, "vocab/get", {
-    vocabItem: "龹",
-  });
+  const deck = await rpc<{ vocabItems: { id: string }[] }>(
+    request,
+    "decks/getById",
+    { deckId: "deck-hsk1" },
+  );
+  const item = deck.vocabItems[0];
+  expect(item, "deck-hsk1 has no items to warm up with").toBeTruthy();
   await rpc(
     request,
     "study/submitAnswer",
     {
       deckId: "deck-hsk1",
       answer: {
-        vocabItemId: item.id,
+        vocabItemId: item!.id,
         userId,
         deckId: "deck-hsk1",
         studyType: "understanding",
