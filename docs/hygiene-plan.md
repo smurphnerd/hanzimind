@@ -615,7 +615,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/decks` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/decks`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, read the route table, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/decks` grows by more than 5 kilobytes.
@@ -884,7 +884,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/study/[deckId]` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/study/[deckId]`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, read the route table, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the route grows by more than 5 kilobytes.
@@ -942,7 +942,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Sum of First Load JS in kilobytes across `/admin/vocab`, `/admin/suggestions`, `/decks` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes across `/admin/vocab`, `/admin/suggestions`, `/decks`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the sum grows by more than 0 kilobytes.
@@ -993,7 +993,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/dictionary/[word]` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/dictionary/[word]`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the route grows by more than 8 kilobytes.
@@ -1383,7 +1383,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Total First Load JS in kilobytes for `/` from `pnpm build`.
+- [ ] Metric. Total Total client chunk bytes attributable to `/`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/` grows by more than 10 kilobytes.
@@ -1435,7 +1435,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Total First Load JS in kilobytes for `/` from `pnpm build`.
+- [ ] Metric. Total Total client chunk bytes attributable to `/`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the value differs from trunk by more than 0 kilobytes, since this PR must not change product code.
@@ -1487,7 +1487,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/privacy` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/privacy`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/privacy` is not at least 10 kilobytes below trunk.
@@ -1544,7 +1544,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/study/[deckId]` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/study/[deckId]`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the route grows by more than 5 kilobytes.
@@ -1598,7 +1598,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/signin` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/signin`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/signin` grows by more than 5 kilobytes.
@@ -1653,7 +1653,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/dictionary` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/dictionary`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/dictionary` grows by more than 5 kilobytes.
@@ -1762,7 +1762,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Total First Load JS in kilobytes for `/` from `pnpm build`.
+- [ ] Metric. Total Total client chunk bytes attributable to `/`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/` grows by more than 3 kilobytes.
@@ -1817,7 +1817,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/dictionary/[word]` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/dictionary/[word]`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the route is not at least 40 kilobytes below trunk.
@@ -1922,7 +1922,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. First Load JS in kilobytes for `/privacy` from `pnpm build`.
+- [ ] Metric. Total client chunk bytes attributable to `/privacy`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
 - [ ] Probe. `pnpm build` at trunk and at the head.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when `/privacy` grows by more than 2 kilobytes.
