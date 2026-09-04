@@ -289,16 +289,11 @@ export const VocabItemStudyDto = z.discriminatedUnion("studyType", [
 ]);
 export type VocabItemStudyDto = z.infer<typeof VocabItemStudyDto>;
 
-export const StudyAnswerDto = z
-  .object({
-    vocabItemId: z.string(),
-  })
-  .extend({
-    userId: z.string(),
-    deckId: z.string(),
-    studyType: z.enum([...studyTypeValues, "new"]),
-    answer: z.string(),
-  });
+export const StudyAnswerDto = z.object({
+  vocabItemId: z.string(),
+  studyType: z.enum([...studyTypeValues, "new"]),
+  answer: z.string(),
+});
 export type StudyAnswerDto = z.infer<typeof StudyAnswerDto>;
 
 /** How many non-disabled items a deck holds, split by type. */

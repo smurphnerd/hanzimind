@@ -287,6 +287,35 @@ export class StudyService {
   }
 
   /**
+   * Whether this learner was ever offered this item in this deck. Membership
+   * alone is not enough: any deck id can be named, and most common characters
+   * sit in a public deck.
+   */
+  async isStudyingItemInDeck(
+    userId: string,
+    deckId: string,
+    vocabItemId: string,
+  ): Promise<boolean> {
+    const row = await this.deps.database
+      .select({ vocabItemId: schema.deckVocabItems.vocabItemId })
+      .from(schema.deckVocabItems)
+      .innerJoin(
+        schema.userDecks,
+        eq(schema.userDecks.deckId, schema.deckVocabItems.deckId),
+      )
+      .where(
+        and(
+          eq(schema.deckVocabItems.deckId, deckId),
+          eq(schema.deckVocabItems.vocabItemId, vocabItemId),
+          eq(schema.userDecks.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    return row.length > 0;
+  }
+
+  /**
    * Record an extra meaning the user wants accepted for an item in future.
    * Idempotent — re-adding the same synonym is a no-op.
    */
@@ -368,34 +397,28 @@ export class StudyService {
     answer: StudyAnswerDto,
     userId: string,
   ): Promise<boolean> {
-    // Fetch the item, the deck membership and the user's progress in parallel
-    const [vocabItem, deckMembership, existingUserVocabItem] =
-      await Promise.all([
-        this.deps.database.query.vocabItems.findFirst({
-          where: (vocabItems, { and, eq }) =>
-            and(
-              eq(vocabItems.id, answer.vocabItemId),
-              eq(vocabItems.disabled, false),
-            ),
-        }),
-        this.deps.database.query.deckVocabItems.findFirst({
-          where: (deckVocabItems, { eq, and }) =>
-            and(
-              eq(deckVocabItems.deckId, answer.deckId),
-              eq(deckVocabItems.vocabItemId, answer.vocabItemId),
-            ),
-        }),
-        this.deps.database.query.userVocabItems.findFirst({
-          where: (userVocabItems, { eq, and }) =>
-            and(
-              eq(userVocabItems.vocabItemId, answer.vocabItemId),
-              eq(userVocabItems.userId, userId),
-            ),
-        }),
-      ]);
+    // Fetch the item and the user's progress in parallel. Whether the deck
+    // teaches this item is settled before the call, by the router's
+    // assertStudyingItemInDeck.
+    const [vocabItem, existingUserVocabItem] = await Promise.all([
+      this.deps.database.query.vocabItems.findFirst({
+        where: (vocabItems, { and, eq }) =>
+          and(
+            eq(vocabItems.id, answer.vocabItemId),
+            eq(vocabItems.disabled, false),
+          ),
+      }),
+      this.deps.database.query.userVocabItems.findFirst({
+        where: (userVocabItems, { eq, and }) =>
+          and(
+            eq(userVocabItems.vocabItemId, answer.vocabItemId),
+            eq(userVocabItems.userId, userId),
+          ),
+      }),
+    ]);
 
-    if (!vocabItem || !deckMembership) {
-      throw new InvalidInputError("Item is not in this deck");
+    if (!vocabItem) {
+      throw new InvalidInputError("That item is not available to study");
     }
 
     // getNextVocabItem never offers a card the item can't answer, but the

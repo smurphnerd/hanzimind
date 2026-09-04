@@ -1,12 +1,28 @@
 import { z } from "zod";
 
 import { authProcedure } from "@/server/endpoints/procedure";
+import { InvalidInputError } from "@/server/endpoints/errors";
+import type { StudyService } from "@/server/services/StudyService";
 import {
   DeckProgressDto,
   UserVocabItemDto,
   StudyAnswerDto,
   VocabItemStudyDto,
 } from "@/definitions/definitions";
+
+/** Refuse the write at the boundary, before any service touches the item. */
+async function assertStudyingItemInDeck(
+  studyService: Pick<StudyService, "isStudyingItemInDeck">,
+  userId: string,
+  deckId: string,
+  vocabItemId: string,
+): Promise<void> {
+  if (await studyService.isStudyingItemInDeck(userId, deckId, vocabItemId)) {
+    return;
+  }
+
+  throw new InvalidInputError("That item is not in a deck you are studying.");
+}
 
 const deckSettingsSchema = z.object({
   readingEnabled: z.boolean(),
@@ -77,6 +93,13 @@ export const studyRouter = {
       const userId = context.user.id;
       const { deckId, answer } = input;
 
+      await assertStudyingItemInDeck(
+        context.cradle.studyService,
+        userId,
+        deckId,
+        answer.vocabItemId,
+      );
+
       const correct = await context.cradle.studyService.processAnswer(
         answer,
         userId,
@@ -96,12 +119,20 @@ export const studyRouter = {
   addSynonym: authProcedure
     .input(
       z.object({
+        deckId: z.string(),
         vocabItemId: z.string(),
         synonym: z.string().min(1).max(100),
       }),
     )
     .output(z.object({ success: z.boolean() }))
     .handler(async ({ input, context }) => {
+      await assertStudyingItemInDeck(
+        context.cradle.studyService,
+        context.user.id,
+        input.deckId,
+        input.vocabItemId,
+      );
+
       await context.cradle.studyService.addSynonym({
         userId: context.user.id,
         vocabItemId: input.vocabItemId,
