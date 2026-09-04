@@ -1377,7 +1377,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 - [ ] Lane 1. `curl /api/health`. Save `obs-health.png`. Pass when 200 with the database up and 503 with it stopped.
 - [ ] Lane 2. Load `/nope`. Save `obs-404.png`. Pass when the not-found route renders with navigation.
-- [ ] Lane 3. Stop Postgres and load `/decks`. Save `obs-error-route.png`. Pass when the error page shows a request id.
+- [ ] Lane 3. Stop Postgres and load `/dictionary`. Save `obs-error-route.png`. Pass when the error page shows a request id. Not `/decks`, which this section originally named. That route uses `useQuery` rather than `useSuspenseQuery`, deliberately and with a comment saying why, so it renders an inline error instead of throwing to a boundary and would never reach `error.tsx`.
 - [ ] Lane 4. Grep the log for that request id. Save `obs-request-id.png`. Pass when one line matches.
 - [ ] Lane 5. Disable a glyph in `/admin/vocab` and open its parent's graph. Save `obs-index-invalidated.png`. Pass when the glyph is absent immediately.
 - [ ] Lane 6. Boot in production mode and time the first wrong understanding answer. Save `obs-warmup.png`. Pass when it grades in under 2 seconds.
