@@ -56,30 +56,6 @@ export const studyRouter = {
       return { success: true };
     }),
 
-  updateDeckSettings: authProcedure
-    .input(
-      z
-        .object({
-          deckId: z.string(),
-        })
-        .merge(deckSettingsSchema),
-    )
-    .output(z.object({ success: z.boolean() }))
-    .handler(async ({ input, context }) => {
-      const userId = context.user.id;
-
-      await context.cradle.studyService.updateDeckSettings({
-        userId,
-        deckId: input.deckId,
-        readingEnabled: input.readingEnabled,
-        listeningEnabled: input.listeningEnabled,
-        understandingEnabled: input.understandingEnabled,
-        writingEnabled: input.writingEnabled,
-      });
-
-      return { success: true };
-    }),
-
   submitAnswer: authProcedure
     .input(z.object({ deckId: z.string(), answer: StudyAnswerDto }))
     .output(

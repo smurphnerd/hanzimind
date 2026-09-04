@@ -187,7 +187,7 @@ function StudyContent() {
   );
 
   const updateSettingsMutation = useMutation(
-    orpc.study.updateDeckSettings.mutationOptions({
+    orpc.study.addDeck.mutationOptions({
       onSuccess: () => {
         toast.success("Deck settings updated!");
         setSelectedDeck(null);
