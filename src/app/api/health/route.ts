@@ -25,7 +25,14 @@ import { container } from "@/server/initialization";
 export const dynamic = "force-dynamic";
 
 const DATABASE_PROBE_TTL_MS = 2_000;
-const DATABASE_PROBE_TIMEOUT_MS = 2_000;
+/**
+ * Shorter than the window, and `createCachedProbe` refuses the pair if it is
+ * not: an answer that arrives at the moment it expires is never cached, so a
+ * database that has stopped answering is re-probed by every caller. A healthy
+ * `select 1` comes back in about a millisecond, so this is only ever reached by
+ * one that is not going to.
+ */
+const DATABASE_PROBE_TIMEOUT_MS = 750;
 
 const databaseProbe = createCachedProbe({
   ttlMs: DATABASE_PROBE_TTL_MS,
