@@ -1277,7 +1277,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Metric. p50 milliseconds of `study/getNextVocabItem` via `perf-probe.mjs`, which resolves a session per call.
 - [ ] Probe. Run at trunk and at the head, interleaved.
 - [ ] Baseline. Record the trunk value first.
-- [ ] Rule. Head fails when p50 is above trunk. The 10 percent prediction was withdrawn on measurement: Awilix already resolved `auth` once per container scope, so the singleton removes the rebuild between requests rather than within one, against a call dominated by the database. Measured 8.3 percent below trunk.
+- [ ] Rule. Head fails when p50 is above trunk. The 10 percent prediction was withdrawn on measurement. Awilix already resolved `auth` once per container scope, so the singleton removes the rebuild between requests rather than within one, against a call dominated by the database. Measured 8.3 percent below trunk.
 
 **Review gate.** The operator reviews before merge.
 
