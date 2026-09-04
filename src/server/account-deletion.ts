@@ -257,13 +257,21 @@ const TRIAL = "account_deletion_trial";
  * no over-refusals: the earlier walk refused three shapes Postgres would have
  * allowed.
  *
- * Two details carry the rule case, where a delete reports success while
+ * Two mechanisms carry the rule case, where a delete reports success while
  * removing nothing — the case that showed a learner "Your account is gone" over
  * a surviving row whose password had already been taken, the worst outcome this
- * flow can produce. `returning` is not decoration: Postgres refuses it outright
- * on a relation whose delete a rule rewrites, so a rule cannot be silent here.
- * And the returned row is counted rather than the error merely being absent, so
- * a delete that removes nothing is a refusal however it managed it.
+ * flow can produce. They catch DIFFERENT rules and neither is redundant. The
+ * row count catches a rule that does nothing, which reports zero rows. And
+ * `returning` catches a rule that SUBSTITUTES another delete, which reports a
+ * truthful-looking one row: Postgres refuses `returning` outright on a relation
+ * whose delete a rule rewrites. Dropping either one puts a live escape back.
+ *
+ * WARNING FOR ANYONE ADDING A DELETE TRIGGER. The trial is a real delete, so
+ * every before/after delete trigger on `users` and on every cascading child
+ * runs TWICE per deletion. Postgres undoes the second run's work at the
+ * rollback, but only what is transactional: a sequence, a counter, an FDW or
+ * dblink write, or anything reaching outside the database does its work twice
+ * and stays done. There are no such triggers today.
  *
  * What it cannot cover: better-auth deletes the users row in a LATER
  * transaction, so a schema change landing between this commit and that delete
@@ -277,6 +285,13 @@ export async function assertAccountDeletable(db: Executor, userId: string) {
       sql`delete from ${schema.users} where ${schema.users.id} = ${userId} returning ${schema.users.id}`,
     );
     removed = result.rows.length;
+    // A deferred constraint is checked at commit, and this never commits: the
+    // rollback below discards the queued check unevaluated, so a `deferrable
+    // initially deferred` foreign key — or a deferred constraint trigger, which
+    // is the same hole with no foreign key in it — passed the trial and then
+    // stranded the learner at better-auth's own commit. This fires the queue
+    // while the trial can still fail on it.
+    await db.execute(sql.raw("set constraints all immediate"));
   } catch (cause) {
     // The failed statement leaves the transaction unusable, and the caller
     // still has to log and roll back, so put it back on its feet first.

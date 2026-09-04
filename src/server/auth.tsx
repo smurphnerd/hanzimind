@@ -169,6 +169,10 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
           // removes next and the learner keeps both their data and their way
           // in.
           //
+          // Because the trial is a real delete, a delete trigger on `users` or
+          // on a cascading child fires twice per deletion; see the warning on
+          // assertAccountDeletable before adding one.
+          //
           // KNOWN LIMITATION. better-auth deletes sessions, the credential
           // account and the users row in its own transactions after this one
           // commits, and they are not even one transaction between themselves.

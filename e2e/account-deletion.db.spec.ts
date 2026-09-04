@@ -127,6 +127,52 @@ test("a set null onto a column that refuses one refuses the deletion", async () 
   );
 });
 
+// Deferred to commit, which the trial never reaches: the rollback discards the
+// queued check unevaluated unless the trial fires it first. Both of these
+// passed the trial and stranded the learner at better-auth's own commit.
+test("a deferred foreign key refuses the deletion", async () => {
+  const userId = await learnerId();
+  await planted(
+    [
+      `create table probe_def (
+         id text primary key,
+         uid text references users(id) deferrable initially deferred)`,
+      `insert into probe_def
+         select 'd1', id from users where email = '${LEARNER.email}'`,
+    ],
+    ["drop table if exists probe_def"],
+    async () => {
+      await expect(attemptDeletion(userId)).rejects.toThrow(/probe_def/);
+      expect(await credentials(userId), "kept its password").toBe(1);
+    },
+  );
+});
+
+// The same hole with no foreign key in it, which is what shows the defect is
+// anything deferred to commit rather than deferred keys.
+test("a deferred constraint trigger refuses the deletion", async () => {
+  const userId = await learnerId();
+  await planted(
+    [
+      `create function probe_deferred() returns trigger language plpgsql as $$
+         begin raise exception 'probe_deferred says no'; end $$`,
+      `create constraint trigger probe_deferred_trg after delete on users
+         deferrable initially deferred
+         for each row execute function probe_deferred()`,
+    ],
+    [
+      "drop trigger if exists probe_deferred_trg on users",
+      "drop function if exists probe_deferred()",
+    ],
+    async () => {
+      await expect(attemptDeletion(userId)).rejects.toThrow(
+        /probe_deferred says no/,
+      );
+      expect(await credentials(userId), "kept its password").toBe(1);
+    },
+  );
+});
+
 // The three below have no row in pg_constraint at all, which is why no walk of
 // the catalogue could ever have caught them.
 test("a trigger that raises refuses the deletion", async () => {
