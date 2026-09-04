@@ -48,13 +48,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * decoration, and worse than admitting there is none.
  */
 export function requestIdOf(error: unknown): string | undefined {
-  if (!isRecord(error)) return undefined;
+  if (isRecord(error) && isRecord(error.data)) {
+    const minted = error.data.requestId;
+    if (typeof minted === "string" && minted.length > 0) return minted;
+  }
+  return digestOf(error);
+}
 
-  if (isRecord(error.data) && typeof error.data.requestId === "string") {
-    return error.data.requestId;
-  }
-  if (typeof error.digest === "string" && error.digest.length > 0) {
-    return error.digest;
-  }
-  return undefined;
+/** The hash Next assigns a server-side error and reports to `onRequestError`. */
+export function digestOf(error: unknown): string | undefined {
+  if (!isRecord(error)) return undefined;
+  return typeof error.digest === "string" && error.digest.length > 0
+    ? error.digest
+    : undefined;
 }
