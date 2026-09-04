@@ -363,44 +363,57 @@ export class StudyService {
       checker: this.deps.translationChecker,
     });
 
-    // Get current level for this study type
     const levelField = `${answer.studyType}Level` as
       | "readingLevel"
       | "listeningLevel"
       | "understandingLevel"
       | "writingLevel";
-    const currentLevel = userVocabItem[levelField] ?? 0;
+    const nextAtField = `${answer.studyType}NextAt` as
+      | "readingNextAt"
+      | "listeningNextAt"
+      | "understandingNextAt"
+      | "writingNextAt";
 
-    // Stamped after grading resolves, because the semantic checker can take
-    // seconds and the interval runs from when the learner finished, not started.
-    const { nextLevel, nextAt } = nextReviewAt(
-      currentLevel,
-      answerCorrect,
-      new Date(),
-    );
+    // Read the level and write it back atomically.
+    //
+    // Grading happens above rather than inside, deliberately: the semantic
+    // checker runs an embedding model and can take seconds, and a row lock held
+    // across that would serialise every learner answering the same glyph.
+    //
+    // Without the lock this is a read outside any transaction followed by a
+    // write, so two answers landing together both read the old level and the
+    // second silently overwrites the first. The level is read again inside,
+    // because the value fetched before grading may be stale by now.
+    await this.deps.database.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ level: schema.userVocabItems[levelField] })
+        .from(schema.userVocabItems)
+        .where(
+          and(
+            eq(schema.userVocabItems.userId, userId),
+            eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
+          ),
+        )
+        .for("update");
 
-    // Update user vocab item with new level, next review time, and mark as seen
-    const updateData: Partial<typeof schema.userVocabItems.$inferInsert> = {
-      seen: true, // Mark the item as seen once they submit an answer
-    };
-    updateData[levelField] = nextLevel;
-    updateData[
-      `${answer.studyType}NextAt` as
-        | "readingNextAt"
-        | "listeningNextAt"
-        | "understandingNextAt"
-        | "writingNextAt"
-    ] = nextAt;
-
-    await this.deps.database
-      .update(schema.userVocabItems)
-      .set(updateData)
-      .where(
-        and(
-          eq(schema.userVocabItems.userId, userId),
-          eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
-        ),
+      // Stamped after grading resolves, because the interval runs from when
+      // the learner finished, not when they started.
+      const { nextLevel, nextAt } = nextReviewAt(
+        locked?.level ?? 0,
+        answerCorrect,
+        new Date(),
       );
+
+      await tx
+        .update(schema.userVocabItems)
+        .set({ seen: true, [levelField]: nextLevel, [nextAtField]: nextAt })
+        .where(
+          and(
+            eq(schema.userVocabItems.userId, userId),
+            eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
+          ),
+        );
+    });
 
     return answerCorrect;
   }
