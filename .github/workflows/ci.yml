@@ -141,16 +141,8 @@ jobs:
         env:
           PUSHED_URL: postgres://postgres:postgres@localhost:5432/pushed
         run: |
-          cat > catalog.sql <<'SQL'
-          select table_name, column_name, data_type, is_nullable, column_default
-            from information_schema.columns where table_schema = 'public' order by 1, 2;
-          select conrelid::regclass::text as tbl, conname, pg_get_constraintdef(oid)
-            from pg_constraint where connamespace = 'public'::regnamespace order by 1, 2;
-          select tablename, indexname, indexdef
-            from pg_indexes where schemaname = 'public' order by 1, 2;
-          SQL
-          psql -X "$DATABASE_URL" -f catalog.sql > migrated.txt
-          psql -X "$PUSHED_URL" -f catalog.sql > pushed.txt
+          psql -X "$DATABASE_URL" -f scripts/schema-catalog.sql > migrated.txt
+          psql -X "$PUSHED_URL" -f scripts/schema-catalog.sql > pushed.txt
           diff -u pushed.txt migrated.txt
 
   e2e:
@@ -180,6 +172,8 @@ jobs:
           path: |
             test-results/playwright
             !test-results/playwright/learner-state.json
+            development/lanes
+            !development/lanes/*/.env.lane
       - name: Tear the lane down
         if: always()
         run: .claude/skills/verify-hanzimind/scripts/lane-down.sh 0
