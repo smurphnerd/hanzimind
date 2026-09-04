@@ -1078,7 +1078,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 - [ ] Add indexes on `memoryAids.vocabItemId`, `suggestions(createdById, createdAt)`, `suggestions.status`, `userDecks.deckId`, `userVocabItems.memoryAidId`, `deckVocabItems.vocabItemId`, `vocabItems(disabled, vocabType)`, and a trigram or lower-cased index for the ILIKE search columns.
 - [ ] Add `onDelete: "cascade"` to `userVocabItems`, `deckVocabItems`, `userDecks`, `memoryAids` user references. Leave `decks.createdById` without a cascade so a published deck cannot vanish under the learners studying it, and match P4-AUTH's hook, which deletes an authored deck no other learner has saved and refuses the account deletion only when one has.
-- [ ] Drop `userDecks.includeConstituents` and its readers.
+- [ ] Drop `userDecks.includeConstituents` and its readers, and `deckVocabItems.isConstituent` with them. Both are written and never read, the second by `DeckService.createDeck` and `seed-hsk1-deck.ts` and hardcoded true at three call sites in `StudyService`. This is finding 34, whole. It was filed against P4-MIGRATE, which cannot take it, because that PR's baseline migration has to reproduce today's schema exactly so an existing database can be told it already ran it.
 - [ ] Generate the migration and check it in.
 
 **You see.**
@@ -1096,7 +1096,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Lane 3. `EXPLAIN ANALYZE` the dictionary page's memory-aid lookup. Save `index-aids-plan.png`. Pass when it uses the new index.
 - [ ] Lane 4. Delete a test learner via `psql`. Save `index-cascade.png`. Pass when their progress, saved decks and memory aids are gone and their created decks remain.
 - [ ] Lane 5. Try deleting a learner who created a deck via the restrict path. Save `index-restrict.png`. Pass when Postgres refuses.
-- [ ] Lane 6. Grep for `includeConstituents`. Save `index-column-gone.png`. Pass when zero matches.
+- [ ] Lane 6. Grep for `includeConstituents` and for `isConstituent`. Save `index-column-gone.png`. Pass when both return zero matches.
 - [ ] Lane 7. Save a deck and study one card. Save `index-study.png`. Pass when both persist.
 - [ ] Lane 8. Submit three suggestions quickly. Save `index-ratelimit.png`. Pass when the rate limit still trips at the same count as trunk.
 - [ ] Lane 9. Search the dictionary for `shui`. Save `index-search.png`. Pass when results match trunk.
@@ -1113,6 +1113,62 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 - [ ] Copy lane 4 and lane 5 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-INDEX-review-cascade.png`.
 - [ ] Record a 30 to 60 second video of the migration applying on a data-bearing lane. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-INDEX-review.mp4`.
+- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Bugbot triage done.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] The owner squash-merges its own PR into `hygiene` after the operator's click.
+
+## Make deck creation atomic (P4-TXN)
+
+**Depends on.** None.
+
+**Files.**
+
+- [ ] Edit `src/server/services/VocabService.ts`, `src/server/services/DeckService.ts`.
+- [ ] Edit `src/server/services/__tests__/DeckService.test.ts`.
+
+**Build.**
+
+- [ ] Thread the transaction handle through `VocabService.addVocabItem` so a created vocab item is inserted on the same transaction as the deck that asked for it.
+- [ ] Make `DeckService.createDeck` roll back every item it created when any later step fails, so a half-finished create leaves no new dictionary rows behind.
+- [ ] Leave items that already existed in the dictionary untouched by the rollback, since another learner's deck may point at them.
+
+**You see.**
+
+- [ ] A deck create that fails partway adds nothing to the dictionary, and the words the learner typed are gone from `vocab_items`.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `DeckService.test.ts` gains a case where a create fails after the items are added and asserts no new `vocab_items` row survives. Run `pnpm test DeckService`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
+
+- [ ] Lane 1. Create a deck of five new words and let it succeed. Save `txn-happy.png`. Pass when the deck holds five words and each is in the dictionary.
+- [ ] Lane 2. Force a failure after item creation. Save `txn-rollback.png`. Pass when no new dictionary row survives.
+- [ ] Lane 3. Force the same failure on trunk. Save `txn-trunk-leak.png`. Pass when the orphaned rows are present, proving the defect was real.
+- [ ] Lane 4. Create a deck whose words already exist in the dictionary and force a failure. Save `txn-existing-kept.png`. Pass when the pre-existing rows are untouched.
+- [ ] Lane 5. Create two decks concurrently that name the same new word. Save `txn-concurrent.png`. Pass when one row exists and both decks point at it.
+- [ ] Lane 6. Create a deck containing a disabled glyph. Save `txn-disabled.png`. Pass when the existing notice behaviour is unchanged.
+- [ ] Lane 7. Study a card from a deck created after the change. Save `txn-study.png`. Pass when progress persists.
+- [ ] Lane 8. Create a deck of fifty words. Save `txn-fifty.png`. Pass when it succeeds and the dictionary gains exactly the new ones.
+- [ ] Lane 9. Search the dictionary for a word from a rolled-back create. Save `txn-search-clean.png`. Pass when it is absent.
+- [ ] Lane 10. Run the e2e suite. Save `txn-e2e.png`. Pass when it passes.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. Wall-clock milliseconds of a fifty-word deck create.
+- [ ] Probe. `perf-probe.mjs --rpc decks/create --n 10` at trunk and at the head, interleaved.
+- [ ] Baseline. Record the trunk value first.
+- [ ] Rule. Head fails when the median is more than 20 percent above trunk, since this PR buys correctness and must not cost throughput.
+
+**Review gate.** The operator reviews before merge.
+
+- [ ] Copy lane 2 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-TXN-review-rollback.png`.
+- [ ] Record a 30 to 60 second video of a create failing and the dictionary staying clean. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-TXN-review.webm`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 
 **Merge.**

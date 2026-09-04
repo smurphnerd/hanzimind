@@ -427,8 +427,9 @@ and dynamically includes the S3 endpoint.
 - `media-src` - Must include S3 endpoint for audio playback
 - `connect-src` - Must include S3 endpoint for API calls
 - When adding external resources, update the CSP accordingly
-- There is no `worker-src`, so `default-src 'self'` applies: a library that spawns
-  a `blob:` web worker or compiles WASM needs this file amended first
+- `worker-src` is set explicitly and `default-src` is `'self'`: a library that spawns
+  a `blob:` web worker or compiles WASM needs the policy in `src/server/csp.ts` amended
+  first, and the nonce threaded through anything it injects
 
 ### Translation & TTS Services
 
