@@ -742,7 +742,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Files.**
 
-- [ ] Edit `src/server/services/StudyService.ts`, `src/server/services/VocabService.ts`, `src/server/endpoints/studyRouter.ts`, `src/server/endpoints/decksRouter.ts`.
+- [ ] Edit `src/server/services/StudyService.ts`, `src/server/endpoints/studyRouter.ts`, `src/app/study/page.tsx`, `src/server/__tests__/study-membership.test.ts`. Corrected after the fact by verification, which found `VocabService.ts` and `decksRouter.ts` named here and never touched, and the two files that were touched were not named.
 - [ ] Edit `src/server/services/__tests__/deck-progress.test.ts`.
 
 **Build.**
@@ -755,7 +755,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **You see.**
 
-- [ ] `StudyService.ts` is under 800 lines, no query selects a stroke column, and the study loop behaves identically. The 600 was set before the moves were sized; from 749 the remaining bulk is query, lock and persistence with the decisions already lifted out, so closing the gap means moving persistence for its size rather than because it belongs elsewhere.
+- [ ] `StudyService.ts` is under 800 lines, no query on the deck path selects a stroke column, which is the requirement. Two single-row queries still do, deliberately, in `VocabService.getVocabItem` and `StudyService.getUserVocabItem`, so a grep that finds nothing in `StudyService.ts` is true and misleading at once, and the study loop behaves identically. The 600 was set before the moves were sized; from 749 the remaining bulk is query, lock and persistence with the decisions already lifted out, so closing the gap means moving persistence for its size rather than because it belongs elsewhere.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
