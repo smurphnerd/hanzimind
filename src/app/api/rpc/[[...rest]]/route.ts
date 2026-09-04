@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ResponseHeadersPlugin } from "@orpc/server/plugins";
@@ -10,6 +11,11 @@ import {
 } from "@/lib/request-id";
 import { appRouter } from "@/server/endpoints/router";
 import { container } from "@/server/initialization";
+
+function isServerFault(error: unknown): boolean {
+  const status = (error as { status?: unknown })?.status;
+  return typeof status !== "number" || status >= 500;
+}
 
 const handler = new RPCHandler(appRouter, {
   plugins: [new ResponseHeadersPlugin()],
@@ -29,6 +35,17 @@ const handler = new RPCHandler(appRouter, {
         },
         "RPC call failed",
       );
+
+      // No-op until instrumentation.ts has initialised the SDK, which it only
+      // does when SENTRY_DSN is set. 4xx is the API answering correctly — a
+      // missing deck or an expired session is not something to page anyone
+      // about — so only a fault gets reported.
+      if (isServerFault(error)) {
+        Sentry.withScope((scope) => {
+          scope.setTag("request_id", context.requestId);
+          Sentry.captureException(error);
+        });
+      }
     }),
   ],
 });

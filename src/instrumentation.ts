@@ -5,17 +5,35 @@ import { digestOf, requestIdOf } from "@/lib/request-id";
 /**
  * Runs once per server instance, before the first request.
  *
- * Everything here is behind three guards. `NEXT_RUNTIME` because the edge
- * runtime has neither the container nor the model; `NEXT_PHASE` because a build
- * must not pull a 90 MB model onto a CI runner; and production because a dev
- * server restarts constantly and the model is only worth loading where the
- * process is long-lived.
+ * Two guards cover both jobs: `NEXT_RUNTIME`, because the edge runtime has
+ * neither the container nor the model, and `NEXT_PHASE`, because a build must
+ * not pull a 90 MB model onto a CI runner.
+ *
+ * Sentry then initialises wherever a DSN is set, including a lane, so error
+ * reporting can be proved outside production. The model warm-up is production
+ * only: a dev server restarts constantly, and the load is only worth paying
+ * where the process is long-lived.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
 
   const { env } = await import("@/env");
+
+  if (env.SENTRY_DSN) {
+    const Sentry = await import("@sentry/nextjs");
+    Sentry.init({
+      dsn: env.SENTRY_DSN,
+      environment: env.NODE_ENV,
+      // Every log line already carries GIT_SHA; an event that names a different
+      // build than the logs around it is worse than one with no release at all.
+      release: env.GIT_SHA,
+      // Errors only. Tracing is a separate decision with its own cost, and
+      // turning it on by default would sample every request in production.
+      tracesSampleRate: 0,
+    });
+  }
+
   if (env.NODE_ENV !== "production") return;
 
   const { container } = await import("@/server/initialization");
@@ -67,4 +85,13 @@ export const onRequestError: Instrumentation.onRequestError = async (
     },
     "Request failed while rendering",
   );
+
+  const Sentry = await import("@sentry/nextjs");
+  Sentry.withScope((scope) => {
+    // The tag is what makes an event findable from the id on the page a
+    // learner is reading it off.
+    const requestId = requestIdOf(error);
+    if (requestId) scope.setTag("request_id", requestId);
+    Sentry.captureRequestError(error, request, context);
+  });
 };
