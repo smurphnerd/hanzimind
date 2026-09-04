@@ -74,7 +74,9 @@ const fakeTransaction = (
  * to. The ON CONFLICT the real one emits is pinned in VocabService.test.ts.
  */
 type FakeExecutor = {
-  insert: (table: unknown) => { values: (values: unknown[]) => Promise<unknown> };
+  insert: (table: unknown) => {
+    values: (values: unknown[]) => Promise<unknown>;
+  };
 };
 
 const passthroughInsert = () =>
@@ -142,9 +144,7 @@ describe("createDeck", () => {
     const result = await create(deckService, ["你好"]);
 
     expect(result.id).toBe("deck-1");
-    const membership = committed.find(
-      (i) => i.table === schema.deckVocabItems,
-    );
+    const membership = committed.find((i) => i.table === schema.deckVocabItems);
     expect(membership?.values).toEqual([
       { deckId: "deck-1", vocabItemId: "v1", isConstituent: false },
       { deckId: "deck-1", vocabItemId: "v2", isConstituent: true },

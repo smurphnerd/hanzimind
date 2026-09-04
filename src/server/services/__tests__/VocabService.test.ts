@@ -1,10 +1,18 @@
 import { describe, it, expect } from "vitest";
 import type { SQL } from "drizzle-orm";
+import type { Executor } from "@/server/database/database";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import type * as schema from "@/server/database/schema";
+import { drizzle } from "drizzle-orm/node-postgres";
+
 import { AdminService } from "../AdminService";
-import { VocabService, memoryAidOrder, toVocabItemDto } from "../VocabService";
+import {
+  VocabService,
+  memoryAidOrder,
+  toVocabItemDto,
+  type PreparedVocabItem,
+} from "../VocabService";
 
 type Row = typeof schema.vocabItems.$inferSelect;
 
@@ -371,5 +379,233 @@ describe("decomposition index cache", () => {
     await vocabService.getDecompositionGraph("你");
 
     expect(builds()).toBe(1);
+  });
+});
+
+/**
+ * A VocabService whose slow half is a stub, over the same level-query fake.
+ *
+ * `resolved` records every glyph that reached DeepL and speech synthesis, which
+ * is the only way to tell "did not need creating" from "created twice".
+ */
+const preparingServiceWith = (
+  corpus: Row[],
+  words: Record<string, string[]> = {},
+) => {
+  const fake = fakeDatabase(corpus);
+  const resolved: string[] = [];
+
+  const vocabService = new VocabService({
+    logger: { warn: () => {} },
+    database: {
+      ...fake.database,
+      // The guard the whole design rests on. Anything this method writes is
+      // written outside the caller's transaction and so survives its rollback.
+      insert: () => {
+        throw new Error("prepareVocabItems wrote to the database");
+      },
+    },
+    translator: {
+      cutSentence: (s: string) => words[s] ?? [s],
+      translateSentence: async (s: string) => {
+        resolved.push(s);
+        return `gloss of ${s}`;
+      },
+      getPinyin: (s: string) => `pinyin-${s}`,
+    },
+    tts: { getVocabAudio: async (s: string) => `https://cdn/${s}.mp3` },
+  } as unknown as ConstructorParameters<typeof VocabService>[0]);
+
+  return { vocabService, resolved, ...fake };
+};
+
+describe("prepareVocabItems", () => {
+  // The whole reason the method exists. A create that fails after this point has
+  // to be able to discard the words it invented, and it can only do that if they
+  // were never written outside its transaction.
+  it("writes nothing", async () => {
+    const { vocabService } = preparingServiceWith([
+      row({ vocabItem: "朋", vocabType: "character" }),
+      row({ vocabItem: "友", vocabType: "character" }),
+    ]);
+
+    // The database this runs against throws on any insert, so returning at all
+    // is the assertion.
+    const prepared = await vocabService.prepareVocabItems(["朋友"]);
+
+    expect(prepared.map((item) => item.vocabItem)).toEqual(["朋友"]);
+  });
+
+  it("resolves the glyph and everything it is written with", async () => {
+    const { vocabService } = preparingServiceWith(
+      [
+        row({ vocabItem: "我", vocabType: "character" }),
+        row({ vocabItem: "朋", vocabType: "character" }),
+        row({ vocabItem: "友", vocabType: "character" }),
+      ],
+      { 我朋友: ["我", "朋友"] },
+    );
+
+    const prepared = await vocabService.prepareVocabItems(["我朋友"]);
+
+    // The sentence, then the compound it cuts into. Its characters are already
+    // in the dictionary, which is the only place characters ever come from.
+    expect(prepared.map((item) => item.vocabItem)).toEqual(["我朋友", "朋友"]);
+  });
+
+  // The rows this returns are the only ones the create will write, so a glyph
+  // the dictionary already holds has to be structurally absent from it. A
+  // rollback that deleted by name instead would take another learner's row.
+  it("leaves out a word the dictionary already holds", async () => {
+    const { vocabService, resolved } = preparingServiceWith([
+      row({ vocabItem: "你好", vocabType: "compound" }),
+    ]);
+
+    expect(await vocabService.prepareVocabItems(["你好"])).toEqual([]);
+    expect(resolved).toEqual([]);
+  });
+
+  // A disabled row still owns its glyph. Preparing it would insert a duplicate,
+  // which ON CONFLICT then silently drops, leaving the deck built around a row
+  // the learner cannot be taught from.
+  it("leaves out a disabled word, which still owns the glyph", async () => {
+    const { vocabService } = preparingServiceWith([
+      row({ vocabItem: "你好", vocabType: "compound", disabled: true }),
+    ]);
+
+    expect(await vocabService.prepareVocabItems(["你好"])).toEqual([]);
+  });
+
+  // Two words sharing a part used to be reconciled by the first one's INSERT
+  // being visible to the second one's lookup. There are no inserts here to see,
+  // so without the seen-set this pays DeepL twice and then hands the deck's
+  // transaction two rows for one glyph.
+  it("resolves a shared part once", async () => {
+    const { vocabService, resolved } = preparingServiceWith(
+      [
+        row({ vocabItem: "我", vocabType: "character" }),
+        row({ vocabItem: "你", vocabType: "character" }),
+        row({ vocabItem: "好", vocabType: "character" }),
+        row({ vocabItem: "吗", vocabType: "character" }),
+      ],
+      { 我你好: ["我", "你好"], 你好吗: ["你好", "吗"] },
+    );
+
+    const prepared = await vocabService.prepareVocabItems(["我你好", "你好吗"]);
+
+    expect(prepared.filter((item) => item.vocabItem === "你好")).toHaveLength(
+      1,
+    );
+    expect(resolved.filter((item) => item === "你好")).toHaveLength(1);
+  });
+
+  // Same reason resolveConstituentClosure batches: a fifty-word create used to
+  // cost a lookup per glyph visited, and the levels are known up front.
+  it("costs one lookup per level, not one per glyph", async () => {
+    const wide = Array.from({ length: 50 }, (_, i) => `词${i}`);
+    const { vocabService, asked } = preparingServiceWith([
+      row({ vocabItem: "词", vocabType: "character" }),
+      ...Array.from({ length: 10 }, (_, i) =>
+        row({ vocabItem: String(i), vocabType: "character" }),
+      ),
+    ]);
+
+    await vocabService.prepareVocabItems(wide);
+
+    expect(asked).toHaveLength(2);
+  });
+
+  // The dictionary seed is the only source of single characters, so a compound
+  // naming one the corpus lacks cannot be built. It has to fail the create
+  // rather than store a character with no strokes, no radical and no etymology.
+  it("refuses a single character the dictionary does not carry", async () => {
+    const { vocabService } = preparingServiceWith([]);
+
+    await expect(vocabService.prepareVocabItems(["朋"])).rejects.toThrow(
+      "Cannot add vocab item with single character",
+    );
+  });
+});
+
+describe("insertVocabItems", () => {
+  const captureInsert = async (prepared: PreparedVocabItem[]) => {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const database = drizzle({
+      // Matches getDatabase, so the column names in the rendered SQL are the
+      // ones Postgres actually sees.
+      casing: "snake_case",
+      client: {
+        query: (
+          config: { text: string; values?: unknown[] },
+          values: unknown[],
+        ) => {
+          statements.push({
+            text: config.text,
+            values: config.values ?? values ?? [],
+          });
+
+          return Promise.resolve({ rows: [], rowCount: 0, fields: [] });
+        },
+      } as never,
+    });
+
+    const vocabService = new VocabService({
+      logger: { warn: () => {} },
+      database,
+    } as unknown as ConstructorParameters<typeof VocabService>[0]);
+
+    // A schema-less drizzle instance still renders the SQL, which is the whole
+    // point here; only its generic parameter differs from the real one.
+    await vocabService.insertVocabItems(
+      database as unknown as Executor,
+      prepared,
+    );
+
+    return statements;
+  };
+
+  const prepared: PreparedVocabItem = {
+    vocabItem: "朋友",
+    translation: "friend",
+    pinyin: "péng yǒu",
+    vocabType: "compound",
+    audioUrl: "https://cdn/朋友.mp3",
+  };
+
+  // The whole of the concurrency answer. Two creates naming the same new word
+  // both prepare it, because neither saw the other's row when it looked; the
+  // second blocks on the first's uncommitted index entry and then does nothing,
+  // so one row exists and both decks link to it. Without this the loser's
+  // transaction dies on a unique violation and takes its deck with it.
+  it("yields to a row a concurrent create already wrote", async () => {
+    const [insert] = await captureInsert([prepared]);
+
+    expect(insert?.text).toMatch(/on conflict .*do nothing/i);
+    expect(insert?.text).toMatch(/"vocab_item"/);
+  });
+
+  // Not `.returning()`: that reports only the rows this statement wrote, so deck
+  // membership built from it would drop the word the other create won the race
+  // for. The membership read finds the row whoever inserted it.
+  it("does not report which rows it wrote", async () => {
+    const [insert] = await captureInsert([prepared]);
+
+    expect(insert?.text).not.toMatch(/returning/i);
+  });
+
+  it("writes every prepared row in one statement", async () => {
+    const statements = await captureInsert([
+      prepared,
+      { ...prepared, vocabItem: "谢谢" },
+    ]);
+
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.values).toEqual(
+      expect.arrayContaining(["朋友", "谢谢"]),
+    );
+  });
+
+  it("issues no statement when there is nothing to write", async () => {
+    expect(await captureInsert([])).toEqual([]);
   });
 });
