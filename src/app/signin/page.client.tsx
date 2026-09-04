@@ -26,7 +26,7 @@ import { z } from "@/lib/zod-jitless";
 
 const SignInFormSchema = z.object({
   email: z.email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(10, "Password must be at least 10 characters"),
 });
 type SigninFormSchema = z.infer<typeof SignInFormSchema>;
 
@@ -41,7 +41,7 @@ export default function SignInClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return "Password must be at least 8 characters";
+          return "Password must be at least 10 characters";
         }
         return iss.code;
       },
