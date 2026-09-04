@@ -12,6 +12,7 @@ import {
 } from "@/lib/request-id";
 import { appRouter } from "@/server/endpoints/router";
 import { container } from "@/server/initialization";
+import { warmGradingModel } from "@/server/warmup";
 
 /**
  * Every procedure in the router is built on `commonProcedure`, so by the time an
@@ -82,6 +83,11 @@ async function handleRequest(request: Request) {
   result.headers.set(REQUEST_ID_HEADER, requestId);
   return result;
 }
+
+// Called from here, and only here, because this is the module graph that grades
+// answers: `study/*` is the one path that reaches the semantic checker, and the
+// checker that matters is the one THIS graph's container holds. See warmup.ts.
+warmGradingModel(container.cradle);
 
 export const GET = handleRequest;
 export const POST = handleRequest;
