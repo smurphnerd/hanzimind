@@ -130,6 +130,12 @@ export default function SignInClientPage(props: { baseUrl: string }) {
                       <Input {...field} type="password" />
                     </FormControl>
                     <FormMessage />
+                    <Link
+                      href="/forgot-password"
+                      className="self-end text-sm font-semibold text-primary"
+                    >
+                      Forgot password?
+                    </Link>
                   </FormItem>
                 )}
               />
