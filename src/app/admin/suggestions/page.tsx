@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { Check, RotateCcw, X } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/pagination";
 import { useTrackedMutation } from "@/hooks/use-tracked-mutation";
@@ -45,10 +46,19 @@ const KIND_LABELS: Record<SuggestionKind, string> = {
   other: "Other",
 };
 
-const STATUS_CLASSES: Record<SuggestionStatus, string> = {
-  open: "bg-secondary text-primary",
-  resolved: "bg-success/15 text-success",
-  rejected: "bg-muted text-muted-foreground",
+/**
+ * Each status as a Badge variant, so the pill says what it means rather than
+ * which tint it picked. `secondary` is the app's coral wash and reads as "still
+ * yours to deal with"; the label stays alongside, because colour is never the
+ * only thing carrying the state.
+ */
+const STATUS_VARIANTS: Record<
+  SuggestionStatus,
+  React.ComponentProps<typeof Badge>["variant"]
+> = {
+  open: "secondary",
+  resolved: "success",
+  rejected: "muted",
 };
 
 const formatFiledAt = (date: Date) =>
@@ -92,17 +102,13 @@ function SuggestionRow({
           {suggestion.vocabType && (
             <ItemTypeBadge type={suggestion.vocabType} short />
           )}
-          <span className="rounded-full bg-muted px-2.5 py-1 font-display text-xs font-bold text-muted-foreground">
-            {KIND_LABELS[suggestion.kind]}
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 font-display text-xs font-bold capitalize",
-              STATUS_CLASSES[suggestion.status],
-            )}
+          <Badge variant="muted">{KIND_LABELS[suggestion.kind]}</Badge>
+          <Badge
+            variant={STATUS_VARIANTS[suggestion.status]}
+            className="capitalize"
           >
             {suggestion.status}
-          </span>
+          </Badge>
         </div>
 
         <p className="text-sm whitespace-pre-wrap">{suggestion.body}</p>

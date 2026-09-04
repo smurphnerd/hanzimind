@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { CompositionBar } from "@/components/composition-bar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/pagination";
 import {
@@ -86,10 +87,10 @@ function DeckCard({
             {deck.deckName}
           </CardTitle>
           {isSaved && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 font-display text-xs font-bold text-success">
-              <Check className="size-3.5" />
+            <Badge variant="success">
+              <Check />
               Saved
-            </span>
+            </Badge>
           )}
         </div>
         <CardDescription className="line-clamp-2">

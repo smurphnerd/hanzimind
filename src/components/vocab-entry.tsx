@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Network, Sparkles, Volume2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CharacterStrokes } from "@/components/character-strokes";
@@ -149,16 +150,16 @@ function OriginDetails({
       {(formation || radical) && (
         <div className="flex flex-wrap items-center gap-2">
           {formation && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-display text-xs font-bold text-primary">
-              <Sparkles className="size-3.5" />
+            <Badge variant="secondary" className="px-3">
+              <Sparkles />
               {formation}
-            </span>
+            </Badge>
           )}
           {radical && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-display text-xs font-bold text-muted-foreground">
+            <Badge variant="muted" className="px-3">
               Radical
               <span className="hanzi text-sm text-foreground">{radical}</span>
-            </span>
+            </Badge>
           )}
         </div>
       )}

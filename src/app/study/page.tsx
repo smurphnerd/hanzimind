@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -128,10 +129,10 @@ function StudyDeckCard({ deck, progress, onOpenSettings }: StudyDeckCardProps) {
 
         <div className="mt-auto flex flex-col items-start gap-3">
           {dueNow > 0 ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-display text-sm font-bold text-primary">
-              <Sparkles className="size-4" />
+            <Badge variant="secondary" className="px-3 text-sm [&>svg]:size-4">
+              <Sparkles />
               <span className="tabular-nums">{dueNow}</span> ready to review
-            </span>
+            </Badge>
           ) : newAvailable > 0 ? (
             <InlineStat icon={<Sprout className="size-4 text-success" />}>
               {newAvailable} new to plant

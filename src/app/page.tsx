@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Flame, Target } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mika } from "@/components/mika";
@@ -36,9 +37,12 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 font-display text-sm font-bold text-primary">
-            <Flame className="size-4" />5 day streak
-          </div>
+          <Badge
+            variant="secondary"
+            className="px-4 py-2 text-sm [&>svg]:size-4"
+          >
+            <Flame />5 day streak
+          </Badge>
         </div>
 
         {/* Resume hero */}

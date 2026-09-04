@@ -144,11 +144,7 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
               }
               meta={
                 <>
-                  {aid.isDefault && (
-                    <Badge className="bg-primary text-primary-foreground">
-                      Official
-                    </Badge>
-                  )}
+                  {aid.isDefault && <Badge>Official</Badge>}
                   {!aid.isPublic && <Badge variant="secondary">Private</Badge>}
                   <span className="tabular-nums">
                     {aid.usageCount} saved • by {aid.createdByUsername}
