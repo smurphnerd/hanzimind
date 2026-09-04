@@ -133,9 +133,13 @@ export default function SignInClientPage(props: { baseUrl: string }) {
                       <Input {...field} type="password" />
                     </FormControl>
                     <FormMessage />
+                    {/* justify-self, not self-end: FormItem lays its children
+                        out in a grid, where self-end is the block axis and
+                        would leave this under the input rather than to its
+                        right. */}
                     <Link
                       href="/forgot-password"
-                      className="self-end text-sm font-semibold text-primary"
+                      className="justify-self-end text-sm font-semibold text-primary"
                     >
                       Forgot password?
                     </Link>
