@@ -95,8 +95,13 @@ EOF
 		# runner nobody can open, so "see development/lanes/0/db-migrate.log"
 		# is the entire diagnostic a human gets for a schema that would not
 		# build.
-		printf 'lane %s: db:migrate failed, last 40 lines of %s:\n' "$LANE" "$LANE_DIR/db-migrate.log" >&2
-		tail -n 40 "$LANE_DIR/db-migrate.log" 2>/dev/null | sed 's/^/  /' >&2
+		# 200, not 40, because the window has to hold a whole failing
+		# statement plus the `caused by:` line under it. The longest statement
+		# in the baseline is 26 lines today; a future migration will be longer,
+		# and a window that clips the header off leaves the reader with a
+		# reason and no idea what it is about.
+		printf 'lane %s: db:migrate failed, last 200 lines of %s:\n' "$LANE" "$LANE_DIR/db-migrate.log" >&2
+		tail -n 200 "$LANE_DIR/db-migrate.log" 2>/dev/null | sed 's/^/  /' >&2
 		exit 1
 	}
 
