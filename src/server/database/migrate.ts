@@ -63,7 +63,9 @@ export function readMigrationSql(
 
 /**
  * The hash drizzle-orm's migrator records for a migration: sha256 over the
- * whole file, byte for byte, which is why `drizzle/` is prettier-ignored.
+ * whole file, byte for byte, so a migration's text is frozen once it is
+ * recorded anywhere. (Nothing rewrites it in practice — prettier has no SQL
+ * parser. `drizzle/` is prettier-ignored for the meta JSON, not for this.)
  *
  * The migrator does not currently verify this. It decides what to apply purely
  * from `created_at desc limit 1`, so a row with any hash at all would make the
@@ -179,6 +181,46 @@ export async function applyPending(database: Drizzle): Promise<number> {
   return after.length - before.length;
 }
 
+/**
+ * The whole cause chain, messages only, no stack trace.
+ *
+ * Reading `error.message` alone loses the answer. Drizzle wraps a failed
+ * migration in a `DrizzleQueryError` whose message is `Failed query: <sql>`
+ * and hangs the real reason — `type "bogus" does not exist`, a duplicate
+ * table, a permission refusal — off `cause`. So the operator learned which
+ * statement failed and never why, which is the half that matters at 2am.
+ *
+ * Postgres puts the most actionable part in `detail` and `hint`, which are
+ * separate fields on a `pg` error rather than in its message, so those come
+ * along when they are set.
+ */
+export function explain(error: unknown): string {
+  const blocks: string[] = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current !== undefined && current !== null && !seen.has(current)) {
+    seen.add(current);
+    if (!(current instanceof Error)) {
+      blocks.push(String(current));
+      break;
+    }
+    const block = [current.message];
+    for (const field of ["detail", "hint"] as const) {
+      const value: unknown = (current as unknown as Record<string, unknown>)[
+        field
+      ];
+      if (typeof value === "string" && value.length > 0) {
+        block.push(`  ${field}: ${value}`);
+      }
+    }
+    blocks.push(block.join("\n"));
+    current = current.cause;
+  }
+
+  return blocks.join("\n  caused by: ");
+}
+
 async function main() {
   const url = process.env["DATABASE_URL"];
   if (!url) {
@@ -226,10 +268,7 @@ if (process.argv[1] && import.meta.filename === path.resolve(process.argv[1])) {
   try {
     await main();
   } catch (error) {
-    // The message, not a stack trace. The failure most worth reading here is
-    // `--baseline` refusing a half-built database, and that message is the
-    // whole answer.
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(explain(error));
     process.exit(1);
   }
 }

@@ -7,6 +7,7 @@ import { readMigrationFiles } from "drizzle-orm/migrator";
 import { describe, expect, it } from "vitest";
 
 import {
+  explain,
   MIGRATIONS_FOLDER,
   MIGRATIONS_SCHEMA,
   MIGRATIONS_TABLE,
@@ -122,5 +123,47 @@ describe("the journal table name", () => {
     );
     expect(config).toContain(`schema: "${MIGRATIONS_SCHEMA}"`);
     expect(config).toContain(`table: "${MIGRATIONS_TABLE}"`);
+  });
+});
+
+describe("explain", () => {
+  it("reaches the reason drizzle buries under its own message", () => {
+    // The shape a failed migration actually arrives in: drizzle's message
+    // names the statement, and Postgres's reason is one level down.
+    const cause = new Error('type "bogus_type_xyz" does not exist');
+    const error = new Error(
+      'Failed query: CREATE TABLE "x" ("a" bogus_type_xyz)',
+      {
+        cause,
+      },
+    );
+    expect(explain(error)).toBe(
+      'Failed query: CREATE TABLE "x" ("a" bogus_type_xyz)\n' +
+        '  caused by: type "bogus_type_xyz" does not exist',
+    );
+  });
+
+  it("includes Postgres's detail and hint, which are not in the message", () => {
+    const pgError = Object.assign(new Error("insert violates foreign key"), {
+      detail: 'Key (user_id)=(nobody) is not present in table "users".',
+      hint: "",
+    });
+    expect(explain(pgError)).toBe(
+      "insert violates foreign key\n" +
+        '  detail: Key (user_id)=(nobody) is not present in table "users".',
+    );
+  });
+
+  it("stops on a cycle instead of looping forever", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    a.cause = b;
+    expect(explain(a)).toBe("a\n  caused by: b");
+  });
+
+  it("renders a cause that is not an Error", () => {
+    expect(explain(new Error("wrapped", { cause: "a bare string" }))).toBe(
+      "wrapped\n  caused by: a bare string",
+    );
   });
 });
