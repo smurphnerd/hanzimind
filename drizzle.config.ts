@@ -18,4 +18,14 @@ export default defineConfig({
     url: process.env["DATABASE_URL"] as string,
   },
   casing: "snake_case",
+  // Where the journal lives. These are drizzle's defaults, stated because
+  // `docs/remote-setup.md` sends an operator to this exact table during the
+  // production cutover, and a table you name in a runbook should not be a
+  // default that a minor release can move. `src/server/database/migrate.ts` is
+  // the runner the app uses and it repeats them; the two must agree, so change
+  // both or neither.
+  migrations: {
+    schema: "drizzle",
+    table: "__drizzle_migrations",
+  },
 });
