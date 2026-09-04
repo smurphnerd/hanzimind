@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/authClient";
 
@@ -67,15 +67,17 @@ export function ChangeEmailDialog(props: {
             recent pair: an older link still works for an hour.
           </DialogDescription>
         </DialogHeader>
-        <Field>
-          <FieldLabel htmlFor="new-email">New email</FieldLabel>
+        {/* Not a react-hook-form field, so `grid gap-2` and a plain
+            Label, which is what shadcn's own FormItem and FormLabel are. */}
+        <div className="grid gap-2">
+          <Label htmlFor="new-email">New email</Label>
           <Input
             id="new-email"
             type="email"
             value={newEmail}
             onChange={(event) => setNewEmail(event.target.value)}
           />
-        </Field>
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel

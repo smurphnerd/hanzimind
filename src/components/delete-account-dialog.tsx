@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/authClient";
 
@@ -59,17 +59,19 @@ export function DeleteAccountDialog(props: { baseUrl: string }) {
             It cannot be undone. We email you a link to confirm it.
           </DialogDescription>
         </DialogHeader>
-        <Field>
-          <FieldLabel htmlFor="confirm-delete">
+        {/* Not a react-hook-form field, so `grid gap-2` and a plain
+            Label, which is what shadcn's own FormItem and FormLabel are. */}
+        <div className="grid gap-2">
+          <Label htmlFor="confirm-delete">
             Type {CONFIRMATION} to continue
-          </FieldLabel>
+          </Label>
           <Input
             id="confirm-delete"
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
             autoComplete="off"
           />
-        </Field>
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             Cancel

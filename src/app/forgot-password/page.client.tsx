@@ -3,13 +3,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/authClient";
 import { z } from "@/lib/zod-jitless";
@@ -77,41 +84,38 @@ export default function ForgotPasswordClientPage(props: { baseUrl: string }) {
             </p>
           </div>
 
-          <form
-            onSubmit={(event) => {
-              void form.handleSubmit((data) => requestReset.mutate(data))(
-                event,
-              );
-            }}
-            className="flex flex-col gap-4"
-          >
-            <Controller
-              name="email"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    {...field}
-                    id="email"
-                    type="email"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Button
-              type="submit"
-              isPending={requestReset.isPending}
-              className="mt-2"
-              size="lg"
+          <Form {...form}>
+            <form
+              onSubmit={(event) => {
+                void form.handleSubmit((data) => requestReset.mutate(data))(
+                  event,
+                );
+              }}
+              className="flex flex-col gap-4"
             >
-              Send reset link
-            </Button>
-          </form>
+              <FormField
+                name="email"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                isPending={requestReset.isPending}
+                className="mt-2"
+                size="lg"
+              >
+                Send reset link
+              </Button>
+            </form>
+          </Form>
 
           <p className="text-center text-sm text-muted-foreground">
             Remembered it?{" "}
