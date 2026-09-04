@@ -44,6 +44,28 @@ import {
  * one card that renders it is an introduction, which fetches its own full row
  * after selection rather than making every other row carry the weight.
  */
+/**
+ * Which study types a saved deck is set to quiz, in a fixed order.
+ *
+ * The order is load-bearing rather than cosmetic. `selectNextCard` walks this
+ * array and picks with a strict `<`, so among types at the same level the
+ * earliest here wins. Two copies of this list drifting apart would change which
+ * card a learner sees without changing which item.
+ */
+function enabledStudyTypes(userDeck: {
+  readingEnabled: boolean;
+  listeningEnabled: boolean;
+  understandingEnabled: boolean;
+  writingEnabled: boolean;
+}): StudyType[] {
+  const enabled: StudyType[] = [];
+  if (userDeck.readingEnabled) enabled.push("reading");
+  if (userDeck.listeningEnabled) enabled.push("listening");
+  if (userDeck.understandingEnabled) enabled.push("understanding");
+  if (userDeck.writingEnabled) enabled.push("writing");
+  return enabled;
+}
+
 const cardColumns = {
   id: schema.vocabItems.id,
   vocabItem: schema.vocabItems.vocabItem,
@@ -470,13 +492,9 @@ export class StudyService {
     const now = new Date();
 
     // Determine which study types are enabled
-    const enabledStudyTypes: StudyType[] = [];
-    if (userDeck.readingEnabled) enabledStudyTypes.push("reading");
-    if (userDeck.listeningEnabled) enabledStudyTypes.push("listening");
-    if (userDeck.understandingEnabled) enabledStudyTypes.push("understanding");
-    if (userDeck.writingEnabled) enabledStudyTypes.push("writing");
+    const enabled = enabledStudyTypes(userDeck);
 
-    if (enabledStudyTypes.length === 0) {
+    if (enabled.length === 0) {
       throw new InvalidInputError("No study types enabled for this deck");
     }
 
@@ -521,7 +539,7 @@ export class StudyService {
     // The rules themselves live in @/server/study-rules as pure functions so
     // they can be tested without a database.
     const selection = selectNextCard(vocabItems, {
-      enabledStudyTypes,
+      enabledStudyTypes: enabled,
       gateLevel: CONSTITUENT_GATE_LEVEL,
       now,
     });
@@ -721,14 +739,7 @@ export class StudyService {
     if (userDecks.length === 0) return deckIds.map(notEnrolled);
 
     const enabledByDeck = new Map<string, StudyType[]>(
-      userDecks.map((deck) => {
-        const enabled: StudyType[] = [];
-        if (deck.readingEnabled) enabled.push("reading");
-        if (deck.listeningEnabled) enabled.push("listening");
-        if (deck.understandingEnabled) enabled.push("understanding");
-        if (deck.writingEnabled) enabled.push("writing");
-        return [deck.deckId, enabled];
-      }),
+      userDecks.map((deck) => [deck.deckId, enabledStudyTypes(deck)]),
     );
 
     // The same join getNextVocabItem selects from, widened to every enrolled
@@ -769,13 +780,13 @@ export class StudyService {
     const now = new Date();
 
     return deckIds.map((deckId) => {
-      const enabledStudyTypes = enabledByDeck.get(deckId);
-      if (!enabledStudyTypes) return notEnrolled(deckId);
+      const enabled = enabledByDeck.get(deckId);
+      if (!enabled) return notEnrolled(deckId);
 
       return summariseDeckProgress({
         deckId,
         items: itemsByDeck.get(deckId) ?? [],
-        enabledStudyTypes,
+        enabledStudyTypes: enabled,
         gateLevel: CONSTITUENT_GATE_LEVEL,
         now,
       });
