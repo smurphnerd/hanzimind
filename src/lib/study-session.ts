@@ -88,6 +88,22 @@ export function levelFor(studyType: StudyType, item: UserVocabItemDto): number {
   return item[LEVEL_FIELD[studyType]] ?? 0;
 }
 
+/**
+ * Whether answering this card produces a result screen.
+ *
+ * An intro card has nothing to be right or wrong about and no level to move,
+ * so it goes straight on to the next one. The reducer enforces that, and the
+ * page asks the same question to decide whether an answer is worth a sound and
+ * a celebration — one definition, so the two cannot drift into disagreeing
+ * about what an intro card is.
+ */
+export function isGraded(card: VocabItemStudyDto): card is GradedCard {
+  return card.studyType !== "new";
+}
+
+/** Every card variant but the first-sight intro, which is shown and not asked. */
+export type GradedCard = Exclude<VocabItemStudyDto, { studyType: "new" }>;
+
 function advance(next: VocabItemStudyDto | null): StudySessionState {
   return next === null ? { phase: "complete" } : { phase: "card", card: next };
 }
@@ -118,11 +134,11 @@ export function studySessionReducer(
       if (state.phase !== "card") illegal(state, action);
       const { card } = state;
 
-      // An intro card has nothing to be right or wrong about and no level to
-      // move, so it goes straight on. This rule lives here and only here —
-      // when it lived in the mutation callback, every consumer of the result
-      // had to carry a `"new"` case it could never actually receive.
-      if (card.studyType === "new") return advance(action.result.nextVocabItem);
+      // The narrowing matters as much as the branch: past this line `card` is
+      // not the intro variant, so `graded.studyType` below is a StudyType and
+      // no consumer of the result has to carry a `"new"` case it can never
+      // actually receive.
+      if (!isGraded(card)) return advance(action.result.nextVocabItem);
 
       return {
         phase: "result",
