@@ -113,7 +113,12 @@ export class DeckService {
    * the difference between this and what it replaced. A create that failed
    * partway used to leave them in the dictionary permanently: the learner got no
    * deck, no way to remove what they typed, and a word of their choosing sat in
-   * the corpus every other learner searches. Now the failure takes them with it.
+   * the corpus every other learner searches. Now the failure takes the rows with
+   * it — the rows, and not the audio the prepare phase uploaded for them, which
+   * no database rollback can reach. That object is content-addressed by the
+   * word's md5, invisible to learners, absent from search, and reused by the
+   * next create of the same word, so it is litter rather than a leak. Trunk
+   * orphaned the object AND the row; this orphans only the object.
    *
    * What survives a rollback is decided by which rows the transaction wrote, not
    * by a rule applied afterwards. A word the dictionary already held is never

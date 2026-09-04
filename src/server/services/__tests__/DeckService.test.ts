@@ -12,10 +12,16 @@ type Insert = { table: unknown; values: Record<string, unknown>[] };
  * createDeck makes inside it: the ids of the glyphs it is about to link.
  *
  * `attempted` holds every insert the body issued; `committed` holds them only
- * once the body has returned. Postgres discards a transaction's writes when its
- * body throws, and a fake that kept them would report a rollback as working no
- * matter what the code did — which is the exact defect this file has to be able
- * to see.
+ * once the body has returned.
+ *
+ * Be clear about what that can and cannot show. `committed` is a property of
+ * THIS FAKE, not of Postgres: it models a rollback, it does not demonstrate one.
+ * What these tests genuinely pin is that `createDeck` hands its transaction
+ * handle to `insertVocabItems` and issues the dictionary write inside the
+ * transaction body — which is the part a refactor can silently undo, and the
+ * part that makes a real ROLLBACK reach those rows. That the database then
+ * discards them is proved on a live lane against real Postgres, which is why
+ * the plan requires both and why neither alone is verification.
  *
  * `failInsertInto` makes one table reject, so a test can fail the create at a
  * chosen step rather than by stubbing the whole transaction away.
@@ -240,8 +246,10 @@ describe("createDeck", () => {
       "deadlock detected",
     );
 
-    // It got as far as writing them, so the rollback is what saves us rather
-    // than the create having stopped early.
+    // It got as far as writing them, so what saves us is the rollback rather
+    // than the create having stopped early. The rollback itself is the fake's;
+    // the claim under test is that the write happened inside the transaction
+    // body, where a real ROLLBACK can reach it.
     expect(vocabItemInserts(attempted)).toHaveLength(1);
     expect(committed).toEqual([]);
   });
