@@ -76,20 +76,11 @@ export const studyRouter = {
         answer.vocabItemId,
       );
 
-      const correct = await context.cradle.studyService.processAnswer(
-        answer,
-        userId,
-      );
-      const userVocabItem = await context.cradle.studyService.getUserVocabItem(
-        userId,
-        answer.vocabItemId,
-      );
-      const nextVocabItem = await context.cradle.studyService.getNextVocabItem(
+      return context.cradle.studyService.answerAndAdvance({
         userId,
         deckId,
-      );
-
-      return { correct, userVocabItem, nextVocabItem };
+        answer,
+      });
     }),
 
   addSynonym: authProcedure

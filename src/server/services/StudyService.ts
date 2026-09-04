@@ -418,6 +418,35 @@ export class StudyService {
     return answerCorrect;
   }
 
+  /**
+   * Grade one answer and hand back everything the card needs next.
+   *
+   * One call rather than three, because the three were always run together in
+   * this order and the middle one only makes sense after the first. Keeping the
+   * order here also keeps it honest: the progress row must be read AFTER
+   * processAnswer has written it, or the result card shows the level the
+   * learner had before they answered.
+   */
+  async answerAndAdvance(args: {
+    userId: string;
+    deckId: string;
+    answer: StudyAnswerDto;
+  }): Promise<{
+    correct: boolean;
+    userVocabItem: UserVocabItemDto;
+    nextVocabItem: VocabItemStudyDto | null;
+  }> {
+    const { userId, deckId, answer } = args;
+
+    const correct = await this.processAnswer(answer, userId);
+    const [userVocabItem, nextVocabItem] = await Promise.all([
+      this.getUserVocabItem(userId, answer.vocabItemId),
+      this.getNextVocabItem(userId, deckId),
+    ]);
+
+    return { correct, userVocabItem, nextVocabItem };
+  }
+
   async getNextVocabItem(
     userId: string,
     deckId: string,
