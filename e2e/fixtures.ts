@@ -35,20 +35,13 @@ export async function rpc<T = unknown>(
   return body.json;
 }
 
-export async function currentUserId(request: APIRequestContext) {
-  const response = await request.get("/api/auth/get-session");
-  const session = (await response.json()) as { user: { id: string } } | null;
-  expect(session, "no session on this request context").not.toBeNull();
-  return session!.user.id;
-}
-
 // Grading an understanding answer loads the semantic similarity model on first
 // use, five seconds on a fresh dev server and a 90 MB download when lane-up.sh
 // has not prefetched it. One throwaway answer loads it before any spec waits on
-// a result card. The item is read out of the deck rather than named here: the
-// server rejects an answer for an item the deck does not hold.
+// a result card. The item is read out of the deck rather than named here,
+// because the server refuses an answer for an item the learner's deck does not
+// teach.
 export async function warmUpGrading(request: APIRequestContext) {
-  const userId = await currentUserId(request);
   await rpc(request, "study/addDeck", {
     deckId: "deck-hsk1",
     readingEnabled: true,
@@ -70,8 +63,6 @@ export async function warmUpGrading(request: APIRequestContext) {
       deckId: "deck-hsk1",
       answer: {
         vocabItemId: item!.id,
-        userId,
-        deckId: "deck-hsk1",
         studyType: "understanding",
         answer: "warm-up",
       },

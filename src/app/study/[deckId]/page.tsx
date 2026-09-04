@@ -167,19 +167,6 @@ function StudyCard({
 
   const handleGiveUp = useCallback(() => onSubmit(""), [onSubmit]);
 
-  useEffect(() => {
-    if (vocabItem.studyType === "new") return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Enter") return;
-      // This listener already submits, so cancel the key to stop the browser
-      // also implicitly submitting the form via the focused input.
-      e.preventDefault();
-      handleSubmit();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleSubmit, vocabItem.studyType]);
-
   if (vocabItem.studyType === "new") {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-6">
@@ -196,7 +183,7 @@ function StudyCard({
             </div>
           </div>
           <VocabOverview vocabItem={vocabItem} />
-          <div className="mt-6 flex justify-center">
+          <div className="sticky bottom-0 -mx-6 mt-6 flex justify-center border-t border-border bg-background/90 px-6 py-4 backdrop-blur">
             <Button size="lg" onClick={() => onSubmit("")}>
               Continue
               <ArrowRight className="size-5" />
@@ -305,7 +292,13 @@ function StudyCard({
                   : e.target.value,
               )
             }
-            className={`h-14 text-center text-2xl${isHanziAnswer ? "hanzi" : ""}`}
+            // The Input primitive shrinks to `md:text-sm` from 768px up, which
+            // outranks a bare `text-2xl`. Drop the `md:` half and the answer
+            // field is 14px on every desktop.
+            className={cn(
+              "h-14 text-center text-2xl md:text-2xl",
+              isHanziAnswer && "hanzi",
+            )}
             autoComplete="off"
           />
 
@@ -342,6 +335,7 @@ function StudyCard({
 }
 
 function ResultCard({
+  deckId,
   isCorrect,
   userVocabItem,
   newLevel,
@@ -349,6 +343,7 @@ function ResultCard({
   studyType,
   onNext,
 }: {
+  deckId: string;
   isCorrect: boolean;
   userVocabItem: UserVocabItemDto | null;
   newLevel: number;
@@ -358,6 +353,7 @@ function ResultCard({
 }) {
   const orpc = useORPC();
   const [synonymAdded, setSynonymAdded] = useState(false);
+  const nextRef = useRef<HTMLButtonElement>(null);
 
   const addSynonymMutation = useMutation(
     orpc.study.addSynonym.mutationOptions({
@@ -377,23 +373,22 @@ function ResultCard({
     lastAnswer.trim().length > 0 &&
     !!userVocabItem;
 
-  const handleKeyPress = useCallback(
-    (e: KeyboardEvent) => {
+  useEffect(() => {
+    nextRef.current?.focus();
+  }, []);
+
+  const handleNextKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      // Without this, the same physical Enter press goes on to fire `keypress`,
-      // which by then targets the next card's freshly focused input — and its
-      // default action is implicit form submission, instantly answering the
-      // next card with "". Cancelling keydown suppresses keypress entirely.
+      // Consume the key. Left to the browser, this same press activates the
+      // button, React swaps in the next card, and the follow-up `keypress`
+      // lands on that card's freshly focused input, whose default action is
+      // implicit form submission, instantly answering it with "".
       e.preventDefault();
       onNext();
     },
     [onNext],
   );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [handleKeyPress]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6">
@@ -507,6 +502,7 @@ function ResultCard({
                 isPending={addSynonymMutation.isPending}
                 onClick={() =>
                   addSynonymMutation.mutate({
+                    deckId,
                     vocabItemId: userVocabItem.id,
                     synonym: lastAnswer,
                   })
@@ -520,7 +516,12 @@ function ResultCard({
         )}
 
         <div className="mt-6 flex justify-center">
-          <Button size="lg" onClick={onNext}>
+          <Button
+            ref={nextRef}
+            size="lg"
+            onClick={onNext}
+            onKeyDown={handleNextKeyDown}
+          >
             Next
             <ArrowRight className="size-5" />
           </Button>
@@ -558,6 +559,42 @@ function CompletionScreen() {
   );
 }
 
+function NothingDueScreen({ deckId }: { deckId: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center p-6">
+      <Card className="max-w-lg">
+        <CardContent className="py-12 text-center">
+          <div className="mb-4 flex justify-center">
+            <Mika pose="sleep" size={104} />
+          </div>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight">
+            Nothing due
+          </h1>
+          {/* Three decks land here: one scheduled for later, one still
+              locked behind its parts, and one with no cards at all. The copy
+              has to hold for all three, and the deck page is where the
+              difference is visible. */}
+          <p className="mt-2 mb-6 text-lg text-muted-foreground">
+            No card in this deck is ready right now. The deck page shows what is
+            scheduled and what is still waiting on its parts.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button size="lg" asChild>
+              <Link href={`/decks/${deckId}`}>
+                <BookOpen className="size-5" />
+                Back to the deck
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild>
+              <Link href="/study">Return to study</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function StudyPageContent() {
   const orpc = useORPC();
   const params = useParams();
@@ -570,6 +607,7 @@ function StudyPageContent() {
 
   const [currentVocabItem, setCurrentVocabItem] =
     useState<VocabItemStudyDto | null>(initialVocabItem);
+  const [openedWithNothingDue] = useState(initialVocabItem === null);
   const [showingResult, setShowingResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [newLevel, setNewLevel] = useState(0);
@@ -628,6 +666,8 @@ function StudyPageContent() {
           setCurrentVocabItem(data.nextVocabItem);
         }
       },
+      onError: () =>
+        toast.error("Couldn't save that answer. Try again in a moment."),
     }),
   );
 
@@ -644,8 +684,6 @@ function StudyPageContent() {
         deckId,
         answer: {
           vocabItemId: currentVocabItem.id,
-          userId: "",
-          deckId,
           studyType: currentVocabItem.studyType,
           answer,
         },
@@ -658,11 +696,11 @@ function StudyPageContent() {
 
   const handleNext = () => setShowingResult(false);
 
-  if (isCompleted && !showingResult) {
-    return <CompletionScreen />;
+  if (openedWithNothingDue) {
+    return <NothingDueScreen deckId={deckId} />;
   }
 
-  if (!currentVocabItem && !showingResult) {
+  if (!showingResult && (isCompleted || !currentVocabItem)) {
     return <CompletionScreen />;
   }
 
@@ -671,6 +709,7 @@ function StudyPageContent() {
       <ConfettiBurst trigger={confettiKey} />
       {showingResult ? (
         <ResultCard
+          deckId={deckId}
           isCorrect={isCorrect}
           userVocabItem={userVocabItem}
           newLevel={newLevel}
