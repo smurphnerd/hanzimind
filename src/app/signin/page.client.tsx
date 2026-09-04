@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/authClient";
+import { safeCallbackUrl } from "@/lib/nav";
 import { z } from "@/lib/zod-jitless";
 
 const SignInFormSchema = z.object({
@@ -23,9 +24,7 @@ type SigninFormSchema = z.infer<typeof SignInFormSchema>;
 
 export default function SignInClientPage(props: { baseUrl: string }) {
   const redirectURL = useSearchParams().get("redirectUrl");
-  const callbackURL = redirectURL
-    ? `${props.baseUrl}/${redirectURL}` // prevent open redirect
-    : "/";
+  const callbackURL = safeCallbackUrl(props.baseUrl, redirectURL);
 
   const form = useForm({
     resolver: zodResolver(SignInFormSchema, {

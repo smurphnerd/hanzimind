@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Search, Play, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -85,6 +86,7 @@ function DictionaryContent() {
           <Button
             type="button"
             variant={searchLanguage === "chinese" ? "default" : "outline"}
+            aria-pressed={searchLanguage === "chinese"}
             onClick={() => setSearchLanguage("chinese")}
           >
             中文 Chinese
@@ -92,6 +94,7 @@ function DictionaryContent() {
           <Button
             type="button"
             variant={searchLanguage === "english" ? "default" : "outline"}
+            aria-pressed={searchLanguage === "english"}
             onClick={() => setSearchLanguage("english")}
           >
             English
@@ -169,15 +172,17 @@ function DictionaryContent() {
               </TableHeader>
               <TableBody>
                 {results.map((result) => (
-                  <TableRow
-                    key={result.id}
-                    className="cursor-pointer hover:bg-muted"
-                    onClick={() => {
-                      window.location.href = `/dictionary/${encodeURIComponent(result.vocabItem)}`;
-                    }}
-                  >
+                  <TableRow key={result.id} className="hover:bg-muted">
+                    {/* The glyph is the row's link. A row-wide onClick left the
+                        entry reachable by mouse only, and no amount of styling
+                        makes a <tr> focusable. */}
                     <TableCell className="hanzi text-xl text-foreground">
-                      {result.vocabItem}
+                      <Link
+                        href={`/dictionary/${encodeURIComponent(result.vocabItem)}`}
+                        className="rounded-sm outline-none hover:text-primary focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      >
+                        {result.vocabItem}
+                      </Link>
                     </TableCell>
                     <TableCell>{result.translation}</TableCell>
                     <TableCell>
@@ -185,6 +190,7 @@ function DictionaryContent() {
                         variant="ghost"
                         size="icon"
                         disabled={!result.audioUrl}
+                        aria-label={`Play ${result.vocabItem}`}
                         onClick={(e) => handlePlayAudio(result.audioUrl, e)}
                         className="size-8 text-muted-foreground hover:text-primary"
                       >

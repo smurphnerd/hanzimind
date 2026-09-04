@@ -408,6 +408,7 @@ function DecksContent() {
         <Search className="absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
+          aria-label="Search decks"
           placeholder="Search decks..."
           className="h-12 pl-12 text-base"
           value={search}

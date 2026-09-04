@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ChevronDown, Menu } from "lucide-react";
 import { authClient } from "@/lib/authClient";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Mika } from "@/components/mika";
+import { cn } from "@/lib/utils";
+import { isCurrentPage } from "@/lib/nav";
 
 const navLinks = [
   { href: "/study", label: "Study" },
@@ -27,6 +30,7 @@ const adminLinks = [
 
 export function Header() {
   const { data: session } = authClient.useSession();
+  const pathname = usePathname();
 
   // Admin status rides on the session as `user.role`. Hiding the link is
   // cosmetic; the endpoints enforce access regardless.
@@ -51,9 +55,19 @@ export function Header() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground hover:text-foreground"
+                className={cn(
+                  "text-muted-foreground hover:text-foreground",
+                  isCurrentPage(pathname, link.href) && "text-foreground",
+                )}
               >
-                <Link href={link.href}>{link.label}</Link>
+                <Link
+                  href={link.href}
+                  aria-current={
+                    isCurrentPage(pathname, link.href) ? "page" : undefined
+                  }
+                >
+                  {link.label}
+                </Link>
               </Button>
             ))}
 
@@ -63,7 +77,10 @@ export function Header() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-foreground"
+                  className={cn(
+                    "text-muted-foreground hover:text-foreground",
+                    isCurrentPage(pathname, "/admin") && "text-foreground",
+                  )}
                 >
                   Admin
                   <ChevronDown className="size-4" />
@@ -72,7 +89,14 @@ export function Header() {
               <DropdownMenuContent align="start">
                 {adminLinks.map((link) => (
                   <DropdownMenuItem key={link.href} asChild>
-                    <Link href={link.href}>{link.label}</Link>
+                    <Link
+                      href={link.href}
+                      aria-current={
+                        isCurrentPage(pathname, link.href) ? "page" : undefined
+                      }
+                    >
+                      {link.label}
+                    </Link>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -81,6 +105,52 @@ export function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Below 640px the nav above is display:none, which left a signed-in
+              learner with no way to reach Study, Decks, Dictionary, Profile or
+              Admin at all. Same links, same order, in a menu. */}
+          {session?.user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open navigation"
+                  className="sm:hidden"
+                >
+                  <Menu className="size-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {navLinks.map((link) => (
+                  <DropdownMenuItem key={link.href} asChild>
+                    <Link
+                      href={link.href}
+                      aria-current={
+                        isCurrentPage(pathname, link.href) ? "page" : undefined
+                      }
+                    >
+                      {link.label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+                {isAdmin &&
+                  adminLinks.map((link) => (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link
+                        href={link.href}
+                        aria-current={
+                          isCurrentPage(pathname, link.href)
+                            ? "page"
+                            : undefined
+                        }
+                      >
+                        Admin: {link.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <ThemeToggle />
           {session?.user ? (
             <Link

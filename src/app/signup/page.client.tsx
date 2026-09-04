@@ -78,16 +78,10 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     onSuccess: (_data, variables) => {
       setSentTo(variables.email);
       form.reset();
-      toast.success("Account created! Check your email to verify it.");
+      toast.success("Check your email to finish signing up.");
     },
-    onError: (error) => {
-      if (error.message.includes("already exists")) {
-        toast.error(
-          "An account with this email already exists. Please sign in instead.",
-        );
-      } else {
-        toast.error("Failed to create account. Please try again.");
-      }
+    onError: () => {
+      toast.error("Failed to create account. Please try again.");
     },
   });
 
@@ -106,10 +100,17 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
               Almost there!
             </h1>
+            {/* Sign-up answers the same way whether or not the address is
+                taken, because better-auth will not confirm an account exists
+                and sign-in is careful not to either: an unknown address and a
+                wrong password get byte-identical 401s. So this cannot promise a
+                link was sent. Saying it was, when the address already belongs
+                to someone, is what finding 19 was. */}
             <p className="text-sm text-muted-foreground">
-              We sent a verification link to{" "}
-              <span className="font-semibold text-foreground">{sentTo}</span>.
-              Click it to activate your account.
+              If <span className="font-semibold text-foreground">{sentTo}</span>{" "}
+              is new here, a verification link is on its way. Click it to
+              activate your account. If it already has an account, sign in
+              instead.
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={() => setSentTo(null)}>
