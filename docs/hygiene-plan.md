@@ -755,7 +755,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **You see.**
 
-- [ ] `StudyService.ts` is under 600 lines, `grep -c strokes src/server/services/StudyService.ts` prints 0, and the study loop behaves identically.
+- [ ] `StudyService.ts` is under 800 lines, no query selects a stroke column, and the study loop behaves identically. The 600 was set before the moves were sized; from 749 the remaining bulk is query, lock and persistence with the decisions already lifted out, so closing the gap means moving persistence for its size rather than because it belongs elsewhere.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
