@@ -1,6 +1,10 @@
 import "server-only";
 
-import { betterAuth, type Logger as BetterAuthLogger } from "better-auth";
+import {
+  betterAuth,
+  type BetterAuthOptions,
+  type Logger as BetterAuthLogger,
+} from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { nanoid } from "nanoid";
@@ -11,16 +15,21 @@ import type { Cradle } from "@/server/initialization";
 
 import { schema } from "./database/schema";
 
-export const getAuth = (
-  deps: Cradle,
-  options: {
-    authSecret: string;
-    baseUrl: string;
-    rateLimit?: boolean;
-    systemEmailFrom: string;
-  },
-) =>
-  betterAuth({
+export type AuthOptions = {
+  authSecret: string;
+  baseUrl: string;
+  rateLimit?: boolean;
+  systemEmailFrom: string;
+};
+
+const DAY = 60 * 60 * 24;
+
+/**
+ * Every option better-auth runs on, as data, so a test can read them without
+ * standing up an instance.
+ */
+export const buildAuthOptions = (deps: Cradle, options: AuthOptions) =>
+  ({
     trustedOrigins: [options.baseUrl],
     database: drizzleAdapter(deps.database, {
       provider: "pg",
@@ -30,6 +39,18 @@ export const getAuth = (
     rateLimit: {
       enabled: options.rateLimit ?? true,
       storage: "database",
+      // The endpoints an attacker guesses against. Five a minute is generous
+      // for a person and useless for a script.
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 5 },
+        "/forget-password": { window: 60, max: 5 },
+      },
+    },
+    session: {
+      expiresIn: 30 * DAY,
+      updateAge: DAY,
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
     advanced: {
       database: {
@@ -39,11 +60,14 @@ export const getAuth = (
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      minPasswordLength: 10,
     },
     emailVerification: {
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
-        void deps.email.sendEmail({
+        // Awaited, so better-auth reports a failed send to the caller instead
+        // of resolving as though the mail went out.
+        await deps.email.sendEmail({
           from: options.systemEmailFrom,
           to: user.email,
           body: <EmailVerificationEmail link={url} username={user.name} />,
@@ -62,7 +86,10 @@ export const getAuth = (
     ],
     secret: options.authSecret,
     logger: getLogger(deps.logger),
-  });
+  }) satisfies BetterAuthOptions;
+
+export const getAuth = (deps: Cradle, options: AuthOptions) =>
+  betterAuth(buildAuthOptions(deps, options));
 
 function getLogger(pino: Logger): BetterAuthLogger {
   const childLogger = pino.child({ service: "auth" });
