@@ -15,6 +15,12 @@
 -- a generated column or a trigram index is covered rather than silently
 -- unprotected. Several sections are empty against today's schema; that is the
 -- point of having them.
+--
+-- Known edge, so the next person knows where it is: a changed VIEW definition,
+-- `ENABLE ROW LEVEL SECURITY` and `CREATE POLICY` are not covered. Drizzle can
+-- emit all three, and none appears in `schema.ts` today, which is exactly what
+-- was true of enums before one slipped through. Add them here before adding
+-- them to the schema.
 
 -- Without this a broken query here would fail identically against both
 -- databases, the diff would still be empty, and the check would pass while

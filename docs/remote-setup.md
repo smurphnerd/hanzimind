@@ -126,37 +126,39 @@ The baseline was generated from `schema.ts`, not read out of any database, so it
 describes what the schema file says. If the schema was ever pushed straight
 into production from a working copy that differed, the two can disagree — and the
 whole cutover assumes they do not. Build a reference database from the migration
-and compare the two catalogs. `$DATABASE_URL` below is the remote database,
-as Doppler sets it; the reference one is passed inline. Nothing here writes to
-the remote database.
+and compare the two catalogs. Nothing here writes to the remote database, and
+nothing here touches your own dev containers.
 
 ```bash
-# 1. A local reference database with nothing in it but the migration.
-docker compose -f development/docker-compose.yaml up -d postgres
-docker compose -f development/docker-compose.yaml exec -T postgres \
-  psql -U postgres -c 'create database migrate_reference'
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/migrate_reference \
+# A scratch compose project, so none of this can touch the dev containers a
+# `pnpm dev-containers` shares across every worktree. Its own name, its own
+# port, its own volume, thrown away at the end.
+export COMPOSE_PROJECT_NAME=hanzimind-drift-check
+export POSTGRES_PORT=15499
+COMPOSE="docker compose -p $COMPOSE_PROJECT_NAME -f development/docker-compose.yaml"
+
+# 1. A reference database holding nothing but the migration. `--wait` blocks on
+#    the healthcheck; without it the next command races a Postgres that is still
+#    starting up and gets FATAL: the database system is starting up.
+$COMPOSE up -d --wait postgres
+DATABASE_URL=postgres://postgres:postgres@localhost:$POSTGRES_PORT/postgres \
   pnpm exec tsx src/server/database/migrate.ts
 
-# 2. The same catalog dump from each. Save them side by side.
-docker compose -f development/docker-compose.yaml exec -T postgres \
-  psql -X -U postgres -d migrate_reference -f - \
-  < scripts/schema-catalog.sql > /tmp/expected.txt
+# 2. The same catalog dump from each, both run inside the scratch container,
+#    which is how this works on a machine with no psql of its own.
+$COMPOSE exec -T postgres psql -X -U postgres \
+  -f - < scripts/schema-catalog.sql > /tmp/expected.txt
 
-docker run --rm -i postgres:17-alpine \
-  psql -X "$DATABASE_URL" -f - \
-  < scripts/schema-catalog.sql > /tmp/actual.txt
+$COMPOSE exec -T postgres psql -X "$DATABASE_URL" \
+  -f - < scripts/schema-catalog.sql > /tmp/actual.txt
 
 diff -u /tmp/expected.txt /tmp/actual.txt
 ```
 
-Both halves go through a container on purpose: there is no `psql` on the
-machines this program runs on, and the remote database is not reachable from
-the compose network, so the local one is queried through `compose exec` and the
-remote one through a throwaway `postgres:17-alpine` client that can reach the
-internet. The image is already pulled — it is the one the compose file uses. If
-you do have `psql` on your path, `psql -X "$DATABASE_URL" -f
-scripts/schema-catalog.sql` is the same command.
+`$DATABASE_URL` in the second dump is the remote database, as Doppler sets it,
+and the container reaches it over the internet like any other client. If you do
+have `psql` on your path, `psql -X "$DATABASE_URL" -f scripts/schema-catalog.sql`
+is the same command; the container is only here because these machines do not.
 
 `scripts/schema-catalog.sql` asks for relations, columns, constraints, indexes,
 types, sequences, triggers, functions, comments and extensions. Several of those
@@ -173,11 +175,10 @@ difference in place forever, invisible to every later migration. Reconcile it
 first — usually by correcting `schema.ts` and regenerating, so the
 baseline describes what is really there.
 
-Drop the reference database when done:
+Throw the scratch project away when done, volume and all:
 
 ```bash
-docker compose -f development/docker-compose.yaml exec -T postgres \
-  psql -U postgres -c 'drop database migrate_reference'
+$COMPOSE down -v
 ```
 
 CI runs this same file between a push-built database and a migrated one on
