@@ -1,11 +1,13 @@
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 
+import { requestIdOf } from "@/lib/request-id";
 import {
   InvalidInputError,
   isForeignKeyViolation,
   NotFoundError,
   toORPCError,
+  withRequestId,
 } from "../errors";
 
 const DRIZZLE_FAILURE = new Error(
@@ -109,5 +111,64 @@ describe("isForeignKeyViolation", () => {
 
   it("should not throw on a thrown non-Error", () => {
     expect(isForeignKeyViolation("23503")).toBe(false);
+  });
+});
+
+describe("withRequestId", () => {
+  it("puts the id where the client can read it back off the error", () => {
+    const stamped = withRequestId(toORPCError(new Error("boom")), "req-1");
+
+    expect(requestIdOf(stamped)).toBe("req-1");
+  });
+
+  it("keeps the code and message the mapper chose", () => {
+    const stamped = withRequestId(
+      toORPCError(new NotFoundError("Deck not found")),
+      "req-1",
+    );
+
+    expect(stamped.code).toBe("NOT_FOUND");
+    expect(stamped.message).toBe("Deck not found");
+  });
+
+  // isDefinedError on the client reads this flag; dropping it in the rebuild
+  // would turn a handled 401 into an unknown fault.
+  it("carries the defined flag across the rebuild", () => {
+    const stamped = withRequestId(
+      new ORPCError("UNAUTHORIZED", { defined: true }),
+      "req-1",
+    );
+
+    expect(stamped.defined).toBe(true);
+  });
+
+  it("keeps the cause, which is what the log line explains", () => {
+    const cause = new Error("boom");
+    const stamped = withRequestId(toORPCError(cause), "req-1");
+
+    expect(stamped.cause).toBe(cause);
+  });
+
+  it("merges into existing data rather than replacing it", () => {
+    const stamped = withRequestId(
+      new ORPCError("BAD_REQUEST", { data: { field: "email" } }),
+      "req-1",
+    );
+
+    expect(stamped.data).toEqual({ field: "email", requestId: "req-1" });
+  });
+
+  // A data shape that is not a plain object cannot take a key, and losing it
+  // would cost the caller more than the id is worth.
+  it("leaves data alone when it cannot hold an id", () => {
+    const original = new ORPCError("BAD_REQUEST", { data: ["email"] });
+
+    expect(withRequestId(original, "req-1")).toBe(original);
+  });
+
+  it("returns the error untouched when there is no id", () => {
+    const original = toORPCError(new Error("boom"));
+
+    expect(withRequestId(original, undefined)).toBe(original);
   });
 });

@@ -59,6 +59,7 @@ function lane(offeredToThisLearner: boolean) {
 
   const context = {
     headers: new Headers(),
+    requestId: "test-request-id",
     cradle: {
       logger: { error: vi.fn(), warn: vi.fn() },
       auth: {

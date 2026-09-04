@@ -16,6 +16,17 @@ export interface EmailAdapter {
 }
 
 export class SmtpEmailAdapter implements EmailAdapter {
+  /**
+   * Built once and reused. A transport parses the connection URL, resolves the
+   * host and owns nodemailer's connection handling, and building a fresh one
+   * per message threw all of that away on every send.
+   *
+   * Lazy rather than built in the constructor, so resolving this adapter from
+   * the container — which happens on any request that touches the cradle —
+   * still costs nothing until an email is actually sent.
+   */
+  private transporter?: nodemailer.Transporter;
+
   public constructor(
     private deps: Cradle,
     private options: {
@@ -23,14 +34,20 @@ export class SmtpEmailAdapter implements EmailAdapter {
     },
   ) {}
 
-  public async sendEmail(args: SendEmailArgs): Promise<string> {
-    const emailTransporter = nodemailer.createTransport(
-      this.options.smtpConnectionUrl,
-    );
+  private getTransporter(): nodemailer.Transporter {
+    if (!this.transporter) {
+      this.transporter = nodemailer.createTransport(
+        this.options.smtpConnectionUrl,
+      );
+      this.deps.logger.info("Created the SMTP transport");
+    }
+    return this.transporter;
+  }
 
+  public async sendEmail(args: SendEmailArgs): Promise<string> {
     const { html, text } = await renderBody(args.body);
 
-    const result = await emailTransporter.sendMail({
+    const result = await this.getTransporter().sendMail({
       ...args,
       from: args.from,
       html,

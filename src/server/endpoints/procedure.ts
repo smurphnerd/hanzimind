@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/client";
 import { os, ValidationError } from "@orpc/server";
 
-import { toORPCError } from "./errors";
+import { toORPCError, withRequestId } from "./errors";
 import type { ResponseHeadersPluginContext } from "@orpc/server/plugins";
 
 import type { Cradle } from "@/server/initialization";
@@ -13,9 +13,22 @@ const baseProcedure = os
     TOO_MANY_REQUESTS: {},
   })
   .$context<
-    { headers: Headers; cradle: Cradle } & ResponseHeadersPluginContext
+    {
+      headers: Headers;
+      cradle: Cradle;
+      /** Minted per request by the RPC route; see src/lib/request-id.ts. */
+      requestId: string;
+    } & ResponseHeadersPluginContext
   >();
 
+/**
+ * The one place a service error becomes a wire error, so that no procedure can
+ * forget to map one, and the one place the request id is stamped onto it.
+ *
+ * It no longer logs. The handler's `onError` interceptor in the RPC route does,
+ * once, with the same id — which also catches the failures that never reach a
+ * procedure at all, such as a malformed body.
+ */
 const loggingMiddleware = baseProcedure.middleware(
   async ({ context, next }) => {
     try {
@@ -26,13 +39,12 @@ const loggingMiddleware = baseProcedure.middleware(
         error.code === "INTERNAL_SERVER_ERROR" &&
         error.cause instanceof ValidationError
       ) {
-        context.cradle.logger.error(error.cause);
-        throw new ORPCError("OUTPUT_VALIDATION_FAILED", {
-          cause: error.cause,
-        });
+        throw withRequestId(
+          new ORPCError("OUTPUT_VALIDATION_FAILED", { cause: error.cause }),
+          context.requestId,
+        );
       }
-      context.cradle.logger.error(error);
-      throw toORPCError(error);
+      throw withRequestId(toORPCError(error), context.requestId);
     }
   },
 );

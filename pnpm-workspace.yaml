@@ -9,6 +9,9 @@
 # true if a package turns out to need its native build step on your platform.
 allowBuilds:
   "@parcel/watcher": false
+  # Only fetches the sentry-cli binary, which uploads source maps through
+  # withSentryConfig. This app initialises the SDK directly and never calls it.
+  "@sentry/cli": false
   "@swc/core": false
   bufferutil: false
   esbuild: false

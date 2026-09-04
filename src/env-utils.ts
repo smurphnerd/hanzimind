@@ -39,4 +39,10 @@ export const envSchema = z.object({
   AUTH_SECRET: z.string(),
   SYSTEM_EMAIL_FROM: z.string(),
   DEEPL_API_KEY: z.string(),
+  /**
+   * Optional. With no DSN the Sentry SDK is never initialised and every
+   * capture call it exposes is a no-op, so error reporting is off rather than
+   * broken — which is what a local checkout and a lane both want.
+   */
+  SENTRY_DSN: z.string().optional(),
 });

@@ -7,10 +7,10 @@ import {
   createContainer,
   InjectionMode,
 } from "awilix";
-import { type Logger, pino } from "pino";
-import pinoPretty from "pino-pretty";
+import { type Logger } from "pino";
 
 import { type Auth, getAuth } from "@/server/auth";
+import { createLogger } from "@/server/logger";
 import { type Drizzle, getDatabase } from "@/server/database/database";
 import {
   type EmailAdapter,
@@ -60,13 +60,10 @@ export const container = createContainer<Cradle>({
 
 if (process.env.NODE_ENV !== "test") {
   const env = await import("@/env").then((mod) => mod.env);
-  const logger = pino(
-    {
-      level: env.LOG_LEVEL ?? "info",
-    },
-    env.NODE_ENV === "development" ? pinoPretty() : undefined,
-  ).child({
-    GIT_SHA: env.GIT_SHA,
+  const logger = createLogger({
+    level: env.LOG_LEVEL,
+    pretty: env.NODE_ENV === "development",
+    gitSha: env.GIT_SHA,
   });
 
   container.register({
