@@ -31,6 +31,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useORPC } from "@/lib/orpc.client";
 import {
   DEFAULT_DECK_SETTINGS,
@@ -43,10 +50,8 @@ import { authClient } from "@/lib/authClient";
 import { useHydrated } from "@/lib/use-hydrated";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
 import { DeckGraphPanel } from "@/components/deck-graph-panel";
-import {
-  SegmentedToggle,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedTabsList } from "@/components/segmented-tabs";
+import type { SegmentedOption } from "@/components/segmented-control";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
@@ -125,18 +130,27 @@ function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
         meta.softClass,
       )}
     >
-      <Link
-        href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
-        title={translationOf(item)}
-        className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
-      >
-        <span className="hanzi text-xl leading-tight break-words text-foreground">
-          {item.vocabItem}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">
-          {subtitle}
-        </span>
-      </Link>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
+              className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
+            >
+              <span className="hanzi text-xl leading-tight break-words text-foreground">
+                {item.vocabItem}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {subtitle}
+              </span>
+            </Link>
+          </TooltipTrigger>
+          {/* The chip already shows the pinyin where there is one, so the meaning
+            is the half that gets truncated away — which is exactly what the
+            hint was for. */}
+          <TooltipContent>{translationOf(item)}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {canPlayAudio(item.audioUrl) && (
         <Button
           variant="ghost"
@@ -215,6 +229,24 @@ function GlyphGroup({
         </Collapsible>
       </CardContent>
     </Card>
+  );
+}
+
+function ContentsHeading({ showingGraph }: { showingGraph: boolean }) {
+  return (
+    <div>
+      <h2 className="font-display text-2xl font-bold tracking-tight">
+        What&apos;s inside
+      </h2>
+      {/* Constituents are always part of a deck, so say so: the counts here are
+          larger than the word list the deck was created from, and that is the
+          deck the learner actually gets. */}
+      <p className="text-sm text-muted-foreground">
+        {showingGraph
+          ? "How the deck is built: every part points at what it helps build."
+          : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
+      </p>
+    </div>
   );
 }
 
@@ -304,7 +336,7 @@ function DeckOverviewContent() {
 
       <PageHeader
         className="mb-4"
-        title={deck.deckName}
+        heading={deck.deckName}
         description={deck.description.trim() || "No description yet."}
         action={
           <Button
@@ -341,54 +373,55 @@ function DeckOverviewContent() {
 
       <CompositionBar typeCounts={deck.typeCounts} className="mb-8" />
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">
-            What&apos;s inside
-          </h2>
-          {/* Constituents are always part of a deck, so say so: the counts here are
-              larger than the word list the deck was created from, and that is the
-              deck the learner actually gets. */}
-          <p className="text-sm text-muted-foreground">
-            {showingGraph
-              ? "How the deck is built: every part points at what it helps build."
-              : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
-          </p>
-        </div>
-        {groups.length > 0 && (
-          <SegmentedToggle
-            options={DECK_VIEWS}
-            value={view}
-            onChange={setView}
-            label="Deck view"
-          />
-        )}
-      </div>
-
+      {/* An empty deck has nothing to switch between, so it gets the heading
+          without a Tabs root — a tab panel with no tab to select it is as wrong
+          as the other way round. */}
       {groups.length === 0 ? (
-        <EmptyState
-          title="This deck is empty"
-          description="Nothing has been added to it yet. Try another deck, or create your own."
-          action={
-            <Button asChild variant="outline">
-              <Link href="/decks">Browse decks</Link>
-            </Button>
-          }
-        />
-      ) : showingGraph ? (
-        <DeckGraphPanel deckId={deckId} />
+        <>
+          {/* mb-4 because the flex row that carried it went with the toggle. */}
+          <div className="mb-4">
+            <ContentsHeading showingGraph={false} />
+          </div>
+          <EmptyState
+            heading="This deck is empty"
+            description="Nothing has been added to it yet. Try another deck, or create your own."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/decks">Browse decks</Link>
+              </Button>
+            }
+          />
+        </>
       ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <GlyphGroup
-              key={group.type}
-              type={group.type}
-              label={group.label}
-              previewLimit={group.previewLimit}
-              items={group.items}
-            />
-          ))}
-        </div>
+        <Tabs
+          value={view}
+          onValueChange={(next) => setView(next as DeckView)}
+          // The children carry their own margins; the root is here to hold the
+          // selected value, not to lay anything out.
+          className="gap-0"
+        >
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <ContentsHeading showingGraph={showingGraph} />
+            <SegmentedTabsList options={DECK_VIEWS} label="Deck view" />
+          </div>
+
+          {/* flex-none over TabsContent's own flex-1: these panels size to their
+              content inside a page column, not to a share of it. */}
+          <TabsContent value="graph" className="flex-none">
+            <DeckGraphPanel deckId={deckId} />
+          </TabsContent>
+          <TabsContent value="standard" className="flex-none space-y-6">
+            {groups.map((group) => (
+              <GlyphGroup
+                key={group.type}
+                type={group.type}
+                label={group.label}
+                previewLimit={group.previewLimit}
+                items={group.items}
+              />
+            ))}
+          </TabsContent>
+        </Tabs>
       )}
 
       <DeckSettingsDialog
@@ -398,7 +431,7 @@ function DeckOverviewContent() {
         onSettingsChange={setSaveSettings}
         onSave={handleSaveDeck}
         isPending={saveDeckMutation.isPending}
-        title={isSaved ? "Study Settings" : "Add Deck to Study List"}
+        heading={isSaved ? "Study Settings" : "Add Deck to Study List"}
         description={
           isSaved
             ? `Change how you study “${deck.deckName}”.`
@@ -423,7 +456,7 @@ export default function DeckOverviewPage() {
       <div className="container mx-auto max-w-5xl px-4 py-8">
         <EmptyState
           pose="peek"
-          title="Sign in to see this deck"
+          heading="Sign in to see this deck"
           description="Decks and your study settings live with your account."
           action={
             <Button asChild>

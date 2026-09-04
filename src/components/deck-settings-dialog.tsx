@@ -95,7 +95,8 @@ interface DeckSettingsDialogProps {
   onSettingsChange: (settings: DeckSettings) => void;
   onSave: () => void;
   isPending?: boolean;
-  title?: string;
+  /** The DialogTitle text. `heading` rather than `title` — see `page-header.tsx`. */
+  heading?: string;
   description?: string;
   saveButtonText?: string;
 }
@@ -107,7 +108,7 @@ export function DeckSettingsDialog({
   onSettingsChange,
   onSave,
   isPending = false,
-  title = "Configure study settings",
+  heading = "Configure study settings",
   description = "Pick the ways this deck should quiz you.",
   saveButtonText = "Save settings",
 }: DeckSettingsDialogProps) {
@@ -119,7 +120,7 @@ export function DeckSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{heading}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 

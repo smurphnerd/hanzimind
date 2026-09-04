@@ -137,7 +137,7 @@ function AdminVocabContent() {
     return (
       <EmptyState
         pose="peek"
-        title={
+        heading={
           forbidden
             ? "This page is for admins only."
             : "Couldn't load the vocabulary."
@@ -415,7 +415,7 @@ export default function AdminVocabPage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <PageHeader
-        title="Vocabulary"
+        heading="Vocabulary"
         description={
           <>
             Every component is taught by meaning. <strong>Phonetic</strong> adds

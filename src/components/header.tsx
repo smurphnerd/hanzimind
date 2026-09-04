@@ -153,10 +153,16 @@ export function Header() {
           )}
           <ThemeToggle />
           {session?.user ? (
+            // The one place a tooltip is NOT worth it. The header sits in the
+            // root layout, so a Radix tooltip here puts @radix-ui/react-tooltip
+            // in every route's layout chunk — measured at 9,533 bytes on
+            // /dictionary/[word], which is most of that route's budget for the
+            // whole of this PR. The account name moves into the accessible
+            // name instead, so assistive tech still gets it; what is lost is
+            // revealing it by hovering with a mouse.
             <Link
               href="/profile"
-              aria-label="Your profile"
-              title={session.user.name ?? session.user.email ?? "Profile"}
+              aria-label={`Your profile — ${session.user.name ?? session.user.email ?? "signed in"}`}
               className="flex size-9 items-center justify-center rounded-full bg-accent/15 font-display text-sm font-bold text-accent uppercase transition-colors hover:bg-accent/25"
             >
               {(session.user.name ?? session.user.email ?? "?")

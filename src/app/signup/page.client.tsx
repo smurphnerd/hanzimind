@@ -5,15 +5,23 @@ import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
 
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/authClient";
 import { z } from "@/lib/zod-jitless";
 
@@ -141,81 +149,70 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             Begin your Chinese learning journey
           </p>
 
-          <form
-            onSubmit={(event) => {
-              void form.handleSubmit((data) => {
-                signUpMutation.mutate(data);
-              })(event);
-            }}
-            className="flex flex-col gap-4"
-          >
-            <Controller
-              name="username"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="username">Username</FieldLabel>
-                  <Input
-                    {...field}
-                    id="username"
-                    type="text"
-                    aria-invalid={fieldState.invalid}
-                    placeholder="johndoe"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="email"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    {...field}
-                    id="email"
-                    type="email"
-                    aria-invalid={fieldState.invalid}
-                    placeholder="john@example.com"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="password"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Input
-                    {...field}
-                    id="password"
-                    type="password"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Button
-              type="submit"
-              isPending={signUpMutation.isPending}
-              className="mt-2"
-              size="lg"
+          <Form {...form}>
+            <form
+              onSubmit={(event) => {
+                void form.handleSubmit((data) => {
+                  signUpMutation.mutate(data);
+                })(event);
+              }}
+              className="flex flex-col gap-4"
             >
-              Create Account
-            </Button>
-          </form>
+              <FormField
+                name="username"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="text" placeholder="johndoe" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="email"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="email"
+                        placeholder="john@example.com"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="password"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                isPending={signUpMutation.isPending}
+                className="mt-2"
+                size="lg"
+              >
+                Create Account
+              </Button>
+            </form>
+          </Form>
 
-          <div className="my-2 border-t border-border" />
+          <Separator className="my-2" />
 
           <div className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}

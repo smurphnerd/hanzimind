@@ -155,7 +155,7 @@ function DictionaryWordContent() {
             <EmptyState
               bare
               pose="peek"
-              title="No memory aids yet"
+              heading="No memory aids yet"
               description="Be the first to write a hook that makes this one stick."
               action={
                 <Button onClick={() => setIsMemoryAidDialogOpen(true)}>

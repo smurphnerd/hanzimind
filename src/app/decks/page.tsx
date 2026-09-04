@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { CompositionBar } from "@/components/composition-bar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/pagination";
 import {
@@ -86,10 +87,10 @@ function DeckCard({
             {deck.deckName}
           </CardTitle>
           {isSaved && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 font-display text-xs font-bold text-success">
-              <Check className="size-3.5" />
+            <Badge variant="success">
+              <Check />
               Saved
-            </span>
+            </Badge>
           )}
         </div>
         <CardDescription className="line-clamp-2">
@@ -192,7 +193,7 @@ function DeckGrid({
     return (
       <EmptyState
         pose="peek"
-        title="Couldn't load decks"
+        heading="Couldn't load decks"
         description={
           error instanceof Error && /unauthorized/i.test(error.message)
             ? "Please sign in to browse decks."
@@ -205,7 +206,7 @@ function DeckGrid({
   if (data.decks.length === 0) {
     return (
       <EmptyState
-        title={search ? `No decks match “${search}”` : "No decks yet"}
+        heading={search ? `No decks match “${search}”` : "No decks yet"}
         description={
           search
             ? "Try a different word, or plant a deck of your own."
@@ -311,7 +312,7 @@ function DecksContent() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <PageHeader
-        title="Vocabulary Decks"
+        heading="Vocabulary Decks"
         description="Browse what the community has planted, then add a deck to your garden."
         action={
           <Button size="lg" asChild>
@@ -357,7 +358,7 @@ function DecksContent() {
           }
           onSave={handleSaveDeck}
           isPending={addDeckMutation.isPending}
-          title={
+          heading={
             selectedDeck.isSaved
               ? "Update Study Settings"
               : "Add Deck to Study List"

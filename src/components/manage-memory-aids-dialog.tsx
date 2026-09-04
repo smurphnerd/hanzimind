@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MemoryAidCard } from "@/components/memory-aid-card";
 import { MemoryAidForm } from "@/components/memory-aid-form";
@@ -120,8 +121,9 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
               key={aid.id}
               highlighted={aid.isDefault}
               marker={
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   disabled={busy}
                   onClick={toggleDefault}
                   aria-label={
@@ -130,8 +132,11 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
                       : "Make official pick"
                   }
                   aria-pressed={aid.isDefault}
+                  // Down from the icon size's 40px, which would out-weigh a
+                  // three-line card, but still a real target rather than the
+                  // bare 20px glyph this replaced.
                   className={cn(
-                    "transition-colors disabled:opacity-50",
+                    "size-8",
                     aid.isDefault
                       ? "text-primary"
                       : "text-muted-foreground hover:text-primary",
@@ -140,15 +145,11 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
                   <Star
                     className={cn("size-5", aid.isDefault && "fill-current")}
                   />
-                </button>
+                </Button>
               }
               meta={
                 <>
-                  {aid.isDefault && (
-                    <Badge className="bg-primary text-primary-foreground">
-                      Official
-                    </Badge>
-                  )}
+                  {aid.isDefault && <Badge>Official</Badge>}
                   {!aid.isPublic && <Badge variant="secondary">Private</Badge>}
                   <span className="tabular-nums">
                     {aid.usageCount} saved • by {aid.createdByUsername}

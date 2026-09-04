@@ -4,14 +4,22 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/authClient";
 import { safeCallbackUrl } from "@/lib/nav";
 import { z } from "@/lib/zod-jitless";
@@ -86,62 +94,58 @@ export default function SignInClientPage(props: { baseUrl: string }) {
             </h1>
           </div>
 
-          <form
-            onSubmit={(event) => {
-              void form.handleSubmit((data) => {
-                signInMutation.mutate(data);
-              })(event);
-            }}
-            className="flex flex-col gap-4"
-          >
-            <Controller
-              name="email"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    {...field}
-                    id="email"
-                    type="email"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="password"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Input
-                    {...field}
-                    id="password"
-                    type="password"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Button
-              type="submit"
-              isPending={signInMutation.isPending}
-              disabled={signInMutation.isSuccess}
-              className="mt-2"
-              size="lg"
+          {/* FormControl wires the label, the input and the message together
+              and sets aria-invalid off the field's own error state, so the ids
+              and the invalid flag stop being three things to keep in step by
+              hand. */}
+          <Form {...form}>
+            <form
+              onSubmit={(event) => {
+                void form.handleSubmit((data) => {
+                  signInMutation.mutate(data);
+                })(event);
+              }}
+              className="flex flex-col gap-4"
             >
-              Sign In
-            </Button>
-          </form>
+              <FormField
+                name="email"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="password"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                isPending={signInMutation.isPending}
+                disabled={signInMutation.isSuccess}
+                className="mt-2"
+                size="lg"
+              >
+                Sign In
+              </Button>
+            </form>
+          </Form>
 
-          <div className="my-2 border-t border-border" />
+          <Separator className="my-2" />
 
           <div className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}

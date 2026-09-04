@@ -42,7 +42,7 @@ export default defineConfig({
     { name: "sign-in", testMatch: /sign-in\.spec\.ts/ },
     {
       name: "signed-in",
-      testMatch: /study-.*\.spec\.ts/,
+      testMatch: /(study|decks)-.*\.spec\.ts/,
       dependencies: ["sign-in"],
       use: { storageState: LEARNER_STATE },
     },
