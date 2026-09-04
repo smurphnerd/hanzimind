@@ -701,7 +701,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **You see.**
 
-- [ ] `StudyService.ts` is under 850 lines and the three new functions have no import from `drizzle-orm`.
+- [ ] The extracted modules import neither `drizzle-orm` nor the schema, and `StudyService.ts` is under 900 lines. The 850 was set before the moves were sized and is not worth chasing, because closing the last few lines means moving code for its size rather than because it belongs elsewhere. Parity outranks it.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
