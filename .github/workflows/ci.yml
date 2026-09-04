@@ -130,6 +130,29 @@ jobs:
           echo "$out"
           grep -q 'applied 0 migrations' <<<"$out"
 
+      # The step above proves the adoption mechanics — the journal row is what
+      # makes the migrate a no-op. It says nothing about whether the two
+      # databases actually agree, which is the question the cutover rests on.
+      # This is `docs/remote-setup.md` 5a's drift check, run between a
+      # push-built database and a migrated one on every commit, so "generate
+      # and push produce the same schema" is a fact CI keeps rather than a
+      # claim this PR made once.
+      - name: The migration and the old push build the same schema
+        env:
+          PUSHED_URL: postgres://postgres:postgres@localhost:5432/pushed
+        run: |
+          cat > catalog.sql <<'SQL'
+          select table_name, column_name, data_type, is_nullable, column_default
+            from information_schema.columns where table_schema = 'public' order by 1, 2;
+          select conrelid::regclass::text as tbl, conname, pg_get_constraintdef(oid)
+            from pg_constraint where connamespace = 'public'::regnamespace order by 1, 2;
+          select tablename, indexname, indexdef
+            from pg_indexes where schemaname = 'public' order by 1, 2;
+          SQL
+          psql -X "$DATABASE_URL" -f catalog.sql > migrated.txt
+          psql -X "$PUSHED_URL" -f catalog.sql > pushed.txt
+          diff -u pushed.txt migrated.txt
+
   e2e:
     name: e2e
     runs-on: ubuntu-latest
