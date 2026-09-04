@@ -3,6 +3,7 @@ import { Inter, Nunito } from "next/font/google";
 import { headers } from "next/headers";
 import { ApiClientProvider } from "@/lib/orpc.client";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppToaster } from "@/components/app-toaster";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -60,10 +61,17 @@ export default async function RootLayout({
       <body className="flex min-h-screen flex-col">
         <ThemeProvider nonce={nonce}>
           <ApiClientProvider baseUrl={env.BASE_URL}>
-            <Header />
-            <main className="flex flex-1 flex-col">{children}</main>
-            <Footer />
-            <AppToaster />
+            {/* One provider for the whole app, because `Tooltip` throws without
+                an ancestor one. 300ms rather than the shadcn default of 0: the
+                hints it replaced were native `title` attributes, and a grid of
+                glyph chips that each flashed a bubble the instant the pointer
+                crossed it reads as noise rather than help. */}
+            <TooltipProvider delayDuration={300}>
+              <Header />
+              <main className="flex flex-1 flex-col">{children}</main>
+              <Footer />
+              <AppToaster />
+            </TooltipProvider>
           </ApiClientProvider>
         </ThemeProvider>
       </body>
