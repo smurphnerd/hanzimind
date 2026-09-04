@@ -6,43 +6,8 @@ import { ArrowRight, BookOpen, Flame, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mika } from "@/components/mika";
+import { StatTile } from "@/components/stat-tile";
 import { authClient } from "@/lib/authClient";
-
-function StatTile({
-  icon,
-  tone,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  tone: "violet" | "coral" | "green";
-  value: string;
-  label: string;
-}) {
-  const toneClass = {
-    violet: "bg-type-character-soft text-type-character",
-    coral: "bg-secondary text-primary",
-    green: "bg-success/15 text-success",
-  }[tone];
-
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4">
-        <span
-          className={`flex size-12 items-center justify-center rounded-2xl ${toneClass}`}
-        >
-          {icon}
-        </span>
-        <div>
-          <div className="font-display text-2xl font-extrabold tracking-tight">
-            {value}
-          </div>
-          <div className="text-sm text-muted-foreground">{label}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function Home() {
   const { data: session, isPending } = authClient.useSession();

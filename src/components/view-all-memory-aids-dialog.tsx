@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
+import { Flag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MemoryAidCard } from "@/components/memory-aid-card";
+import { Pagination } from "@/components/pagination";
 import { ReportIssueDialog } from "@/components/report-issue-dialog";
 import type { MemoryAidDto } from "@/definitions/definitions";
 import { useORPC } from "@/lib/orpc.client";
@@ -46,13 +48,6 @@ export function ViewAllMemoryAidsDialog({
   );
 
   const memoryAids = data?.memoryAids ?? [];
-  // The response carries an exact total; inferring "there is more" from a full
-  // page offered a Next button onto an empty page whenever the count landed on
-  // an exact multiple of pageSize.
-  const totalPages = Math.max(
-    1,
-    Math.ceil((data?.memoryAidTotal ?? 0) / pageSize),
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,23 +73,20 @@ export function ViewAllMemoryAidsDialog({
           ) : (
             <div className="space-y-3">
               {memoryAids.map((mnemonic, index) => (
-                <div
+                <MemoryAidCard
                   key={mnemonic.id}
-                  className="rounded-xl border border-border p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <p className="mb-2 text-foreground">
-                        <span className="mr-2 font-display font-bold text-primary tabular-nums">
-                          {(page - 1) * pageSize + index + 1}.
-                        </span>
-                        &ldquo;{mnemonic.memoryAid}&rdquo;
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Saved by {mnemonic.usageCount} users • by{" "}
-                        {mnemonic.createdByUsername}
-                      </p>
-                    </div>
+                  marker={
+                    <span className="font-display font-bold text-primary tabular-nums">
+                      {(page - 1) * pageSize + index + 1}.
+                    </span>
+                  }
+                  meta={
+                    <span>
+                      Saved by {mnemonic.usageCount} users • by{" "}
+                      {mnemonic.createdByUsername}
+                    </span>
+                  }
+                  action={
                     <Button
                       variant="ghost"
                       size="sm"
@@ -107,36 +99,23 @@ export function ViewAllMemoryAidsDialog({
                     >
                       <Flag className="size-4" />
                     </Button>
-                  </div>
-                </div>
+                  }
+                >
+                  {mnemonic.memoryAid}
+                </MemoryAidCard>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1 || isLoading}
-          >
-            <ChevronLeft className="size-4" />
-            Previous
-          </Button>
-          <span className="font-display text-sm font-bold text-muted-foreground tabular-nums">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page >= totalPages || isLoading}
-          >
-            Next
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={data?.memoryAidTotal ?? 0}
+          onPageChange={setPage}
+          disabled={isLoading}
+          className="border-t border-border pt-4"
+        />
 
         {/* Nested inside the content so Radix stacks the two dismissable layers
             in the right order — a click in the report dialog must not be read

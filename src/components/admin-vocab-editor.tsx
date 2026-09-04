@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lightbulb, ShieldCheck } from "lucide-react";
 
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { EditableCell } from "@/components/editable-cell";
 import { ManageMemoryAidsDialog } from "@/components/manage-memory-aids-dialog";
+import { useTrackedMutation } from "@/hooks/use-tracked-mutation";
 import { useORPC } from "@/lib/orpc.client";
 import type { VocabItemDetailedDto } from "@/definitions/definitions";
 
@@ -31,10 +32,9 @@ export function AdminVocabEditor({ entry }: { entry: VocabItemDetailedDto }) {
   const orpc = useORPC();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [isSaving, setIsSaving] = useState(false);
   const [aidsOpen, setAidsOpen] = useState(false);
 
-  const updateMutation = useMutation(
+  const updateMutation = useTrackedMutation(
     orpc.admin.updateVocabItem.mutationOptions({
       onSuccess: (updated) => {
         // Hiding an item removes it from the dictionary read path; there is
@@ -51,12 +51,15 @@ export function AdminVocabEditor({ entry }: { entry: VocabItemDetailedDto }) {
         toast.error(
           error instanceof Error ? error.message : "Failed to update",
         ),
-      onSettled: () => setIsSaving(false),
     }),
   );
 
+  // One entity, and every control below is disabled while it writes, so a second
+  // write cannot be started. The row-matching the other two sites need does not
+  // arise here.
+  const isSaving = updateMutation.isPending;
+
   const update = (patch: Parameters<typeof updateMutation.mutate>[0]) => {
-    setIsSaving(true);
     updateMutation.mutate(patch);
   };
 

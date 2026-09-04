@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   keepPreviousData,
-  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -12,6 +11,8 @@ import { toast } from "sonner";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/pagination";
+import { useTrackedMutation } from "@/hooks/use-tracked-mutation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -174,7 +175,6 @@ function AdminSuggestionsContent() {
     "open",
   );
   const [page, setPage] = useState(1);
-  const [savingId, setSavingId] = useState<string | null>(null);
 
   const { data: counts } = useQuery(
     orpc.admin.suggestionCounts.queryOptions({}),
@@ -193,7 +193,7 @@ function AdminSuggestionsContent() {
     placeholderData: keepPreviousData,
   });
 
-  const reviewMutation = useMutation(
+  const reviewMutation = useTrackedMutation(
     orpc.admin.setSuggestionStatus.mutationOptions({
       onSuccess: (updated) => {
         toast.success(`Marked as ${updated.status}`);
@@ -209,7 +209,6 @@ function AdminSuggestionsContent() {
           error instanceof Error ? error.message : "Failed to update",
         );
       },
-      onSettled: () => setSavingId(null),
     }),
   );
 
@@ -293,41 +292,23 @@ function AdminSuggestionsContent() {
             // restarts the textarea from what the server now holds.
             key={`${suggestion.id}:${suggestion.adminNote ?? ""}`}
             suggestion={suggestion}
-            isSaving={savingId === suggestion.id}
-            onReview={(status, adminNote) => {
-              setSavingId(suggestion.id);
-              reviewMutation.mutate({ id: suggestion.id, status, adminNote });
-            }}
+            isSaving={reviewMutation.isSaving(
+              (variables) => variables.id === suggestion.id,
+            )}
+            onReview={(status, adminNote) =>
+              reviewMutation.mutate({ id: suggestion.id, status, adminNote })
+            }
           />
         ))}
       </div>
 
-      {paging && paging.total > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {(paging.page - 1) * paging.pageSize + 1}–
-            {Math.min(paging.page * paging.pageSize, paging.total)} of{" "}
-            {paging.total}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page >= paging.totalPages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {paging && (
+        <Pagination
+          page={paging.page}
+          pageSize={paging.pageSize}
+          total={paging.total}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import type { Logger } from "pino";
 import { filterDecomposition } from "@/lib/decomposition";
 import { escapeLike } from "@/lib/sql";
 import { readingOf } from "@/server/study-rules";
+import { pageRange } from "@/lib/pagination";
 import type { Drizzle } from "@/server/database/database";
 import {
   memoryAids,
@@ -504,7 +505,9 @@ export class VocabService {
     ]);
 
     const total = Number(totalResult);
-    const totalPages = Math.ceil(total / args.pageSize);
+    // Was a bare ceil, so an empty search reported 0 pages while the admin and
+    // suggestion lists reported 1 for the same situation.
+    const totalPages = pageRange(args.page, args.pageSize, total).totalPages;
 
     return {
       items: items.map(toVocabItemDto),
