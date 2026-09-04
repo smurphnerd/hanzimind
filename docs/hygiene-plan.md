@@ -913,9 +913,9 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Build.**
 
 - [ ] `pageRange(page, pageSize, total)` in `src/lib/pagination.ts` and one `Pagination` component replace the three copies.
-- [ ] `compositionSegments(counts)` in `src/lib/deck-composition.ts` and one `CompositionBar` replace the two copies. `DEFAULT_DECK_SETTINGS` lives in `definitions.ts`.
+- [ ] `compositionSegments(counts)` in `src/lib/deck-composition.ts` and one `CompositionBar` replace the two copies. `DEFAULT_DECK_SETTINGS` stays where it is. Both deck pages already import it, and moving it into `definitions.ts` costs 398 KB on `/decks` alone, because that route imported only types before and types erase while a value pulls the module and zod into the client bundle.
 - [ ] `GraphPanelFrame` owns spinner, error line, legend and caption for both graph panels.
-- [ ] `useTrackedMutation` replaces the three `savingId` scaffolds, reading `mutation.variables`.
+- [ ] `useTrackedMutation` replaces the three `savingId` scaffolds. Do not read `mutation.variables`, which holds only the most recent call and so reproduces the defect the hook exists to fix. Keep every in-flight call's variables and clear each on its own settle.
 - [ ] `MemoryAidForm` and `MemoryAidCard` are used by all three dialogs.
 - [ ] The home page uses `src/components/stat-tile.tsx`. Admin and dictionary pages use `EmptyState` and `PageHeader`. Dictionary uses `src/lib/audio.ts`.
 
@@ -942,7 +942,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Total client chunk bytes across `/admin/vocab`, `/admin/suggestions`, `/decks`, measured from a clean production build, because Next 16.3 with Turbopack no longer prints a First Load JS column.
+- [ ] Metric. Total client chunk bytes for the whole build, from a clean production build. Not a sum across three routes. Turbopack inlines a small shared module into each route rather than emitting a common chunk, so source-level sharing does not reduce per-route bytes and slightly raises them, and the duplications worth kilobytes sit on routes those three do not include.
 - [ ] Probe. `pnpm build` at trunk and at the head, twice each.
 - [ ] Baseline. Record the trunk value first.
 - [ ] Rule. Head fails when the sum grows by more than 0 kilobytes.
