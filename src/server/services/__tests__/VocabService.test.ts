@@ -48,6 +48,26 @@ describe("toVocabItemDto", () => {
     expect(dto.audioUrl).toBe("");
   });
 
+  // The study session's introduction card and its result card both build their
+  // DTO from this mapper now. They used to hand-copy twenty fields each, which
+  // is how the drift above happened in the first place, and a component with a
+  // borrowed reading is exactly what it costs when they diverge.
+  it("blanks the borrowed reading on the path the study card takes", () => {
+    const dto = toVocabItemDto(row({ pinyin: "rén", audioUrl: "a.mp3" }));
+
+    expect(dto.pinyin).toBe("");
+    expect(dto.audioUrl).toBe("");
+  });
+
+  it("keeps a phonetic component's own reading on that same path", () => {
+    const dto = toVocabItemDto(
+      row({ phonetic: true, pinyin: "gěn", audioUrl: "a.mp3" }),
+    );
+
+    expect(dto.pinyin).toBe("gěn");
+    expect(dto.audioUrl).toBe("a.mp3");
+  });
+
   it("still reports the flag, which the blanked reading can no longer carry", () => {
     expect(toVocabItemDto(row()).phonetic).toBe(false);
     expect(toVocabItemDto(row({ phonetic: true })).phonetic).toBe(true);

@@ -5,6 +5,7 @@ import {
   summariseDeckProgress,
   type ProgressRollupItem,
 } from "@/server/study-rules";
+import { enabledStudyTypes } from "../StudyService";
 
 const ALL_TYPES: StudyType[] = [
   "reading",
@@ -251,5 +252,41 @@ describe("summariseDeckProgress", () => {
       locked: 0,
       byStage: [0, 0, 0, 0, 0, 0],
     });
+  });
+});
+
+describe("enabledStudyTypes", () => {
+  const off = {
+    readingEnabled: false,
+    listeningEnabled: false,
+    understandingEnabled: false,
+    writingEnabled: false,
+  };
+
+  it("should return nothing when the learner has every mode off", () => {
+    expect(enabledStudyTypes(off)).toEqual([]);
+  });
+
+  it("should return only the modes that are on", () => {
+    expect(
+      enabledStudyTypes({
+        ...off,
+        listeningEnabled: true,
+        writingEnabled: true,
+      }),
+    ).toEqual(["listening", "writing"]);
+  });
+
+  // The order decides which type wins a tie: selectNextCard walks this array
+  // and picks with a strict `<`, so the earliest at the lowest level is served.
+  it("should keep reading, listening, understanding, writing in that order", () => {
+    expect(
+      enabledStudyTypes({
+        readingEnabled: true,
+        listeningEnabled: true,
+        understandingEnabled: true,
+        writingEnabled: true,
+      }),
+    ).toEqual(["reading", "listening", "understanding", "writing"]);
   });
 });

@@ -51,7 +51,7 @@ import {
  * earliest here wins. Two copies of this list drifting apart would change which
  * card a learner sees without changing which item.
  */
-function enabledStudyTypes(userDeck: {
+export function enabledStudyTypes(userDeck: {
   readingEnabled: boolean;
   listeningEnabled: boolean;
   understandingEnabled: boolean;
