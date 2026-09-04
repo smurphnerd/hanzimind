@@ -1,5 +1,10 @@
-import type { StudyType, VocabType } from "@/definitions/definitions";
+import type {
+  DeckProgressDto,
+  StudyType,
+  VocabType,
+} from "@/definitions/definitions";
 import { filterDecomposition } from "@/lib/decomposition";
+import { growthStage } from "@/lib/growth";
 
 /**
  * The pure decision logic behind card selection: what can be quizzed, what
@@ -216,3 +221,234 @@ export const VOCAB_TYPE_PRIORITY: Record<VocabType, number> = {
   compound: 2,
   sentence: 3,
 };
+
+/** A `StudiableItem` plus the due times selection reads. */
+export interface ScorableItem extends StudiableItem {
+  readingNextAt: Date | null;
+  listeningNextAt: Date | null;
+  understandingNextAt: Date | null;
+  writingNextAt: Date | null;
+}
+
+export interface SelectionContext {
+  /**
+   * Order is load-bearing. The pick below uses a strict `<`, so among types at
+   * the same level the earliest in this array wins. Sorting it, or passing a
+   * Set, changes which card a learner is shown without changing which item.
+   */
+  enabledStudyTypes: readonly StudyType[];
+  gateLevel: number;
+  now: Date;
+  /** Defaults to `Math.random`. Injected only so a test can pin the sequence. */
+  tiebreak?: () => number;
+}
+
+export interface Selection<T> {
+  item: T;
+  studyType: StudyType | "new";
+}
+
+/**
+ * The five keys the served order is decided on, in priority order.
+ *
+ * `minLevel` is -1 on an introduction and `decompositionLength` is 999 on
+ * anything but a character with a decomposition. Both are conventions rather
+ * than measurements, which is why this shape stays private: exporting a bare
+ * comparator would export the conventions with it.
+ */
+interface CandidateScore {
+  isNew: boolean;
+  minLevel: number;
+  vocabTypePriority: number;
+  decompositionLength: number;
+  tiebreak: number;
+}
+
+/**
+ * Due reviews before introductions, then weakest first, then parts before
+ * wholes, then simpler characters, then the coin flip each candidate carries.
+ *
+ * The `!==` guards are not decoration. `minLevel` can be `Infinity` on neither
+ * side by construction, but subtracting two equal infinities yields NaN, and a
+ * comparator that returns NaN leaves `Array.prototype.sort` free to produce any
+ * permutation without throwing.
+ */
+function compareCandidates(a: CandidateScore, b: CandidateScore): number {
+  if (a.isNew !== b.isNew) return a.isNew ? 1 : -1;
+  if (a.minLevel !== b.minLevel) return a.minLevel - b.minLevel;
+  if (a.vocabTypePriority !== b.vocabTypePriority)
+    return a.vocabTypePriority - b.vocabTypePriority;
+  if (a.decompositionLength !== b.decompositionLength)
+    return a.decompositionLength - b.decompositionLength;
+  return a.tiebreak - b.tiebreak;
+}
+
+/**
+ * Which card to serve next, or null when nothing is due.
+ *
+ * This owns the gate, the due scan, the study-type pick, the tiebreak draw and
+ * the ordering, because the five ordering keys mean nothing apart from the
+ * scorer that produces them. Keeping them together is what lets a seeded
+ * `tiebreak` pin the whole served sequence in a unit test.
+ *
+ * The tiebreak is drawn once per candidate and never inside the comparison. A
+ * comparator that called `Math.random()` itself would be non-transitive, and V8
+ * answers an inconsistent comparator with an arbitrary permutation rather than
+ * an error.
+ *
+ * `minLevel` here is the minimum over types that are servable AND due, which is
+ * not `weakestServableLevel`. They are different numbers, both right for their
+ * own job, and unifying them would promote an item whose weakest type is not
+ * yet due.
+ */
+export function selectNextCard<T extends ScorableItem>(
+  items: readonly T[],
+  ctx: SelectionContext,
+): Selection<T> | null {
+  const { enabledStudyTypes, gateLevel, now } = ctx;
+  const tiebreak = ctx.tiebreak ?? Math.random;
+  const byVocabItem = new Map(items.map((item) => [item.vocabItem, item]));
+
+  const candidates: (CandidateScore & Selection<T>)[] = [];
+
+  for (const item of items) {
+    const vocabTypePriority = VOCAB_TYPE_PRIORITY[item.vocabType];
+    const decompositionLength =
+      item.vocabType === "character" && item.decomposition
+        ? item.decomposition.length
+        : 999;
+
+    if (!item.seen) {
+      // An introduction waits for its parts, and is pointless if nothing about
+      // the item can be quizzed at all.
+      if (!isUnlocked(item, byVocabItem, enabledStudyTypes, gateLevel))
+        continue;
+      if (servableStudyTypes(item, enabledStudyTypes).length === 0) continue;
+
+      candidates.push({
+        item,
+        studyType: "new",
+        isNew: true,
+        minLevel: -1,
+        vocabTypePriority,
+        decompositionLength,
+        tiebreak: tiebreak(),
+      });
+      continue;
+    }
+
+    let studyType: StudyType | null = null;
+    let minLevel = Infinity;
+
+    for (const candidateType of enabledStudyTypes) {
+      if (!canStudy(item, candidateType)) continue;
+
+      const level = item[`${candidateType}Level`] ?? 0;
+      const nextAt = item[`${candidateType}NextAt`];
+      const isDue = nextAt === null || nextAt <= now;
+
+      if (isDue && level < minLevel) {
+        minLevel = level;
+        studyType = candidateType;
+      }
+    }
+
+    if (studyType === null) continue;
+
+    candidates.push({
+      item,
+      studyType,
+      isNew: false,
+      minLevel,
+      vocabTypePriority,
+      decompositionLength,
+      tiebreak: tiebreak(),
+    });
+  }
+
+  if (candidates.length === 0) return null;
+
+  candidates.sort(compareCandidates);
+  return { item: candidates[0].item, studyType: candidates[0].studyType };
+}
+
+/**
+ * What the rollup reads for one item. The same shape selection needs, and the
+ * same idea: an item carrying the learner's progress against it.
+ */
+export type ProgressRollupItem = ScorableItem;
+
+export const emptyStages = (): number[] => [0, 0, 0, 0, 0, 0];
+
+/**
+ * Roll one deck's items up into the figures the study card shows.
+ *
+ * Pure and outside the class for the same reason study-rules is: the two traps
+ * here ship silently otherwise. Mastery must be the minimum over the types the
+ * item can *actually* be quizzed on — a plain minimum over every enabled type
+ * pins components at level 0 forever — and an item with nothing servable must
+ * stay out of `byStage` altogether, since `weakestServableLevel` returns
+ * Infinity for it and `growthStage(Infinity)` reads as a harmless-looking
+ * "Not started". See DeckProgressDto for the full semantics.
+ */
+export function summariseDeckProgress(args: {
+  deckId: string;
+  items: readonly ProgressRollupItem[];
+  enabledStudyTypes: readonly StudyType[];
+  gateLevel: number;
+  now: Date;
+}): DeckProgressDto {
+  const { deckId, items, enabledStudyTypes, gateLevel, now } = args;
+
+  // The gate resolves parts by glyph against the rest of the deck, exactly as
+  // card selection does.
+  const byVocabItem = new Map(items.map((item) => [item.vocabItem, item]));
+
+  const byStage = emptyStages();
+  let total = 0;
+  let unstudiable = 0;
+  let seen = 0;
+  let dueNow = 0;
+  let newAvailable = 0;
+  let locked = 0;
+
+  for (const item of items) {
+    const servable = servableStudyTypes(item, enabledStudyTypes);
+
+    if (servable.length === 0) {
+      unstudiable++;
+      continue;
+    }
+
+    total++;
+    byStage[growthStage(weakestServableLevel(item, enabledStudyTypes)).index]++;
+
+    if (item.seen) {
+      // Answered at least once — which says nothing about the level, since a
+      // wrong answer leaves the item seen at 0.
+      seen++;
+      // A type that has never been scheduled is due immediately, matching how
+      // getNextVocabItem treats a null nextAt.
+      const isDue = servable.some((type) => {
+        const nextAt = item[`${type}NextAt`];
+        return nextAt === null || nextAt <= now;
+      });
+      if (isDue) dueNow++;
+    } else if (isUnlocked(item, byVocabItem, enabledStudyTypes, gateLevel)) {
+      newAvailable++;
+    } else {
+      locked++;
+    }
+  }
+
+  return {
+    deckId,
+    total,
+    unstudiable,
+    seen,
+    dueNow,
+    newAvailable,
+    locked,
+    byStage,
+  };
+}

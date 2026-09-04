@@ -44,28 +44,34 @@ export const TRANSLATION_SIMILARITY_THRESHOLDS = {
  * Spaced repetition intervals in milliseconds.
  * Based on Anki-style spaced repetition system.
  */
-export const SPACED_REPETITION_INTERVALS = {
-  /** Incorrect answer: review in 1 minute */
-  INCORRECT: 1 * 60 * 1000,
+/**
+ * Milliseconds until the next review, indexed by the level the item held
+ * BEFORE the answer. Answering correctly at level 3 schedules
+ * `LEVEL_INTERVALS[3]` out and lands the item at level 4.
+ *
+ * Index 5 is the ceiling: a correct answer there reschedules at 5 rather than
+ * advancing. `GROWTH_STAGES` in `src/lib/growth.ts` encodes the same six levels
+ * independently, so the two must stay the same length.
+ */
+export const LEVEL_INTERVALS = [
+  /** 10 minutes. */
+  10 * 60 * 1000,
+  /** 1 day. */
+  1 * 24 * 60 * 60 * 1000,
+  /** 3 days. */
+  3 * 24 * 60 * 60 * 1000,
+  /** 1 week. */
+  7 * 24 * 60 * 60 * 1000,
+  /** 18 days. */
+  18 * 24 * 60 * 60 * 1000,
+  /** 1 month, and the ceiling. */
+  30 * 24 * 60 * 60 * 1000,
+] as const;
 
-  /** Level 0 correct: review in 10 minutes */
-  LEVEL_0: 10 * 60 * 1000,
+/** Wrong answer: back to level 0, seen again in a minute. */
+export const INCORRECT_INTERVAL = 1 * 60 * 1000;
 
-  /** Level 1 correct: review in 1 day */
-  LEVEL_1: 1 * 24 * 60 * 60 * 1000,
-
-  /** Level 2 correct: review in 3 days */
-  LEVEL_2: 3 * 24 * 60 * 60 * 1000,
-
-  /** Level 3 correct: review in 1 week */
-  LEVEL_3: 7 * 24 * 60 * 60 * 1000,
-
-  /** Level 4 correct: review in 18 days */
-  LEVEL_4: 18 * 24 * 60 * 60 * 1000,
-
-  /** Level 5 correct: review in 1 month */
-  LEVEL_5: 30 * 24 * 60 * 60 * 1000,
-} as const;
+export const MAX_LEVEL = LEVEL_INTERVALS.length - 1;
 
 /**
  * How well a constituent character must be known before the words and

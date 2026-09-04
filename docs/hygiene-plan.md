@@ -1967,6 +1967,22 @@ Fixing the survey's seed bugs before the hunt. The hunt would then have less to 
 
 A JSONB progress map instead of rows. Kept as the second architect candidate in P4-PROGRESS. Rows index and cascade better, and the gate query reads one column.
 
+P3-RULES: a bare `compareCandidates`. The comparator is the wrong seam, for the reason the build
+box gives. Recorded here because two independent design candidates reached it separately, and the
+second was briefed to argue against it.
+
+P3-RULES: a grading strategy table keyed by study type. Rejected in favour of a `switch` with an
+exhaustiveness guard. The table's only real win is that today's `if / else if / else // writing`
+silently grades a fifth study type as writing; a `switch` with a `never` default buys that at
+none of the cost. A uniform grader context hands `checker` to three branches that never call it
+and makes three synchronous branches return promises.
+
+P3-RULES: fusing grading and scheduling into one entry point. Rejected. It orders the timestamp
+after the checker resolves, which is worth having, but a caller gets that by writing two obvious
+lines, and fusing costs the cheapest test in the PR: `nextReviewAt(3, true, now)` is a one-line
+assertion, while the same check through a fused entry point needs a card, a checker stub, a
+synonym set and an answer engineered to grade correct.
+
 A full CSP nonce rollout in P0. Deferred to P4-HEADERS because a broken CSP blocks every lane and the e2e suite must exist first to catch it.
 
 TypeScript 7 in P4-UPGRADE. A compiler port with a separate migration guide. Deferred to its own program.
