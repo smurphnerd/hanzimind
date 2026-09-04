@@ -223,5 +223,13 @@ async function main() {
 
 // Only when run as a command. The unit tests import the helpers above.
 if (process.argv[1] && import.meta.filename === path.resolve(process.argv[1])) {
-  await main();
+  try {
+    await main();
+  } catch (error) {
+    // The message, not a stack trace. The failure most worth reading here is
+    // `--baseline` refusing a half-built database, and that message is the
+    // whole answer.
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
