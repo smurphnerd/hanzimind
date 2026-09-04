@@ -42,24 +42,52 @@ const TRACK = "w-fit gap-1 rounded-full bg-muted p-1";
 const TABS_TRACK = "group-data-[orientation=horizontal]/tabs:h-auto";
 const SEGMENT =
   "h-8 rounded-full border-transparent px-4 font-display text-xs font-bold text-foreground shadow-none";
+
 /**
- * The selected-state rules, once per primitive because they spell the state
- * differently (`active`/`inactive` for a tab, `on`/`off` for a toggle).
+ * The chosen-state colours, written out under two selectors each.
  *
- * Every hover rule is qualified by the state rather than left bare. Both
- * primitives ship a bare `hover:` colour, and a bare override of mine would tie
- * with the selected-state colour on specificity and be decided by stylesheet
- * order — which is how you get coral text on a coral pill the moment the
- * pointer lands on it. Qualifying wins outright and says which case it is for.
+ * The `aria-` half is the one that actually fires here, and why is a trap worth
+ * stating plainly. `TooltipTrigger asChild` forwards the trigger's own
+ * `data-state="closed"` down into the child, and BOTH shadcn primitives spread
+ * `{...props}` after writing their own `data-state` — Radix's Toggle is
+ * `"data-state": pressed ? "on" : "off", ...buttonProps`. So the tooltip's value
+ * lands last and every `data-[state=…]` rule silently stops matching. It shipped
+ * that way in this PR's first head: all seven depth segments rendered
+ * unselected, because every depth option carries a hint. `data-slot` is
+ * overwritten the same way, for the same reason.
+ *
+ * `aria-checked` and `aria-selected` are written by the primitives *before*
+ * those spreads and are not attributes any wrapper sets, so they survive. They
+ * are also the honest thing to style off: the segment looks chosen exactly when
+ * it announces itself as chosen.
+ *
+ * The `data-[state=…]` copies stay because a segment with NO hint keeps a real
+ * `data-state`, and shadcn's own rules there paint it violet (`toggleVariants`
+ * has `data-[state=on]:bg-accent`) or card-white (`TabsTrigger` has
+ * `data-[state=active]:bg-background`). The copies name the same colours as the
+ * aria rules, so the two can never disagree whichever a browser resolves first.
+ *
+ * Every hover rule is qualified by the state. Both primitives ship a bare
+ * `hover:` colour, and a bare override would tie with the chosen-state colour on
+ * specificity and be settled by stylesheet order — which is how you get coral
+ * text on a coral pill the moment the pointer lands on it.
+ *
+ * Written out rather than composed by a helper: Tailwind v4 scans source for
+ * whole class strings and emits nothing at all for a name built at runtime.
  */
 const SEGMENT_ON_TAB = [
-  "data-[state=inactive]:hover:text-primary",
+  "aria-[selected=false]:hover:text-primary data-[state=inactive]:hover:text-primary",
+  "aria-selected:bg-primary aria-selected:text-primary-foreground aria-selected:shadow-sm",
+  "aria-selected:hover:bg-primary aria-selected:hover:text-primary-foreground",
+  "dark:aria-selected:border-transparent dark:aria-selected:bg-primary dark:aria-selected:text-primary-foreground",
   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm",
   "data-[state=active]:hover:bg-primary data-[state=active]:hover:text-primary-foreground",
   "dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground",
 ].join(" ");
 const SEGMENT_ON_TOGGLE = [
-  "data-[state=off]:hover:text-primary",
+  "aria-[checked=false]:hover:text-primary data-[state=off]:hover:text-primary",
+  "aria-checked:bg-primary aria-checked:text-primary-foreground aria-checked:shadow-sm",
+  "aria-checked:hover:bg-primary aria-checked:hover:text-primary-foreground",
   "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-sm",
   "data-[state=on]:hover:bg-primary data-[state=on]:hover:text-primary-foreground",
 ].join(" ");
@@ -69,7 +97,10 @@ const SEGMENT_ON_TOGGLE = [
  *
  * Neither Tooltip nor TooltipTrigger renders an element of its own, so the
  * segment stays a direct DOM child of the track and Radix's roving focus still
- * finds it.
+ * finds it. What `asChild` DOES do is forward the trigger's `data-state` and
+ * `data-slot` onto the segment, overwriting the primitive's own — see the note
+ * on the chosen-state classes above, and `e2e/segmented-control.spec.ts`, which
+ * fails if the styling ever goes back to depending on them.
  */
 function SegmentHint({
   hint,
