@@ -591,44 +591,17 @@ export class StudyService {
     userId: string,
     vocabItemId: string,
   ): Promise<UserVocabItemDto> {
-    // Query for vocab item, user progress, user info, and memory aid in one query
+    // One row, so the full vocab record is worth selecting: UserVocabItemDto
+    // extends VocabItemDto and needs the stroke data the deck query drops.
+    // Selecting the table itself rather than naming columns is what lets
+    // toVocabItemDto take it, which is the only sanctioned way a row becomes a
+    // dictionary DTO.
     const result = await this.deps.database
       .select({
-        // Vocab item fields
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        translation: schema.vocabItems.translation,
-        pinyin: schema.vocabItems.pinyin,
-        vocabType: schema.vocabItems.vocabType,
-        script: schema.vocabItems.script,
-        audioUrl: schema.vocabItems.audioUrl,
-        phonetic: schema.vocabItems.phonetic,
-        decomposition: schema.vocabItems.decomposition,
-        etymologyHint: schema.vocabItems.etymologyHint,
-        etymologyType: schema.vocabItems.etymologyType,
-        etymologyPhonetic: schema.vocabItems.etymologyPhonetic,
-        etymologySemantic: schema.vocabItems.etymologySemantic,
-        radical: schema.vocabItems.radical,
-        strokes: schema.vocabItems.strokes,
-        strokeMedians: schema.vocabItems.strokeMedians,
-        strokeMatches: schema.vocabItems.strokeMatches,
-        defaultMemoryAidId: schema.vocabItems.defaultMemoryAidId,
-        createdAt: schema.vocabItems.createdAt,
-        updatedAt: schema.vocabItems.updatedAt,
-        // User info
+        item: schema.vocabItems,
         username: schema.users.name,
-        // User progress fields
-        seen: schema.userVocabItems.seen,
-        readingLevel: schema.userVocabItems.readingLevel,
-        listeningLevel: schema.userVocabItems.listeningLevel,
-        understandingLevel: schema.userVocabItems.understandingLevel,
-        writingLevel: schema.userVocabItems.writingLevel,
+        ...progressColumns,
         memoryAidId: schema.userVocabItems.memoryAidId,
-        readingNextAt: schema.userVocabItems.readingNextAt,
-        listeningNextAt: schema.userVocabItems.listeningNextAt,
-        understandingNextAt: schema.userVocabItems.understandingNextAt,
-        writingNextAt: schema.userVocabItems.writingNextAt,
-        // Memory aid text
         memoryAid: schema.memoryAids.memoryAid,
       })
       .from(schema.vocabItems)
@@ -665,11 +638,11 @@ export class StudyService {
     // default's text with one small lookup when they have none.
     let memoryAidId = item.memoryAidId;
     let memoryAid = item.memoryAid;
-    if (!memoryAidId && item.defaultMemoryAidId) {
+    if (!memoryAidId && item.item.defaultMemoryAidId) {
       const fallback = await this.deps.database.query.memoryAids.findFirst({
         columns: { id: true, memoryAid: true },
         where: (memoryAids, { eq }) =>
-          eq(memoryAids.id, item.defaultMemoryAidId!),
+          eq(memoryAids.id, item.item.defaultMemoryAidId!),
       });
       if (fallback) {
         memoryAidId = fallback.id;
@@ -677,27 +650,8 @@ export class StudyService {
       }
     }
 
-    const reading = readingOf(item);
     return {
-      id: item.id,
-      vocabItem: item.vocabItem,
-      translation: item.translation,
-      pinyin: reading.pinyin,
-      vocabType: item.vocabType,
-      script: item.script,
-      audioUrl: reading.audioUrl,
-      phonetic: item.phonetic,
-      decomposition: item.decomposition,
-      etymologyHint: item.etymologyHint,
-      etymologyType: item.etymologyType,
-      etymologyPhonetic: item.etymologyPhonetic,
-      etymologySemantic: item.etymologySemantic,
-      radical: item.radical,
-      strokes: item.strokes,
-      strokeMedians: item.strokeMedians,
-      strokeMatches: item.strokeMatches,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
+      ...toVocabItemDto(item.item),
       userId,
       username: item.username,
       seen: item.seen,
@@ -712,9 +666,9 @@ export class StudyService {
       understandingNextAt: item.understandingNextAt,
       writingNextAt: item.writingNextAt,
       constituents: await this.deps.vocabService.getVocabItemParts({
-        vocabItem: item.vocabItem,
-        vocabType: item.vocabType,
-        decomposition: item.decomposition,
+        vocabItem: item.item.vocabItem,
+        vocabType: item.item.vocabType,
+        decomposition: item.item.decomposition,
       }),
     };
   }
