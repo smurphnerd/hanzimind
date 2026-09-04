@@ -33,8 +33,8 @@ export function CreateMemoryAidDialog({
 
   const createMemoryAidMutation = useMutation(
     orpc.vocab.createMemoryAid.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
           queryKey: orpc.vocab.get.queryKey({ input: { vocabItem } }),
         });
         setMemoryAidText("");

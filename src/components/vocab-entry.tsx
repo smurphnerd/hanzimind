@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CharacterStrokes } from "@/components/character-strokes";
 import { DecompositionGraphPanel } from "@/components/decomposition-graph-panel";
+import { useHydrated } from "@/lib/use-hydrated";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ComponentRoleBadge } from "@/components/component-role-badge";
 import {
@@ -233,6 +234,7 @@ export function VocabEntryDetail({
   const visualCards = (showStrokes ? 1 : 0) + (showParts || hasOrigin ? 1 : 0);
 
   const [view, setView] = useState<EntryView>("standard");
+  const hydrated = useHydrated();
   // Sentences decompose by segmentation rather than by glyph, which is a
   // different relation from the one the graph draws, so they have no graph view.
   // A component does: it has no parts, but the characters built from it are the
@@ -319,6 +321,10 @@ export function VocabEntryDetail({
             value={view}
             onChange={setView}
             label="Entry view"
+            // React attaches this pill's listeners about two seconds after it
+            // is painted, and a click in that window reaches no handler to be
+            // queued into, so it is lost rather than replayed.
+            disabled={!hydrated}
           />
         </div>
       )}

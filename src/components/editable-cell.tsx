@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * Shared by the admin vocab table and the inline admin editor on a dictionary
  * entry, so the two never drift.
  */
-export function EditableCell({
+function EditableCellField({
   serverValue,
   allowEmpty,
   onSave,
@@ -34,14 +34,8 @@ export function EditableCell({
   inputClassName?: string;
 }) {
   const [value, setValue] = useState(serverValue);
-  const [isEditing, setIsEditing] = useState(false);
-
-  // The row can be re-fetched under us after a save elsewhere; while the field
-  // is untouched, follow the server's value rather than the stale local one.
-  if (!isEditing && value !== serverValue) setValue(serverValue);
 
   const commit = () => {
-    setIsEditing(false);
     const trimmed = value.trim();
     if (trimmed === serverValue || (!allowEmpty && trimmed.length === 0)) {
       setValue(serverValue);
@@ -56,7 +50,6 @@ export function EditableCell({
       disabled={isSaving}
       aria-label={ariaLabel}
       onChange={(event) => {
-        setIsEditing(true);
         setValue(event.target.value);
       }}
       onBlur={commit}
@@ -64,7 +57,6 @@ export function EditableCell({
         if (event.key === "Enter") event.currentTarget.blur();
         if (event.key === "Escape") {
           setValue(serverValue);
-          setIsEditing(false);
           event.currentTarget.blur();
         }
       }}
@@ -76,4 +68,14 @@ export function EditableCell({
       placeholder={placeholder}
     />
   );
+}
+
+/**
+ * Keyed on the server's value, so a row re-fetched under the editor starts
+ * again from what the server now holds instead of resyncing during render.
+ */
+export function EditableCell(
+  props: React.ComponentProps<typeof EditableCellField>,
+) {
+  return <EditableCellField key={props.serverValue} {...props} />;
 }
