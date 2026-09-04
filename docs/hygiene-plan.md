@@ -694,9 +694,9 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 **Build.**
 
 - [ ] Run `mattpocock-skills:codebase-design` on `StudyService` first and record the seam decision in Appendix B.
-- [ ] Move `getNextReviewTime` into `study-scheduling.ts` as `nextReviewAt(level, now)` over a `LEVEL_INTERVALS` table indexed by level, replacing the six-case switch.
-- [ ] Move the grading branch of `processAnswer` into `gradeAnswer(item, studyType, answer, synonyms, checker)` returning `{ correct, newLevel, nextAt }` with no database access.
-- [ ] Move the candidate comparator out of `getNextVocabItem` as `compareCandidates(a, b, now)`, due before new, then level, then type priority.
+- [ ] Move `getNextReviewTime` into `study-scheduling.ts` as `nextReviewAt(currentLevel, correct, now)` over a `LEVEL_INTERVALS` table. It must keep `correct`, since the wrong-answer path cannot be expressed without it. Reproduce the old switch rather than clamping, because its `case 5` and `default` sent every out-of-range level to `LEVEL_5` where a clamp would send a negative to `LEVEL_0`.
+- [ ] Move the grading branch of `processAnswer` into a pure `gradeAnswer` with no database access, as a `switch` with a `never` exhaustiveness guard so a fifth study type cannot silently grade as writing. It returns `correct` only. `newLevel` and `nextAt` are not derivable from the grading arguments, since one needs the current level and the other a clock. Leave the `canStudy` re-check in the service ahead of grading, because the branches compare against the raw `pinyin` column, which holds a borrowed reading for most components.
+- [ ] Move the whole selection out of `getNextVocabItem` as `selectNextCard(items, ctx)` with an injectable tiebreak, subsuming the gate, the due scan, the random stamp and the sort. A bare comparator is testable and proves little, because the scorer producing its keys stays inline; the whole selection makes "the served sequence did not change" a seeded unit test rather than only a live diff. Do not pass a clock into the comparison, which would invite an overdue-first rule that changes the sequence. `minLevel` and `weakestServableLevel` are different numbers and must not be unified.
 - [ ] `StudyService` calls the three functions and keeps only persistence.
 
 **You see.**
@@ -738,7 +738,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 ## Deepen StudyService around one query and one DTO path (P3-STUDY-SVC)
 
-**Depends on.** P3-RULES.
+**Depends on.** P3-RULES, which now owns `selectNextCard` and has already moved about 93 lines out of `getNextVocabItem`. Rebase onto it before starting and do not re-extract the selection.
 
 **Files.**
 
