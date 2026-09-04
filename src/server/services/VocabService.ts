@@ -4,6 +4,7 @@ import { and, inArray, desc, count, eq, ilike, ne, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import { filterDecomposition } from "@/lib/decomposition";
+import { escapeLike } from "@/lib/sql";
 import { readingOf } from "@/server/study-rules";
 import type { Drizzle } from "@/server/database/database";
 import {
@@ -376,48 +377,24 @@ export class VocabService {
   }
 
   /**
-   * Which of these are usable — present and not disabled.
-   *
-   * This is a read-path question. To ask whether a row is physically there
-   * (before inserting, say) use getStoredVocabItems: `vocabItem` is unique, so a
-   * disabled row still occupies its glyph.
+   * A disabled row still occupies its unique glyph, so a write path must not read
+   * it as absent and go off to create it: there is nothing to build a single
+   * character from but the dictionary seed, and addVocabItem throws.
    */
-  async getExistingVocabItems(vocabList: string[]): Promise<string[]> {
+  async getStoredVocabItems(
+    vocabList: string[],
+  ): Promise<{ vocabItem: string; disabled: boolean }[]> {
     if (vocabList.length === 0) {
       return [];
     }
 
-    const results = await this.deps.database
-      .select({ vocabItem: schema.vocabItems.vocabItem })
-      .from(schema.vocabItems)
-      .where(
-        and(
-          inArray(schema.vocabItems.vocabItem, vocabList),
-          eq(schema.vocabItems.disabled, false),
-        ),
-      );
-
-    return results.map((r) => r.vocabItem);
-  }
-
-  /**
-   * Which of these rows physically exist, disabled or not.
-   *
-   * Write paths must use this. Treating a disabled row as absent would send a
-   * caller off to create it, and for a single character there is nothing to
-   * create from — the dictionary seed is the only source — so it would throw.
-   */
-  async getStoredVocabItems(vocabList: string[]): Promise<string[]> {
-    if (vocabList.length === 0) {
-      return [];
-    }
-
-    const results = await this.deps.database
-      .select({ vocabItem: schema.vocabItems.vocabItem })
+    return this.deps.database
+      .select({
+        vocabItem: schema.vocabItems.vocabItem,
+        disabled: schema.vocabItems.disabled,
+      })
       .from(schema.vocabItems)
       .where(inArray(schema.vocabItems.vocabItem, vocabList));
-
-    return results.map((r) => r.vocabItem);
   }
 
   async addVocabItem(vocabItem: string): Promise<void> {
@@ -495,13 +472,7 @@ export class VocabService {
     totalPages: number;
   }> {
     const offset = (args.page - 1) * args.pageSize;
-    // Trim stray whitespace and neutralise LIKE wildcards so a query of "%" or
-    // "_" is matched literally instead of matching every row. Backslash is the
-    // default LIKE escape character in Postgres, so it must be escaped first.
-    const escapedQuery = args.query
-      .trim()
-      .replace(/\\/g, "\\\\")
-      .replace(/[%_]/g, (char) => `\\${char}`);
+    const escapedQuery = escapeLike(args.query.trim());
     const searchPattern = `%${escapedQuery}%`;
 
     // Build where clause based on search language. Both the page and the count
@@ -544,36 +515,54 @@ export class VocabService {
     };
   }
 
-  async getVocabItemPartsDeep(vocabItemStr: string): Promise<string[]> {
-    const partsSet = new Set<string>();
-    await this.getVocabItemPartsDeepRecursive(vocabItemStr, partsSet);
+  /**
+   * Every glyph a deck built from `vocabItems` has to contain: the items
+   * themselves plus their parts, their parts' parts, and so on to the
+   * components.
+   *
+   * One query per level of the hierarchy, batched across every item, rather than
+   * two per glyph visited — so the cost tracks the depth of the hierarchy, which
+   * is four, and not the size of the request.
+   *
+   * Disabled and absent glyphs drop out because the level query selects neither.
+   * Dropping an absent one is a deliberate change: it is a part no learner could
+   * be taught, and it is not reported in `skipped`, which names refused requests.
+   */
+  async resolveConstituentClosure(vocabItems: string[]): Promise<string[]> {
+    const resolved = new Set<string>();
+    let frontier = Array.from(new Set(vocabItems));
 
-    return Array.from(partsSet);
-  }
+    while (frontier.length > 0) {
+      const rows = await this.deps.database
+        .select({
+          vocabItem: schema.vocabItems.vocabItem,
+          vocabType: schema.vocabItems.vocabType,
+          decomposition: schema.vocabItems.decomposition,
+        })
+        .from(schema.vocabItems)
+        .where(
+          and(
+            inArray(schema.vocabItems.vocabItem, frontier),
+            eq(schema.vocabItems.disabled, false),
+          ),
+        );
 
-  async getVocabItemPartsDeepRecursive(
-    vocabItemStr: string,
-    partsSet: Set<string>,
-  ) {
-    if (partsSet.has(vocabItemStr)) {
-      return;
+      const next = new Set<string>();
+      for (const row of rows) {
+        resolved.add(row.vocabItem);
+        for (const part of this.rawParts(row)) {
+          next.add(part);
+        }
+      }
+
+      // The only thing standing between this and an infinite walk. Filtering here
+      // rather than as parts are collected is what makes it sufficient on its own:
+      // the whole level is resolved by now, so it also drops a glyph that a later
+      // sibling in this same level turned out to resolve.
+      frontier = Array.from(next).filter((glyph) => !resolved.has(glyph));
     }
-    partsSet.add(vocabItemStr);
 
-    const vocabItem = await this.getVocabItem(vocabItemStr);
-    const parts = await this.getVocabItemParts({
-      vocabItem: vocabItem.vocabItem,
-      vocabType: vocabItem.vocabType,
-      decomposition: vocabItem.decomposition,
-    });
-
-    if (parts.length === 0) {
-      return;
-    }
-
-    for (const part of parts) {
-      await this.getVocabItemPartsDeepRecursive(part, partsSet);
-    }
+    return Array.from(resolved);
   }
 
   async getVocabItemParts({
@@ -591,11 +580,31 @@ export class VocabService {
       decomposition = fullVocabItem.decomposition;
     }
 
+    return this.removeDisabled(
+      this.rawParts({ vocabItem, vocabType, decomposition }),
+    );
+  }
+
+  /**
+   * How a row splits, before anything is dropped for being disabled — the one
+   * place that answers it. getVocabItemParts filters the result with a query;
+   * resolveConstituentClosure gets the same filtering free from the level query
+   * it already ran.
+   */
+  private rawParts({
+    vocabItem,
+    vocabType,
+    decomposition,
+  }: {
+    vocabItem: string;
+    vocabType: VocabType;
+    decomposition?: string | null;
+  }): string[] {
     switch (vocabType) {
       case "sentence":
-        return this.removeDisabled(this.deps.translator.cutSentence(vocabItem));
+        return this.deps.translator.cutSentence(vocabItem);
       case "compound":
-        return this.removeDisabled(vocabItem.split(""));
+        return vocabItem.split("");
       case "character":
         if (!decomposition) {
           this.deps.logger.warn(
@@ -604,7 +613,7 @@ export class VocabService {
           );
           return [];
         }
-        return this.removeDisabled(filterDecomposition(decomposition));
+        return filterDecomposition(decomposition);
       // A component is a bound radical form — the floor of the hierarchy. Whatever
       // strokes it is drawn from are more basic than a radical, so we don't teach
       // them and don't decompose any further.

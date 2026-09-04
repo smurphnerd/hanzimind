@@ -3,6 +3,7 @@ import "server-only";
 import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
+import { escapeLike } from "@/lib/sql";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
@@ -81,11 +82,7 @@ export class AdminService {
 
     const search = args.search?.trim();
     if (search) {
-      // Neutralise LIKE wildcards so a query of "%" matches literally rather
-      // than every row. Backslash is Postgres's default escape, so it goes first.
-      const pattern = `%${search
-        .replace(/\\/g, "\\\\")
-        .replace(/[%_]/g, (char) => `\\${char}`)}%`;
+      const pattern = `%${escapeLike(search)}%`;
 
       filters.push(
         or(
