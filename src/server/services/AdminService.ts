@@ -13,6 +13,7 @@ import {
   type VocabType,
 } from "@/definitions/definitions";
 import { InvalidInputError, NotFoundError } from "@/server/endpoints/errors";
+import type { VocabService } from "@/server/services/VocabService";
 
 /**
  * Reads and writes the vocabulary classification for the admin screen.
@@ -27,6 +28,7 @@ export class AdminService {
     private deps: {
       logger: Logger;
       database: Drizzle;
+      vocabService: VocabService;
     },
   ) {}
 
@@ -242,6 +244,12 @@ export class AdminService {
         decomposition: schema.vocabItems.decomposition,
         radical: schema.vocabItems.radical,
       });
+
+    // Every column this can write is one the decomposition index carries, and
+    // the index is cached for five minutes. The admin who just made the edit is
+    // the person about to look at the graph, so invalidate rather than let them
+    // watch a stale one and conclude the edit did not take.
+    this.deps.vocabService.invalidateDecompositionIndex();
 
     this.deps.logger.info(
       { vocabItem: existing.vocabItem, update },

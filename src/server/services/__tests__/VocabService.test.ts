@@ -3,6 +3,7 @@ import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import type * as schema from "@/server/database/schema";
+import { AdminService } from "../AdminService";
 import { VocabService, memoryAidOrder, toVocabItemDto } from "../VocabService";
 
 type Row = typeof schema.vocabItems.$inferSelect;
@@ -278,5 +279,97 @@ describe("resolveConstituentClosure", () => {
     expect(await vocabService.resolveConstituentClosure([sentence])).toContain(
       "喜欢",
     );
+  });
+});
+
+/**
+ * The decomposition index is cached for five minutes, which is right for a
+ * corpus that only changes when an admin edits it — and wrong for the admin,
+ * who is the one person watching for the edit to take effect.
+ */
+describe("decomposition index cache", () => {
+  const logger = {
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+  };
+
+  const lane = () => {
+    const corpus = [
+      row({ vocabItem: "你", vocabType: "character", decomposition: "⿰亻尔" }),
+      row({ vocabItem: "亻", vocabType: "component", decomposition: null }),
+    ];
+    let builds = 0;
+
+    const database = {
+      query: { vocabItems: { findFirst: async () => corpus[0] } },
+      select: () => ({
+        from: () => ({
+          where: () => {
+            builds += 1;
+            return Promise.resolve(corpus);
+          },
+        }),
+      }),
+      update: () => ({
+        set: () => ({
+          where: () => ({ returning: async () => [corpus[0]] }),
+        }),
+      }),
+    };
+
+    const vocabService = new VocabService({
+      logger,
+      database,
+    } as unknown as ConstructorParameters<typeof VocabService>[0]);
+
+    const adminService = new AdminService({
+      logger,
+      database,
+      vocabService,
+    } as unknown as ConstructorParameters<typeof AdminService>[0]);
+
+    return { vocabService, adminService, builds: () => builds };
+  };
+
+  it("builds the index once and reuses it", async () => {
+    const { vocabService, builds } = lane();
+
+    await vocabService.getDecompositionGraph("你");
+    await vocabService.getDecompositionGraph("你");
+
+    expect(builds()).toBe(1);
+  });
+
+  it("rebuilds after the index is invalidated", async () => {
+    const { vocabService, builds } = lane();
+
+    await vocabService.getDecompositionGraph("你");
+    vocabService.invalidateDecompositionIndex();
+    await vocabService.getDecompositionGraph("你");
+
+    expect(builds()).toBe(2);
+  });
+
+  // Without this an admin disables a glyph, opens its parent's graph, still
+  // sees it, and has no way to tell a stale cache from an edit that failed.
+  it("is invalidated by an admin update", async () => {
+    const { vocabService, adminService, builds } = lane();
+
+    await vocabService.getDecompositionGraph("你");
+    await adminService.updateVocabItem({ id: "id-1", disabled: true });
+    await vocabService.getDecompositionGraph("你");
+
+    expect(builds()).toBe(2);
+  });
+
+  it("does not rebuild when the admin changed nothing", async () => {
+    const { vocabService, adminService, builds } = lane();
+
+    await vocabService.getDecompositionGraph("你");
+    await adminService.updateVocabItem({ id: "id-1" });
+    await vocabService.getDecompositionGraph("你");
+
+    expect(builds()).toBe(1);
   });
 });

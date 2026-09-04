@@ -654,6 +654,19 @@ export class VocabService {
   private indexCache?: { builtAt: number; index: Promise<DecompositionIndex> };
 
   /**
+   * Drops the cached index so the next graph is built from current rows.
+   *
+   * The TTL exists because the corpus only changes when an admin edits
+   * vocabulary — but then it does change, and the admin is the one person
+   * looking at the result. Called by AdminService after a write, so a glyph
+   * disabled in /admin/vocab is gone from its parent's graph on the next look
+   * rather than up to five minutes later.
+   */
+  invalidateDecompositionIndex(): void {
+    this.indexCache = undefined;
+  }
+
+  /**
    * One hop of the decomposition graph around a glyph, uncapped.
    *
    * The traversal itself lives in @/server/decomposition-graph — this method owns
