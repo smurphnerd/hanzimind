@@ -417,16 +417,19 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     sameStatus:
       JSON.stringify(free.statuses) === JSON.stringify(taken.statuses),
     sameBuckets: JSON.stringify(free.buckets) === JSON.stringify(taken.buckets),
-    // Which timestamp fields separate the two paths, tested by DISJOINTNESS
-    // rather than by a difference of medians.
+    // How well each timestamp field sorts the two paths from ONE observation.
     //
-    // That distinction is the whole finding. `createdAt` is sampled before the
-    // mail send on one path and after it on the other, so the medians differ by
-    // roughly one mail send — 11 ms against a loopback server. But the run-to-
-    // run wander of that offset is the same size, so a median comparison called
-    // it a leak in the real run and an equal and opposite leak in the control.
-    // What makes the channel usable from a SINGLE request is whether the two
-    // ranges overlap at all, and that is what is measured here.
+    // `createdAt` is sampled before the mail send on one path and after it on
+    // the other, so the offsets differ by roughly one mail send — 11 ms against
+    // a loopback server, and the verifier measured 491 behind a realistic one.
+    // The run-to-run wander of that offset is the same size as the difference
+    // on loopback, which defeated both simpler statistics that came before
+    // this: a median comparison called it a leak in the real run and an equal
+    // and opposite leak in the control, and a disjointness test reported fewer
+    // leaks the more samples it took, because observed ranges widen with n.
+    // `separability` is a property of the two distributions rather than of this
+    // sample's extremes, so it converges. It means nothing without the control
+    // beside it — see `findingOf`.
     stampSeparability: Object.fromEntries(
       Object.keys({ ...free.stamps, ...taken.stamps }).map((field) => [
         field,
@@ -511,7 +514,21 @@ const separability = (freeValues, takenValues) => {
   const candidates = [...new Set([...freeValues, ...takenValues])].sort(
     (a, b) => a - b,
   );
-  let best = 0;
+  /**
+   * Start from the trivial classifier — call every observation one arm — which
+   * is also the threshold-below-everything and threshold-above-everything cases
+   * the loop below never reaches, since it only tries midpoints BETWEEN
+   * distinct values.
+   *
+   * Starting from zero was a bug with teeth. When every observation in both
+   * arms shares one value there are no midpoints, the loop never runs, and the
+   * function returned 0% where the honest answer is the 50% floor. Harmless in
+   * the real arm; in the CONTROL it drops the floor to zero, so a real run
+   * sitting at chance clears the margin and prints a leak that is not there.
+   * Integer-millisecond offsets at small n reach that case, which is the regime
+   * the stamp measurement runs in.
+   */
+  let best = Math.max(freeValues.length, takenValues.length);
   for (let i = 0; i < candidates.length - 1; i += 1) {
     const threshold = (candidates[i] + candidates[i + 1]) / 2;
     const below =
@@ -597,9 +614,18 @@ const reportDefault = (r) => {
   for (const field of stampFields) {
     const f = r.free.stamps[field];
     const t2 = r.taken.stamps[field];
-    const accuracy = r.stampSeparability[field] ?? 0.5;
     console.log(
-      `stamp    ${field} free +${f.p50} ms [${f.min}..${f.max}], taken +${t2.p50} ms [${t2.min}..${t2.max}]  one request sorts them ${(accuracy * 100).toFixed(0)}% of the time`,
+      `stamp    ${field} free +${f.p50} ms [${f.min}..${f.max}], taken +${t2.p50} ms [${t2.min}..${t2.max}]`,
+    );
+  }
+  // Deliberately no accuracy here. This mode runs no control, and a fitted
+  // threshold is upward-biased at small n, so a bare "sorts them 94% of the
+  // time" reads as a finding when it may be the floor. The sweeps pair every
+  // measurement with its own control; this mode cannot, so it does not pretend
+  // to.
+  if (stampFields.length) {
+    console.log(
+      `stamp    no accuracy printed: this mode runs no control, and the number means nothing without one. Use --content or --sweep, which pair every point with its own control.`,
     );
   }
   // The 10% rule is meaningful against a 750 ms bucket and close to meaningless
@@ -650,6 +676,18 @@ const runContentSweep = async () => {
         r.taken,
       ).padEnd(14)} ${verdict}`,
     );
+    // The numbers the stamp half of that verdict rests on, printed whether or
+    // not it fired, so a reader meeting "*** LEAK: stamp:createdAt" can check
+    // it here rather than take it on trust.
+    const stampPairs = Object.entries(r.stampSeparability).map(
+      ([field, accuracy]) =>
+        `${field} ${(accuracy * 100).toFixed(0)}%/${((ctrl.stampSeparability[field] ?? 0.5) * 100).toFixed(0)}%`,
+    );
+    if (stampPairs.length) {
+      console.log(
+        `${" ".repeat(16)} sorts one request, real/control:  ${stampPairs.join("   ")}`,
+      );
+    }
   }
   console.log("");
   if (!leaked.length) {
