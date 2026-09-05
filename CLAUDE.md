@@ -99,7 +99,28 @@ The API uses **oRPC** (not tRPC) for type-safe RPC communication between client 
 - `vocabItems` - Components, characters, compounds, and sentences with stroke data, audio, etymology
 - `decks` - User-created vocabulary decks
 - `deckVocabItems` - Links vocab items to decks
-- `userVocabItems` - Tracks user progress per vocab item
+- `userVocabItems` - One row per learner and item: whether they have seen it, and
+  which memory aid they pinned
+- `userStudyProgress` - One row per learner, item and study type: the level and
+  the next due time
+
+**Progress is one row per study type**
+`userStudyProgress(userId, vocabItemId, studyType, level, nextAt)` replaced four
+`<type>Level` / `<type>NextAt` column pairs on `userVocabItems`. Every reader
+used to build a column name from a study type at runtime, which nothing checks.
+
+Storage is **sparse**: a type gets a row on its first answer, and absence means
+level 0 due now. Every reader sees a total map instead — `StudyProgressDto`, with
+all four types always present — filled once by `progressByItem` in `StudyService`,
+so no rule downstream has to know what a missing row meant. Level 0 WITH a due
+time is a different fact (an answer got wrong) and does get a row.
+
+The write lock is on `userVocabItems`, not on the progress row. A type has no
+progress row until its first answer, and `SELECT ... FOR UPDATE` on a row that is
+not there serialises nothing, so two concurrent first answers would both read
+level 0 and one would be lost. `processAnswer` updates the `userVocabItems` row
+first — which takes the same exclusive lock and writes `seen` in the same
+statement — and only then reads and upserts the progress row.
 
 ### Vocabulary Item Types
 
@@ -195,8 +216,9 @@ otherwise puts on the wire. Pinned by `VocabService.test.ts`.
 `weakestServableLevel` must only consider study types `canStudy` permits for that
 item. Taking the minimum over every _deck-enabled_ type instead pins a
 meaning-only component at level 0 forever — it can never be served for reading,
-so `readingLevel` never advances — and the constituent gate then locks every
-character built on it, permanently and unrecoverably. Likewise a dependency with
+so its reading level never advances, and with the sparse storage it has no
+reading row at all — and the constituent gate then locks every character built
+on it, permanently and unrecoverably. Likewise a dependency with
 _no_ servable type must not gate at all. Both are covered in
 `src/server/__tests__/study-rules.test.ts`; do not reintroduce a gate that reads
 levels the item cannot earn. A phonetic component legitimately gates on all three
@@ -244,6 +266,14 @@ effect.
   including disabling glyphs and purging the deck links and progress that pointed
   at them, so it discards every admin decision the file does not happen to repeat.
   It strips the reading from every component the file does not call phonetic.
+- `tsx scripts/backfill-study-progress.ts` (`--dry-run`, `--verify`) — nothing to
+  do with classification: moves a learner's levels and due times out of the four
+  legacy `user_vocab_items` column pairs into `user_study_progress`. Must run
+  BEFORE `pnpm db:push`, because push drops those columns in the same run that
+  creates the table. The copy and its verification share a transaction, so a
+  committed run is a proof rather than a claim; `--dry-run` rehearses the whole
+  thing and rolls back, which is safe to point at production. Once push has
+  dropped the columns it is a no-op.
 - `tsx scripts/backfill-etymology-roles.ts` (`--dry-run`) — unrelated to
   classification: fills `etymologyPhonetic` / `etymologySemantic` from
   `dictionary.txt` on rows seeded before those columns existed. Only writes where
