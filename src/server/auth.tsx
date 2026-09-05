@@ -5,7 +5,7 @@ import {
   type BetterAuthOptions,
   type Logger as BetterAuthLogger,
 } from "better-auth";
-import { APIError } from "better-auth/api";
+import { APIError, createEmailVerificationToken } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 import {
@@ -21,7 +21,9 @@ import type { ReactElement } from "react";
 import { ChangeEmailEmail } from "@/email/ChangeEmailEmail";
 import { DeleteAccountEmail } from "@/email/DeleteAccountEmail";
 import { EmailVerificationEmail } from "@/email/EmailVerificationEmail";
+import { ExistingAccountEmail } from "@/email/ExistingAccountEmail";
 import { PasswordResetEmail } from "@/email/PasswordResetEmail";
+import { AUTH_BASE_PATH } from "@/server/auth-timing";
 import type { Cradle } from "@/server/initialization";
 
 import { schema } from "./database/schema";
@@ -42,6 +44,9 @@ const DAY = 60 * 60 * 24;
  * If they drift, the difference between the two responses is the oracle again.
  */
 export const DEFAULT_ROLE = "user";
+
+/** Where the learner lands after clicking a verification link. */
+const VERIFIED_CALLBACK = "/verified";
 
 /**
  * Every option better-auth runs on, as data, so a test can read them without
@@ -144,6 +149,62 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
         ...additionalFields,
         id,
       }),
+      /**
+       * What a taken address costs, and what its owner gets told.
+       *
+       * Matching the body is not enough on its own: a free address is inserted,
+       * linked and mailed while a taken one was only looked up, and on trunk
+       * that showed up as 107 ms against 131 ms — a 22% gap, measurable by
+       * anyone willing to time it. better-auth already hashes the password here
+       * to cover its own share; this hook covers the rest by sending exactly
+       * one email, through the same adapter, on this path too. Both answers now
+       * pay for one hash and one send, and `auth-timing.ts` rounds away what is
+       * left.
+       *
+       * The email is not padding. Someone signing up with an address they
+       * already registered is usually a person who forgot, and the response
+       * cannot tell them so without telling everyone. Their inbox can: an
+       * unverified account gets the verification link it never used, and a
+       * verified one gets a note saying it already exists, with a way to sign
+       * in and a way to reset the password.
+       */
+      onExistingUserSignUp: async ({ user }) => {
+        deps.logger.info(
+          { email: user.email, userId: user.id, verified: user.emailVerified },
+          "Sign-up: the address already has an account, answered as if new",
+        );
+        if (user.emailVerified) {
+          await send(
+            user.email,
+            "You already have a Hanzimind account",
+            <ExistingAccountEmail
+              signInLink={`${options.baseUrl}/signin`}
+              resetLink={`${options.baseUrl}/forgot-password`}
+              username={user.name}
+            />,
+            "existing-account",
+          );
+          return;
+        }
+        // An account that was never verified is a sign-up that did not finish,
+        // so finish it: the same link the first attempt mailed. The callback is
+        // the sign-up page's own default rather than this attempt's, which
+        // costs a `redirectUrl` on a re-attempt and saves reading a cloned
+        // request body on the one path where cost has to stay predictable.
+        const token = await createEmailVerificationToken(
+          options.authSecret,
+          user.email,
+        );
+        await send(
+          user.email,
+          "Verify your email - Hanzimind",
+          <EmailVerificationEmail
+            link={`${options.baseUrl}${AUTH_BASE_PATH}/verify-email?token=${token}&callbackURL=${encodeURIComponent(VERIFIED_CALLBACK)}`}
+            username={user.name}
+          />,
+          "verify-email",
+        );
+      },
     },
     user: {
       changeEmail: {
@@ -265,6 +326,25 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
           <EmailVerificationEmail link={url} username={user.name} />,
           "verify-email",
         ),
+    },
+    /**
+     * Only the response is blinded. An operator answering a support ticket
+     * still has to know which of the two happened, and a log line is not
+     * reachable by anyone enumerating from the outside — so both outcomes say
+     * so, in the same words up to the outcome, and `grep 'Sign-up: '` on the
+     * server log finds either.
+     */
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            deps.logger.info(
+              { email: user.email, userId: user.id },
+              "Sign-up: the address was free, created an account",
+            );
+          },
+        },
+      },
     },
     plugins: [
       // Puts `role` on the session user so admin status travels with the session
