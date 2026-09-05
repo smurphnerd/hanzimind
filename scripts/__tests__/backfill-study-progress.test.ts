@@ -7,6 +7,7 @@ import {
   COPY_SQL,
   CREATE_TABLE_SQL,
   LEGACY_COLUMNS,
+  lostProgressRefusal,
   RESTORE_COLUMNS_SQL,
   RESTORE_ROWS_SQL,
   VERIFY_SQL,
@@ -87,9 +88,11 @@ describe("COPY_SQL", () => {
     expect(unread).toEqual([]);
   });
 
-  it("should leave a row the app has since advanced alone", () => {
-    // Idempotence, and the reason a second run cannot undo a level the learner
-    // earned between the copy and the column drop.
+  it("should never overwrite a row that already exists", () => {
+    // So a second run cannot undo a level the learner earned between the copy
+    // and the column drop. It does not make the run a no-op: the legacy column
+    // still holds the old value, VERIFY_SQL sees the two disagree, and the run
+    // rolls back non-zero. Safe, and not silent.
     expect(COPY_SQL).toContain(
       "on conflict (user_id, vocab_item_id, study_type) do nothing",
     );
@@ -187,5 +190,126 @@ describe("RESTORE_ROWS_SQL", () => {
     // every item the learner studies.
     expect(RESTORE_ROWS_SQL[1]).toContain("p.user_id = u.user_id");
     expect(RESTORE_ROWS_SQL[1]).toContain("p.vocab_item_id = u.vocab_item_id");
+  });
+});
+
+/**
+ * The guard against the one thing this migration can do that nothing can undo:
+ * `pnpm db:push` running before the copy, which drops the eight columns and
+ * every level in them. Reporting "nothing to do" and exiting 0 over that is the
+ * worst available response, so the state is detected instead.
+ */
+describe("lostProgressRefusal", () => {
+  const state = (overrides: Parameters<typeof lostProgressRefusal>[0]) =>
+    lostProgressRefusal(overrides);
+
+  it("should refuse a copy when the columns are gone and nothing was copied", () => {
+    // The catastrophe: push ran first. `seen` survives it, because this
+    // migration never moves that column, which is what makes it the signal.
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: false,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toContain("REFUSING TO CONTINUE");
+  });
+
+  it("should name a snapshot restore as the recovery", () => {
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: false,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toContain("restore from the snapshot");
+  });
+
+  it("should allow a copy that simply has not run yet", () => {
+    // Columns present, table empty, learner has studied: the normal starting
+    // point, and the state every correct migration begins in.
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: true,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toBeNull();
+  });
+
+  it("should allow a database nobody has studied", () => {
+    // A fresh lane: the deck is saved, no card has been answered, so there is
+    // no progress to have lost. Refusing here would break every lane boot.
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: false,
+        progressRows: 0,
+        seenRows: 0,
+      }),
+    ).toBeNull();
+  });
+
+  it("should allow a copy re-run after a successful migration", () => {
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: false,
+        progressRows: 103,
+        seenRows: 61,
+      }),
+    ).toBeNull();
+  });
+
+  it("should refuse a restore from an empty table even with the columns present", () => {
+    // The restore's own destructive case. It resets all eight columns before
+    // filling them, so restoring from nothing writes zeros over the only copy
+    // left — a rollback that causes the loss it was run to undo.
+    expect(
+      state({
+        direction: "restore",
+        legacyColumnsPresent: true,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toContain("REFUSING TO CONTINUE");
+  });
+
+  it("should refuse a restore when both the columns and the rows are gone", () => {
+    expect(
+      state({
+        direction: "restore",
+        legacyColumnsPresent: false,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toContain("REFUSING TO CONTINUE");
+  });
+
+  it("should allow a restore that has something to restore from", () => {
+    expect(
+      state({
+        direction: "restore",
+        legacyColumnsPresent: false,
+        progressRows: 103,
+        seenRows: 61,
+      }),
+    ).toBeNull();
+  });
+
+  it("should tell the operator which benign state looks the same", () => {
+    // Intros-only is the one honest way to have seen rows and no progress rows.
+    // The guard cannot distinguish it, so the message has to.
+    expect(
+      state({
+        direction: "copy",
+        legacyColumnsPresent: false,
+        progressRows: 0,
+        seenRows: 61,
+      }),
+    ).toContain("only ever been shown introductions");
   });
 });

@@ -272,10 +272,17 @@ effect.
   BEFORE `pnpm db:push`, because push drops those columns in the same run that
   creates the table. The copy and its verification share a transaction, so a
   committed run is a proof rather than a claim; `--dry-run` rehearses the whole
-  thing and rolls back, which is safe to point at production. Once push has
-  dropped the columns it is a no-op. `--down` reverses it — the columns come
-  back, filled from the rows and checked with the same symmetric query — for
-  when the revert is the code as well as the schema.
+  thing and rolls back, which is safe to point at production. `--down` reverses
+  it — the columns come back, filled from the rows and checked with the same
+  symmetric query — for when the revert is the code as well as the schema.
+
+  Re-running it is only a true no-op AFTER push has dropped the columns. Before
+  that a second run never overwrites a row, but the stale legacy column and the
+  advanced row disagree, so the verification rolls it back non-zero. And if push
+  ran BEFORE the copy, the levels are gone and nothing here can recover them —
+  the script detects that state (`lostProgressRefusal`) and refuses rather than
+  reporting "nothing to do". Take a `pg_dump` first.
+
 - `tsx scripts/backfill-etymology-roles.ts` (`--dry-run`) — unrelated to
   classification: fills `etymologyPhonetic` / `etymologySemantic` from
   `dictionary.txt` on rows seeded before those columns existed. Only writes where
