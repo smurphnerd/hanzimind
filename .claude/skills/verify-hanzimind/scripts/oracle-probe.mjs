@@ -13,6 +13,17 @@
 // it; both must keep the two kinds in the same bucket, the second by refusing
 // them identically. See the ENDPOINTS table for which field that is per route.
 //
+// --concurrent <k> fires k requests at one address at once and compares the
+// whole burst's signature. Sequential probing cannot see a channel that only
+// opens when two requests overlap, and sign-up had one: its lookup and its
+// insert are not atomic, so a burst at a free address collided on the unique
+// index and answered 422 where a taken address always answered 200.
+//
+// --same-ip stops rotating X-Forwarded-For, which puts the rate limiter's own
+// budget in play. Use it to check that no path spends more of that budget than
+// the other; a burst that quietly costs an extra slot is the same oracle in a
+// 429.
+//
 // Why this exists rather than perf-probe.mjs: perf-probe signs in and calls one
 // oRPC procedure with a fixed body, and none of that fits here. These are
 // better-auth routes under /api/auth, not /api/rpc; every free-address call
@@ -37,11 +48,14 @@ const password = args.get("password") ?? "oracle-probe-password";
 const pad = Number(args.get("pad") ?? 0);
 const quantum = Number(args.get("quantum") ?? 750);
 const control = args.has("control");
+const concurrent = Number(args.get("concurrent") ?? 1);
+const sameIp = args.has("same-ip");
 const json = args.has("json");
 if (!port || !n) {
   console.error(
     "usage: oracle-probe.mjs --port <p> [--endpoint sign-up|password-reset|send-verification|sign-in]\n" +
-      "                       [--n 50] [--taken <email>] [--pad <chars>] [--quantum 750] [--control] [--json]",
+      "                       [--n 50] [--taken <email>] [--pad <chars>] [--quantum 750]\n" +
+      "                       [--concurrent <k>] [--same-ip] [--control] [--json]",
   );
   process.exit(2);
 }
@@ -161,7 +175,7 @@ const headerFingerprint = (response) =>
   ).join(" | ");
 
 let forwarded = 0;
-const call = async (email) => {
+const callOnce = async (email) => {
   forwarded += 1;
   const started = performance.now();
   const response = await fetch(`${base}${spec.path}`, {
@@ -170,7 +184,11 @@ const call = async (email) => {
       "content-type": "application/json",
       origin: base,
       // A fresh bucket per request, so the rate limit never colours the timing.
-      "x-forwarded-for": `10.${(forwarded >> 16) & 255}.${(forwarded >> 8) & 255}.${forwarded & 255}`,
+      // `--same-ip` pins it instead, which is how an attacker with no control
+      // over that header operates and puts the limiter's own budget in play.
+      "x-forwarded-for": sameIp
+        ? "10.255.255.255"
+        : `10.${(forwarded >> 16) & 255}.${(forwarded >> 8) & 255}.${forwarded & 255}`,
     },
     body: JSON.stringify(spec.body(email, lever)),
   });
@@ -180,6 +198,40 @@ const call = async (email) => {
     status: response.status,
     body: canonical(text, email),
     headers: headerFingerprint(response),
+  };
+};
+
+/**
+ * One observation, which with `--concurrent k` is a whole burst folded into a
+ * single signature.
+ *
+ * Awaiting each request in turn — which is all this probe used to do — means
+ * two requests for the same address never overlap, and overlapping is the whole
+ * question. better-auth's sign-up looks the address up and then inserts, and
+ * the two are not atomic: a burst at a FREE address had both pass the lookup,
+ * both attempt the insert, and the unique index reject one, which came back as
+ * a 422. A burst at a TAKEN address never inserts and so cannot 422. That is a
+ * status-code channel, invisible to a probe that measures one request at a
+ * time, and it needed no statistics — one burst told an attacker the answer.
+ *
+ * Folding the burst into `status` as a sorted multiset ("200,422") and into
+ * `body` as its distinct shapes lets the rest of this script compare bursts
+ * exactly as it compares single requests.
+ */
+const call = async (email) => {
+  if (concurrent <= 1) return callOnce(email);
+  const results = await Promise.all(
+    Array.from({ length: concurrent }, () => callOnce(email)),
+  );
+  return {
+    // The burst is as slow as its slowest member, which is what a caller waits.
+    ms: Math.max(...results.map((r) => r.ms)),
+    status: results
+      .map((r) => r.status)
+      .sort()
+      .join(","),
+    body: [...new Set(results.map((r) => r.body))].sort().join(" ++ "),
+    headers: [...new Set(results.map((r) => r.headers))].sort().join(" ++ "),
   };
 };
 
@@ -287,6 +339,8 @@ if (json) {
   console.log(
     `endpoint ${endpoint}  ${spec.path}` +
       (pad ? `  ${spec.lever} padded to ${pad} chars` : "") +
+      (concurrent > 1 ? `  bursts of ${concurrent}` : "") +
+      (sameIp ? "  one IP, rate limiter live" : "") +
       (control ? "  CONTROL: both arms are free addresses" : ""),
   );
   console.log(line(free));
