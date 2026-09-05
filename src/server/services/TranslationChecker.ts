@@ -31,6 +31,15 @@ export interface ITranslationChecker {
    * @returns Similarity score between 0 and 1
    */
   getSimilarityScore(text1: string, text2: string): number | Promise<number>;
+
+  /**
+   * Load whatever this checker needs before a learner is waiting on it.
+   *
+   * Optional because most checkers need nothing: only the semantic one pays a
+   * five-second model load, and only on the first answer it is asked to grade.
+   * Called at boot from instrumentation.ts.
+   */
+  warmUp?(): Promise<void>;
 }
 
 /**

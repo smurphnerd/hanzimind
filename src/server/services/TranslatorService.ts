@@ -23,20 +23,13 @@ export class TranslatorService {
       throw new Error("Translation service not configured");
     }
 
-    try {
-      const result = await this.deepl.translateText(
-        sentence,
-        "zh",
-        "en-US" as deepl.TargetLanguageCode,
-      );
+    const result = await this.deepl.translateText(
+      sentence,
+      "zh",
+      "en-US" as deepl.TargetLanguageCode,
+    );
 
-      return result.text;
-    } catch (error) {
-      this.deps.logger.error({ error, sentence }, "Error translating sentence");
-      throw error instanceof Error
-        ? error
-        : new Error("Failed to translate sentence");
-    }
+    return result.text;
   }
 
   cutSentence(sentence: string): string[] {

@@ -17,15 +17,13 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pino } from "pino";
 import { eq } from "drizzle-orm";
 
-import { getDatabase } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import { TTSService } from "@/server/services/TTSService";
 import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
-import { envSchema } from "@/env-utils";
+import { bootstrap } from "./bootstrap";
 
 const DECK_ID = "deck-hsk1";
 const DECK_NAME = "HSK 1";
@@ -46,14 +44,7 @@ const isIdc = (c: string) => {
 };
 
 async function main() {
-  // Validate only what this script uses. Parsing the whole app schema would
-  // demand unrelated runtime settings (BASE_URL, auth, email) that a
-  // maintenance task has no business requiring.
-  const env = envSchema
-    .pick({ DATABASE_URL: true, S3_OPTIONS: true })
-    .parse(process.env);
-  const logger = pino({ level: "warn" });
-  const database = getDatabase(logger, env.DATABASE_URL);
+  const { env, logger, database } = bootstrap({ level: "warn" });
   const storage = new S3StorageAdapter(env.S3_OPTIONS);
   const tts = new TTSService(
     { logger, storage, ttsProvider: new GoogleTTSAPIProvider(logger) },

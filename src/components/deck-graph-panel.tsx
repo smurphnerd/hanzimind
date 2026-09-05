@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -10,15 +9,13 @@ import {
   type GraphView,
 } from "@/components/decomposition-graph";
 import {
-  SegmentedToggle,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+  GraphPanelFrame,
+  describeDeckCut,
+} from "@/components/graph-panel-frame";
+import { SegmentedToggle } from "@/components/segmented-toggle";
+import type { HintedSegmentedOption } from "@/components/segmented-control";
 import { useORPC } from "@/lib/orpc.client";
-import { vocabTypeMeta } from "@/lib/vocab-type";
-import type { DeckGraphDto, VocabType } from "@/definitions/definitions";
-
-/** Components first: the legend reads bottom-up, the way the hierarchy is built. */
-const LEGEND_TYPES: VocabType[] = ["component", "character", "compound"];
+import type { DeckGraphDto } from "@/definitions/definitions";
 
 /**
  * Depth is 1-based on screen and 0-based in the data.
@@ -26,7 +23,7 @@ const LEGEND_TYPES: VocabType[] = ["component", "character", "compound"];
  * A level is a tier of the unlock order, and "1 level" reads as the first tier
  * rather than the second. Showing `depth` levels means keeping `level < depth`.
  */
-function depthOptions(maxLevel: number): SegmentedOption<number>[] {
+function depthOptions(maxLevel: number): HintedSegmentedOption<number>[] {
   const total = maxLevel + 1;
 
   return Array.from({ length: total }, (_, index) => {
@@ -35,7 +32,7 @@ function depthOptions(maxLevel: number): SegmentedOption<number>[] {
     return {
       value: depth,
       label: depth === total ? "All" : String(depth),
-      title:
+      hint:
         depth === total
           ? `All ${total} levels`
           : `First ${depth} of ${total} levels`,
@@ -122,22 +119,21 @@ export function DeckGraphPanel({ deckId }: { deckId: string }) {
         </div>
       )}
 
-      <div className="relative h-[68vh] min-h-[420px] w-full">
-        {isPending && (
-          <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Building graph…
-          </div>
-        )}
-
-        {isError && (
-          <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            {error instanceof Error
-              ? error.message
-              : "No graph for this deck yet."}
-          </div>
-        )}
-
+      <GraphPanelFrame
+        className="h-[68vh] min-h-[420px]"
+        isPending={isPending}
+        error={isError ? error : null}
+        errorFallback="No graph for this deck yet."
+        caption={
+          view && data
+            ? describeDeckCut(
+                view.nodes.length,
+                data.nodes.length,
+                view.edges.length,
+              )
+            : undefined
+        }
+      >
         {view && (
           <DecompositionGraph
             data={view}
@@ -146,24 +142,7 @@ export function DeckGraphPanel({ deckId }: { deckId: string }) {
             }
           />
         )}
-
-        {view && data && (
-          <div className="pointer-events-none absolute bottom-0 left-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {LEGEND_TYPES.map((type) => (
-              <span key={type} className="inline-flex items-center gap-1.5">
-                <span
-                  className={`size-2.5 rounded-full ${vocabTypeMeta(type).fillClass}`}
-                />
-                {vocabTypeMeta(type).label}
-              </span>
-            ))}
-            <span>
-              {view.nodes.length} of {data.nodes.length} items ·{" "}
-              {view.edges.length} links · click to open
-            </span>
-          </div>
-        )}
-      </div>
+      </GraphPanelFrame>
     </div>
   );
 }

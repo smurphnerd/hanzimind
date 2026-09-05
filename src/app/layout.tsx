@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Nunito } from "next/font/google";
+import { headers } from "next/headers";
 import { ApiClientProvider } from "@/lib/orpc.client";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppToaster } from "@/components/app-toaster";
@@ -30,6 +31,10 @@ const nunito = Nunito({
  * BASE_URL and dies with ECONNREFUSED before a single page is emitted. The
  * content is per-user anyway — even the landing page branches on the session —
  * so there is no static output worth rescuing here.
+ *
+ * The CSP nonce depends on this too: proxy.ts mints one per request, and a
+ * cached or prerendered page would ship HTML with a nonce that cannot match
+ * the response header, blocking every script on it.
  */
 export const dynamic = "force-dynamic";
 
@@ -40,11 +45,12 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -52,7 +58,7 @@ export default function RootLayout({
       className={`${inter.variable} ${nunito.variable}`}
     >
       <body className="flex min-h-screen flex-col">
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <ApiClientProvider baseUrl={env.BASE_URL}>
             <Header />
             <main className="flex flex-1 flex-col">{children}</main>

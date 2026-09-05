@@ -56,25 +56,3 @@ export function DeckGridSkeleton({ count = 6 }: { count?: number }) {
     </div>
   );
 }
-
-export function DecksLoading() {
-  return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
-      {/* Page header — mirrors PageHeader's title/description/action rhythm */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-5 w-80 max-w-full" />
-        </div>
-        <Skeleton className="h-12 w-40 rounded-full" />
-      </div>
-
-      {/* Search */}
-      <Skeleton className="mb-8 h-12 w-full" />
-
-      <Skeleton className="mb-6 h-8 w-40" />
-
-      <DeckGridSkeleton />
-    </div>
-  );
-}

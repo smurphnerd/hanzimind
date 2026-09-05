@@ -2,12 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { Pagination } from "@/components/pagination";
+import { PageHeader } from "@/components/page-header";
+import { useTrackedMutation } from "@/hooks/use-tracked-mutation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,7 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditableCell } from "@/components/editable-cell";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ManageMemoryAidsDialog } from "@/components/manage-memory-aids-dialog";
 import { ScriptBadge } from "@/components/script-badge";
@@ -60,7 +67,6 @@ function AdminVocabContent() {
   const [scriptFilter, setScriptFilter] = useState<Script | "all">("all");
   const [showDisabled, setShowDisabled] = useState(false);
   const [page, setPage] = useState(1);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [aidsItem, setAidsItem] = useState<{
     id: string;
     vocabItem: string;
@@ -85,7 +91,7 @@ function AdminVocabContent() {
     placeholderData: keepPreviousData,
   });
 
-  const updateMutation = useMutation(
+  const updateMutation = useTrackedMutation(
     orpc.admin.updateVocabItem.mutationOptions({
       onSuccess: (updated) => {
         toast.success(`Updated ${updated.vocabItem}`);
@@ -104,12 +110,10 @@ function AdminVocabContent() {
             : "Failed to update",
         );
       },
-      onSettled: () => setSavingId(null),
     }),
   );
 
-  const update = (id: string, patch: Parameters<typeof updateMutation.mutate>[0]) => {
-    setSavingId(id);
+  const update = (patch: Parameters<typeof updateMutation.mutate>[0]) => {
     updateMutation.mutate(patch);
   };
 
@@ -131,19 +135,19 @@ function AdminVocabContent() {
     const forbidden = /forbidden/i.test(message);
 
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Mika pose="peek" size={96} />
-          <p className="text-muted-foreground">
-            {forbidden
-              ? "This page is for admins only."
-              : "Couldn't load the vocabulary."}
-          </p>
+      <EmptyState
+        pose="peek"
+        heading={
+          forbidden
+            ? "This page is for admins only."
+            : "Couldn't load the vocabulary."
+        }
+        action={
           <Button asChild variant="outline">
             <Link href="/">Back home</Link>
           </Button>
-        </CardContent>
-      </Card>
+        }
+      />
     );
   }
 
@@ -183,7 +187,7 @@ function AdminVocabContent() {
       {/* Search and the hidden-only toggle */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative min-w-64 flex-1">
-          <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             placeholder="Search glyph, reading or definition…"
@@ -270,7 +274,9 @@ function AdminVocabContent() {
               )}
 
               {items.map((item) => {
-                const isSaving = savingId === item.id;
+                const isSaving = updateMutation.isSaving(
+                  (variables) => variables.id === item.id,
+                );
                 // Only single characters can meaningfully be a bound form; a
                 // word or sentence never is.
                 const canBeComponent =
@@ -304,9 +310,7 @@ function AdminVocabContent() {
                         ariaLabel={`Reading for ${item.vocabItem}`}
                         placeholder="No reading"
                         inputClassName="hanzi"
-                        onSave={(pinyin) =>
-                          update(item.id, { id: item.id, pinyin })
-                        }
+                        onSave={(pinyin) => update({ id: item.id, pinyin })}
                       />
                     </TableCell>
                     <TableCell>
@@ -317,7 +321,7 @@ function AdminVocabContent() {
                         ariaLabel={`Definition for ${item.vocabItem}`}
                         placeholder="No definition"
                         onSave={(translation) =>
-                          update(item.id, { id: item.id, translation })
+                          update({ id: item.id, translation })
                         }
                       />
                     </TableCell>
@@ -344,14 +348,14 @@ function AdminVocabContent() {
                           disabled={isSaving}
                           aria-label={`Mark ${item.vocabItem} as a component`}
                           onCheckedChange={(checked) =>
-                            update(item.id, {
+                            update({
                               id: item.id,
                               vocabType: checked ? "component" : "character",
                             })
                           }
                         />
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -363,11 +367,11 @@ function AdminVocabContent() {
                           disabled={isSaving}
                           aria-label={`Teach the sound of ${item.vocabItem}`}
                           onCheckedChange={(checked) =>
-                            update(item.id, { id: item.id, phonetic: checked })
+                            update({ id: item.id, phonetic: checked })
                           }
                         />
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -376,7 +380,7 @@ function AdminVocabContent() {
                         disabled={isSaving}
                         aria-label={`Hide ${item.vocabItem}`}
                         onCheckedChange={(checked) =>
-                          update(item.id, { id: item.id, disabled: checked })
+                          update({ id: item.id, disabled: checked })
                         }
                       />
                     </TableCell>
@@ -389,32 +393,13 @@ function AdminVocabContent() {
       </Card>
 
       {/* Paging */}
-      {paging && paging.total > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-muted-foreground text-sm tabular-nums">
-            {(paging.page - 1) * paging.pageSize + 1}–
-            {Math.min(paging.page * paging.pageSize, paging.total)} of{" "}
-            {paging.total}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page >= paging.totalPages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {paging && (
+        <Pagination
+          page={paging.page}
+          pageSize={paging.pageSize}
+          total={paging.total}
+          onPageChange={setPage}
+        />
       )}
 
       <ManageMemoryAidsDialog
@@ -429,25 +414,23 @@ function AdminVocabContent() {
 export default function AdminVocabPage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
-        <h1 className="font-display text-foreground text-4xl font-extrabold tracking-tight">
-          Vocabulary
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Every component is taught by meaning. <strong>Phonetic</strong> adds
-          sound: right for 艮 behind 很/跟/根, wrong for 亻, whose
-          &ldquo;rén&rdquo; is borrowed from 人. Most components store a borrowed
-          reading, so the two are separate switches — a reading is only ever
-          quizzed when Phonetic is on, and turning it off hides the reading
-          everywhere rather than deleting it. The next classification backfill
-          resets Phonetic from the seed file. Hidden items disappear from
-          decompositions, search and study everywhere.
-        </p>
-      </div>
+      <PageHeader
+        heading="Vocabulary"
+        description={
+          <>
+            Every component is taught by meaning. <strong>Phonetic</strong> adds
+            sound: right for 艮 behind 很/跟/根, wrong for 亻, whose
+            &ldquo;rén&rdquo; is borrowed from 人. Most components store a
+            borrowed reading, so the two are separate switches — a reading is
+            only ever quizzed when Phonetic is on, and turning it off hides the
+            reading everywhere rather than deleting it. The next classification
+            backfill resets Phonetic from the seed file. Hidden items disappear
+            from decompositions, search and study everywhere.
+          </>
+        }
+      />
 
-      <ErrorBoundary>
-        <AdminVocabContent />
-      </ErrorBoundary>
+      <AdminVocabContent />
     </div>
   );
 }

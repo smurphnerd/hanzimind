@@ -4,19 +4,20 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   keepPreviousData,
-  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, RotateCcw, X } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/pagination";
+import { useTrackedMutation } from "@/hooks/use-tracked-mutation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/empty-state";
-import { ErrorBoundary } from "@/components/error-boundary";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { PageHeader } from "@/components/page-header";
 import { useORPC } from "@/lib/orpc.client";
@@ -45,10 +46,19 @@ const KIND_LABELS: Record<SuggestionKind, string> = {
   other: "Other",
 };
 
-const STATUS_CLASSES: Record<SuggestionStatus, string> = {
-  open: "bg-secondary text-primary",
-  resolved: "bg-success/15 text-success",
-  rejected: "bg-muted text-muted-foreground",
+/**
+ * Each status as a Badge variant, so the pill says what it means rather than
+ * which tint it picked. `secondary` is the app's coral wash and reads as "still
+ * yours to deal with"; the label stays alongside, because colour is never the
+ * only thing carrying the state.
+ */
+const STATUS_VARIANTS: Record<
+  SuggestionStatus,
+  React.ComponentProps<typeof Badge>["variant"]
+> = {
+  open: "secondary",
+  resolved: "success",
+  rejected: "muted",
 };
 
 const formatFiledAt = (date: Date) =>
@@ -92,17 +102,13 @@ function SuggestionRow({
           {suggestion.vocabType && (
             <ItemTypeBadge type={suggestion.vocabType} short />
           )}
-          <span className="rounded-full bg-muted px-2.5 py-1 font-display text-xs font-bold text-muted-foreground">
-            {KIND_LABELS[suggestion.kind]}
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 font-display text-xs font-bold capitalize",
-              STATUS_CLASSES[suggestion.status],
-            )}
+          <Badge variant="muted">{KIND_LABELS[suggestion.kind]}</Badge>
+          <Badge
+            variant={STATUS_VARIANTS[suggestion.status]}
+            className="capitalize"
           >
             {suggestion.status}
-          </span>
+          </Badge>
         </div>
 
         <p className="text-sm whitespace-pre-wrap">{suggestion.body}</p>
@@ -175,7 +181,6 @@ function AdminSuggestionsContent() {
     "open",
   );
   const [page, setPage] = useState(1);
-  const [savingId, setSavingId] = useState<string | null>(null);
 
   const { data: counts } = useQuery(
     orpc.admin.suggestionCounts.queryOptions({}),
@@ -194,7 +199,7 @@ function AdminSuggestionsContent() {
     placeholderData: keepPreviousData,
   });
 
-  const reviewMutation = useMutation(
+  const reviewMutation = useTrackedMutation(
     orpc.admin.setSuggestionStatus.mutationOptions({
       onSuccess: (updated) => {
         toast.success(`Marked as ${updated.status}`);
@@ -210,7 +215,6 @@ function AdminSuggestionsContent() {
           error instanceof Error ? error.message : "Failed to update",
         );
       },
-      onSettled: () => setSavingId(null),
     }),
   );
 
@@ -228,7 +232,7 @@ function AdminSuggestionsContent() {
     return (
       <EmptyState
         pose="peek"
-        title="Couldn't load the queue"
+        heading="Couldn't load the queue"
         description="Something went wrong fetching the suggestions."
         action={
           <Button asChild variant="outline">
@@ -279,7 +283,7 @@ function AdminSuggestionsContent() {
 
         {!isPending && items.length === 0 && (
           <EmptyState
-            title="Nothing to review"
+            heading="Nothing to review"
             description={
               statusFilter === "open"
                 ? "No open suggestions — the garden is tidy."
@@ -290,43 +294,27 @@ function AdminSuggestionsContent() {
 
         {items.map((suggestion) => (
           <SuggestionRow
-            key={suggestion.id}
+            // Keyed on the note as well as the row, so a refetch after a review
+            // restarts the textarea from what the server now holds.
+            key={`${suggestion.id}:${suggestion.adminNote ?? ""}`}
             suggestion={suggestion}
-            isSaving={savingId === suggestion.id}
-            onReview={(status, adminNote) => {
-              setSavingId(suggestion.id);
-              reviewMutation.mutate({ id: suggestion.id, status, adminNote });
-            }}
+            isSaving={reviewMutation.isSaving(
+              (variables) => variables.id === suggestion.id,
+            )}
+            onReview={(status, adminNote) =>
+              reviewMutation.mutate({ id: suggestion.id, status, adminNote })
+            }
           />
         ))}
       </div>
 
-      {paging && paging.total > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground tabular-nums">
-            {(paging.page - 1) * paging.pageSize + 1}–
-            {Math.min(paging.page * paging.pageSize, paging.total)} of{" "}
-            {paging.total}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={paging.page >= paging.totalPages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+      {paging && (
+        <Pagination
+          page={paging.page}
+          pageSize={paging.pageSize}
+          total={paging.total}
+          onPageChange={setPage}
+        />
       )}
     </div>
   );
@@ -336,13 +324,11 @@ export default function AdminSuggestionsPage() {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <PageHeader
-        title="Suggestions"
+        heading="Suggestions"
         description="What learners have reported. Resolving or rejecting one keeps a note against it, so the next reviewer can see what was decided."
       />
 
-      <ErrorBoundary>
-        <AdminSuggestionsContent />
-      </ErrorBoundary>
+      <AdminSuggestionsContent />
     </div>
   );
 }

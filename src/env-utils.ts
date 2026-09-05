@@ -40,10 +40,9 @@ export const envSchema = z.object({
   SYSTEM_EMAIL_FROM: z.string(),
   DEEPL_API_KEY: z.string(),
   /**
-   * Comma-separated addresses granted admin access, e.g.
-   * "me@example.com,someone@example.com". Optional — leaving it unset means
-   * nobody is an admin, which is the safe default. See src/server/admin-access.ts
-   * for why this is not a database column.
+   * Optional. With no DSN the Sentry SDK is never initialised and every
+   * capture call it exposes is a no-op, so error reporting is off rather than
+   * broken — which is what a local checkout and a lane both want.
    */
-  ADMIN_EMAILS: z.string().optional(),
+  SENTRY_DSN: z.string().optional(),
 });

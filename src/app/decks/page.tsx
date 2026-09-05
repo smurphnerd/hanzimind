@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Check,
@@ -19,7 +19,10 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { CompositionBar } from "@/components/composition-bar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/pagination";
 import {
   Card,
   CardContent,
@@ -31,42 +34,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { useORPC } from "@/lib/orpc.client";
 import {
+  DEFAULT_DECK_SETTINGS,
   DeckSettingsDialog,
+  SAVED_DECKS_INPUT,
   type DeckSettings,
 } from "@/components/deck-settings-dialog";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { DecksLoading, DeckGridSkeleton } from "@/components/decks-loading";
+import { DeckGridSkeleton } from "@/components/decks-loading";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
-import { vocabTypeMeta } from "@/lib/vocab-type";
 import { cn } from "@/lib/utils";
 import type { DeckDto } from "@/definitions/definitions";
 
 const DECKS_PER_PAGE = 12;
-
-/**
- * The user's whole study list in one lookup, so a card can seed its dialog with
- * the settings already in effect. `study.addDeck` upserts, so a deck missing
- * from this list opens with the defaults below and silently overwrites whatever
- * the learner actually chose — hence the endpoint's maximum perPage.
- */
-const SAVED_DECKS_INPUT = { page: 1, perPage: 100 };
-
-const DEFAULT_DECK_SETTINGS: DeckSettings = {
-  readingEnabled: true,
-  listeningEnabled: true,
-  understandingEnabled: true,
-  writingEnabled: true,
-};
-
-/** Smallest unit first, so the strip reads the order the deck is actually learned in. */
-const COMPOSITION_ORDER = [
-  "component",
-  "character",
-  "compound",
-  "sentence",
-] as const;
 
 type SelectedDeck = {
   id: string;
@@ -75,62 +55,6 @@ type SelectedDeck = {
   isSaved: boolean;
   settings: DeckSettings;
 };
-
-/** What a deck is made of, as one stacked bar plus its counts. */
-function DeckComposition({
-  typeCounts,
-}: {
-  typeCounts: DeckDto["typeCounts"];
-}) {
-  const parts = COMPOSITION_ORDER.map((type) => ({
-    meta: vocabTypeMeta(type),
-    count: typeCounts[type],
-  })).filter(({ count }) => count > 0);
-
-  // Widths come off the counts actually drawn rather than itemCount, so the bar
-  // always fills edge to edge.
-  const total = parts.reduce((sum, { count }) => sum + count, 0);
-
-  if (total === 0) return null;
-
-  return (
-    <div className="space-y-2">
-      <div
-        className="flex h-2 w-full overflow-hidden rounded-full bg-muted"
-        role="img"
-        aria-label={parts
-          .map(
-            ({ meta, count }) =>
-              `${count} ${meta.label.toLowerCase()}${count === 1 ? "" : "s"}`,
-          )
-          .join(", ")}
-      >
-        {parts.map(({ meta, count }) => (
-          <span
-            key={meta.key}
-            className={meta.fillClass}
-            style={{ width: `${(count / total) * 100}%` }}
-          />
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {parts.map(({ meta, count }) => (
-          <span
-            key={meta.key}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <span className={cn("size-2 rounded-full", meta.fillClass)} />
-            {meta.label}
-            <span className="font-display font-bold text-foreground tabular-nums">
-              {count}
-            </span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function DeckCard({
   deck,
@@ -163,10 +87,10 @@ function DeckCard({
             {deck.deckName}
           </CardTitle>
           {isSaved && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2.5 py-1 font-display text-xs font-bold text-success">
-              <Check className="size-3.5" />
+            <Badge variant="success">
+              <Check />
               Saved
-            </span>
+            </Badge>
           )}
         </div>
         <CardDescription className="line-clamp-2">
@@ -187,7 +111,7 @@ function DeckCard({
           </InlineStat>
         </div>
 
-        <DeckComposition typeCounts={deck.typeCounts} />
+        <CompositionBar typeCounts={deck.typeCounts} legend />
       </CardContent>
 
       <CardFooter>
@@ -240,7 +164,11 @@ function DeckGrid({
     placeholderData: keepPreviousData,
   });
 
-  const { data: savedDecks, isPending: isSavedPending } = useQuery(
+  const {
+    data: savedDecks,
+    isPending: isSavedPending,
+    isError: isSavedError,
+  } = useQuery(
     orpc.decks.getUserDecks.queryOptions({ input: SAVED_DECKS_INPUT }),
   );
 
@@ -265,7 +193,7 @@ function DeckGrid({
     return (
       <EmptyState
         pose="peek"
-        title="Couldn't load decks"
+        heading="Couldn't load decks"
         description={
           error instanceof Error && /unauthorized/i.test(error.message)
             ? "Please sign in to browse decks."
@@ -278,7 +206,7 @@ function DeckGrid({
   if (data.decks.length === 0) {
     return (
       <EmptyState
-        title={search ? `No decks match “${search}”` : "No decks yet"}
+        heading={search ? `No decks match “${search}”` : "No decks yet"}
         description={
           search
             ? "Try a different word, or plant a deck of your own."
@@ -297,7 +225,6 @@ function DeckGrid({
   }
 
   const { total } = data.pagingInfo;
-  const totalPages = Math.max(1, Math.ceil(total / DECKS_PER_PAGE));
 
   return (
     <>
@@ -312,36 +239,19 @@ function DeckGrid({
             key={deck.id}
             deck={deck}
             savedSettings={savedSettings.get(deck.id)}
-            isSavedPending={isSavedPending}
+            isSavedPending={isSavedPending || isSavedError}
             onSelectDeck={onSelectDeck}
           />
         ))}
       </div>
 
-      <div className="mt-8 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground tabular-nums">
-          {(page - 1) * DECKS_PER_PAGE + 1}–
-          {Math.min(page * DECKS_PER_PAGE, total)} of {total}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => onPageChange(Math.max(1, page - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <Pagination
+        page={page}
+        pageSize={DECKS_PER_PAGE}
+        total={total}
+        onPageChange={onPageChange}
+        className="mt-8"
+      />
     </>
   );
 }
@@ -402,7 +312,7 @@ function DecksContent() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <PageHeader
-        title="Vocabulary Decks"
+        heading="Vocabulary Decks"
         description="Browse what the community has planted, then add a deck to your garden."
         action={
           <Button size="lg" asChild>
@@ -418,6 +328,7 @@ function DecksContent() {
         <Search className="absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
+          aria-label="Search decks"
           placeholder="Search decks..."
           className="h-12 pl-12 text-base"
           value={search}
@@ -447,7 +358,7 @@ function DecksContent() {
           }
           onSave={handleSaveDeck}
           isPending={addDeckMutation.isPending}
-          title={
+          heading={
             selectedDeck.isSaved
               ? "Update Study Settings"
               : "Add Deck to Study List"
@@ -463,11 +374,5 @@ function DecksContent() {
 }
 
 export default function DecksPage() {
-  return (
-    <ErrorBoundary>
-      <Suspense fallback={<DecksLoading />}>
-        <DecksContent />
-      </Suspense>
-    </ErrorBoundary>
-  );
+  return <DecksContent />;
 }

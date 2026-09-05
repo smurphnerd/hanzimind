@@ -5,7 +5,7 @@ import React, { type ReactElement } from "react";
 
 import type { Cradle } from "@/server/initialization";
 
-export type SendEmailArgs = {
+type SendEmailArgs = {
   from: string;
   to: string;
   subject: string;
@@ -16,6 +16,17 @@ export interface EmailAdapter {
 }
 
 export class SmtpEmailAdapter implements EmailAdapter {
+  /**
+   * Built once and reused. A transport parses the connection URL, resolves the
+   * host and owns nodemailer's connection handling, and building a fresh one
+   * per message threw all of that away on every send.
+   *
+   * Lazy rather than built in the constructor, so resolving this adapter from
+   * the container — which happens on any request that touches the cradle —
+   * still costs nothing until an email is actually sent.
+   */
+  private transporter?: nodemailer.Transporter;
+
   public constructor(
     private deps: Cradle,
     private options: {
@@ -23,24 +34,26 @@ export class SmtpEmailAdapter implements EmailAdapter {
     },
   ) {}
 
-  public async sendEmail(args: SendEmailArgs): Promise<string> {
-    try {
-      const emailTransporter = nodemailer.createTransport(
+  private getTransporter(): nodemailer.Transporter {
+    if (!this.transporter) {
+      this.transporter = nodemailer.createTransport(
         this.options.smtpConnectionUrl,
       );
-
-      const { html, text } = await renderBody(args.body);
-
-      const result = await emailTransporter.sendMail({
-        ...args,
-        from: args.from,
-        html,
-        text,
-      });
-      return result.messageId;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to send email");
+      this.deps.logger.info("Created the SMTP transport");
     }
+    return this.transporter;
+  }
+
+  public async sendEmail(args: SendEmailArgs): Promise<string> {
+    const { html, text } = await renderBody(args.body);
+
+    const result = await this.getTransporter().sendMail({
+      ...args,
+      from: args.from,
+      html,
+      text,
+    });
+    return result.messageId;
   }
 }
 
@@ -52,30 +65,26 @@ export class SESEmailAdapter implements EmailAdapter {
   }
 
   public async sendEmail(args: SendEmailArgs): Promise<string> {
-    try {
-      const { html, text } = await renderBody(args.body);
-      const result = await this.client.send(
-        new SendEmailCommand({
-          Source: args.from,
-          Destination: {
-            ToAddresses: [args.to],
+    const { html, text } = await renderBody(args.body);
+    const result = await this.client.send(
+      new SendEmailCommand({
+        Source: args.from,
+        Destination: {
+          ToAddresses: [args.to],
+        },
+        Message: {
+          Subject: { Data: args.subject },
+          Body: {
+            Text: { Data: text },
+            Html: { Data: html },
           },
-          Message: {
-            Subject: { Data: args.subject },
-            Body: {
-              Text: { Data: text },
-              Html: { Data: html },
-            },
-          },
-        }),
-      );
-      if (!result.MessageId) {
-        throw new Error("Result does not have a message id");
-      }
-      return result.MessageId;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error("Failed to send email");
+        },
+      }),
+    );
+    if (!result.MessageId) {
+      throw new Error("Result does not have a message id");
     }
+    return result.MessageId;
   }
 }
 

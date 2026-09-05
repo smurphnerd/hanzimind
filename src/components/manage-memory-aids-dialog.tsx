@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Star } from "lucide-react";
+import { Star } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MemoryAidCard } from "@/components/memory-aid-card";
+import { MemoryAidForm } from "@/components/memory-aid-form";
 import { useORPC } from "@/lib/orpc.client";
 import { cn } from "@/lib/utils";
 
@@ -57,8 +57,6 @@ export function ManageMemoryAidsDialog({
 function ManageBody({ vocabItemId }: { vocabItemId: string }) {
   const orpc = useORPC();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState("");
-
   const listOptions = orpc.admin.listMemoryAids.queryOptions({
     input: { vocabItemId },
   });
@@ -72,14 +70,9 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
 
   const createMutation = useMutation(
     orpc.admin.createMemoryAid.mutationOptions({
-      onSuccess: () => {
-        setDraft("");
-        invalidate();
-      },
-      onError: (error) =>
-        toast.error(
-          error instanceof Error ? error.message : "Couldn't add that aid",
-        ),
+      // The form clears its own draft, and reports the failure under the field
+      // rather than in a toast that is gone by the time the admin looks back.
+      onSuccess: invalidate,
     }),
   );
 
@@ -94,7 +87,6 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
   );
 
   const busy = createMutation.isPending || setDefaultMutation.isPending;
-  const trimmed = draft.trim();
 
   return (
     <div className="space-y-5">
@@ -125,79 +117,61 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
             });
 
           return (
-            <div
+            <MemoryAidCard
               key={aid.id}
-              className={cn(
-                "flex items-start gap-3 rounded-2xl border border-border p-3",
-                aid.isDefault && "border-primary/40 bg-secondary/40",
-              )}
-            >
-              <button
-                type="button"
-                disabled={busy}
-                onClick={toggleDefault}
-                aria-label={
-                  aid.isDefault ? "Remove official pick" : "Make official pick"
-                }
-                aria-pressed={aid.isDefault}
-                className={cn(
-                  "mt-0.5 shrink-0 transition-colors disabled:opacity-50",
-                  aid.isDefault
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-primary",
-                )}
-              >
-                <Star
-                  className={cn("size-5", aid.isDefault && "fill-current")}
-                />
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-foreground">
-                  &ldquo;{aid.memoryAid}&rdquo;
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  {aid.isDefault && (
-                    <Badge className="bg-primary text-primary-foreground">
-                      Official
-                    </Badge>
+              highlighted={aid.isDefault}
+              marker={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={busy}
+                  onClick={toggleDefault}
+                  aria-label={
+                    aid.isDefault
+                      ? "Remove official pick"
+                      : "Make official pick"
+                  }
+                  aria-pressed={aid.isDefault}
+                  // Down from the icon size's 40px, which would out-weigh a
+                  // three-line card, but still a real target rather than the
+                  // bare 20px glyph this replaced.
+                  className={cn(
+                    "size-8",
+                    aid.isDefault
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-primary",
                   )}
+                >
+                  <Star
+                    className={cn("size-5", aid.isDefault && "fill-current")}
+                  />
+                </Button>
+              }
+              meta={
+                <>
+                  {aid.isDefault && <Badge>Official</Badge>}
                   {!aid.isPublic && <Badge variant="secondary">Private</Badge>}
-                  <span className="text-xs text-muted-foreground tabular-nums">
+                  <span className="tabular-nums">
                     {aid.usageCount} saved • by {aid.createdByUsername}
                   </span>
-                </div>
-              </div>
-            </div>
+                </>
+              }
+            >
+              {aid.memoryAid}
+            </MemoryAidCard>
           );
         })}
       </div>
 
-      <form
-        className="space-y-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!trimmed) return;
-          createMutation.mutate({ vocabItemId, memoryAid: trimmed });
-        }}
-      >
-        <Textarea
-          value={draft}
-          disabled={createMutation.isPending}
-          placeholder="Add a curated memory aid…"
-          className="min-h-20 resize-none"
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <div className="flex justify-end">
-          <Button type="submit" disabled={!trimmed || createMutation.isPending}>
-            {createMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Plus className="size-4" />
-            )}
-            Add aid
-          </Button>
-        </div>
-      </form>
+      <MemoryAidForm
+        onSubmit={(memoryAid) =>
+          createMutation.mutate({ vocabItemId, memoryAid })
+        }
+        isPending={createMutation.isPending}
+        error={createMutation.error}
+        submitLabel="Add aid"
+        placeholder="Add a curated memory aid…"
+      />
     </div>
   );
 }

@@ -427,8 +427,9 @@ and dynamically includes the S3 endpoint.
 - `media-src` - Must include S3 endpoint for audio playback
 - `connect-src` - Must include S3 endpoint for API calls
 - When adding external resources, update the CSP accordingly
-- There is no `worker-src`, so `default-src 'self'` applies: a library that spawns
-  a `blob:` web worker or compiles WASM needs this file amended first
+- `worker-src` is set explicitly and `default-src` is `'self'`: a library that spawns
+  a `blob:` web worker or compiles WASM needs the policy in `src/server/csp.ts` amended
+  first, and the nonce threaded through anything it injects
 
 ### Translation & TTS Services
 
@@ -501,12 +502,47 @@ export type VocabItemDto = z.infer<typeof VocabItemDto>;
 
 ## Important Patterns
 
+### A deck create writes its new dictionary rows on the deck's transaction
+
+The dictionary is shared, so a word one learner's create invents is a word every
+other learner searches. That makes a partial create a leak rather than a mess:
+the create used to insert those rows on the pool before the transaction opened,
+and a failure afterwards left them behind with no deck to reach them from and no
+way for the learner to remove them.
+
+So `VocabService` is split at the seam. `prepareVocabItems` does every slow call
+— DeepL, Edge TTS, the S3 upload — and returns rows **without writing them**;
+`insertVocabItems` writes them on an `Executor` the caller supplies.
+`DeckService.createDeck` runs the first outside any transaction and the second
+inside the one that writes the deck. Do not merge them back together: moving the
+network calls inside the transaction is the obvious way to make the create atomic
+and the wrong one, because it holds a connection open across a per-word round
+trip and the pool has ten. `DeckService.test.ts` pins both halves.
+
+What a rollback spares is structural, not filtered. A word the dictionary already
+holds is never prepared, so it is never inserted, so ROLLBACK cannot reach it —
+another learner's deck keeps its row. There is no delete in this path, and adding
+one would turn a leak into data loss.
+
+Two concurrent creates naming the same new word are settled by the unique glyph
+and `ON CONFLICT DO NOTHING`, never a retry or a re-check. Both prepare the word,
+because neither saw the other's row when it looked; the second blocks on the
+first's uncommitted index entry, then either finds the committed row or inserts
+its own. One row, both decks pointing at it. The insert must not use
+`.returning()` — that reports only the rows this statement wrote, so membership
+built from it would drop the word the other create won. This depends on READ
+COMMITTED, which is Postgres's default and which nothing here overrides; under
+REPEATABLE READ the same conflict is a serialization failure.
+
+`resolveConstituentClosure` takes the same executor and runs inside the
+transaction, because the rows it has to see are not committed yet.
+
 ### Error Handling
 
 Services throw errors for exceptional conditions. TanStack Query handles these errors automatically:
 
 ```typescript
-async addVocabItem(item: string): Promise<void> {
+async someServiceMethod(item: string): Promise<void> {
   try {
     // ... operation
   } catch (error) {

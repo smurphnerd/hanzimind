@@ -4,16 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { Network, Sparkles, Volume2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { CharacterStrokes } from "@/components/character-strokes";
 import { DecompositionGraphPanel } from "@/components/decomposition-graph-panel";
+import { useHydrated } from "@/lib/use-hydrated";
 import { ItemTypeBadge } from "@/components/item-type-badge";
 import { ComponentRoleBadge } from "@/components/component-role-badge";
-import {
-  SegmentedToggle,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedTabsList } from "@/components/segmented-tabs";
+import type { SegmentedOption } from "@/components/segmented-control";
 import type { VocabType } from "@/definitions/definitions";
 import { canPlayAudio, playAudio } from "@/lib/audio";
 import { vocabTypeMeta } from "@/lib/vocab-type";
@@ -148,16 +149,16 @@ function OriginDetails({
       {(formation || radical) && (
         <div className="flex flex-wrap items-center gap-2">
           {formation && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 font-display text-xs font-bold text-primary">
-              <Sparkles className="size-3.5" />
+            <Badge variant="secondary" className="px-3">
+              <Sparkles />
               {formation}
-            </span>
+            </Badge>
           )}
           {radical && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-display text-xs font-bold text-muted-foreground">
+            <Badge variant="muted" className="px-3">
               Radical
               <span className="hanzi text-sm text-foreground">{radical}</span>
-            </span>
+            </Badge>
           )}
         </div>
       )}
@@ -233,133 +234,117 @@ export function VocabEntryDetail({
   const visualCards = (showStrokes ? 1 : 0) + (showParts || hasOrigin ? 1 : 0);
 
   const [view, setView] = useState<EntryView>("standard");
+  const hydrated = useHydrated();
   // Sentences decompose by segmentation rather than by glyph, which is a
   // different relation from the one the graph draws, so they have no graph view.
   // A component does: it has no parts, but the characters built from it are the
   // interesting half.
   const canShowGraph = entry.vocabType !== "sentence";
-  const showingGraph = canShowGraph && view === "graph";
 
-  return (
-    <div className={cn("space-y-6", className)}>
-      {/* Header */}
-      <Card>
-        <CardContent>
+  const header = (
+    <Card>
+      <CardContent>
+        <div
+          className={cn("flex gap-6", isLongForm ? "flex-col" : "items-center")}
+        >
           <div
             className={cn(
-              "flex gap-6",
-              isLongForm ? "flex-col" : "items-center",
+              "flex items-center justify-center rounded-2xl px-5",
+              meta.softClass,
+              isLongForm ? "w-full py-6" : "h-28 min-w-28 shrink-0",
             )}
           >
-            <div
+            <span
               className={cn(
-                "flex items-center justify-center rounded-2xl px-5",
-                meta.softClass,
-                isLongForm ? "w-full py-6" : "h-28 min-w-28 shrink-0",
+                "hanzi text-center text-foreground",
+                glyphSize(entry.vocabItem, HEADER_GLYPH_SIZES),
+                isLongForm ? "leading-relaxed" : "whitespace-nowrap",
               )}
             >
-              <span
-                className={cn(
-                  "hanzi text-center text-foreground",
-                  glyphSize(entry.vocabItem, HEADER_GLYPH_SIZES),
-                  isLongForm ? "leading-relaxed" : "whitespace-nowrap",
-                )}
-              >
-                {entry.vocabItem}
-              </span>
+              {entry.vocabItem}
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-col items-start gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <ItemTypeBadge type={entry.vocabType} />
+              {entry.vocabType === "component" && (
+                <ComponentRoleBadge phonetic={entry.phonetic} />
+              )}
             </div>
-            <div className="flex min-w-0 flex-col items-start gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <ItemTypeBadge type={entry.vocabType} />
-                {entry.vocabType === "component" && (
-                  <ComponentRoleBadge phonetic={entry.phonetic} />
-                )}
-              </div>
-              {/* Branch on the flag, never on the reading. Most components hold
+            {/* Branch on the flag, never on the reading. Most components hold
                   a reading borrowed from the character they abbreviate (亻 has
                   人's "rén"); `readingOf` blanks it server-side, so an empty
                   pinyin here cannot tell "has no sound" from "we hid it", and
                   either way the answer is the flag. */}
-              {entry.vocabType === "component" && !entry.phonetic ? (
-                <p className="text-sm text-muted-foreground">
-                  A part used to build other characters — it has no
-                  pronunciation of its own.
-                </p>
-              ) : (
-                <>
-                  <div className={cn("hanzi text-3xl", meta.colorClass)}>
-                    {entry.pinyin}
-                  </div>
-                  {entry.vocabType === "component" && (
-                    <p className="text-sm text-muted-foreground">
-                      A part used to build other characters — its sound is a
-                      clue to how they are said.
-                    </p>
-                  )}
-                  {canPlayAudio(entry.audioUrl) && (
-                    <Button
-                      variant="outline"
-                      onClick={() => playAudio(entry.audioUrl)}
-                    >
-                      <Volume2 className="size-4" />
-                      Play audio
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
+            {entry.vocabType === "component" && !entry.phonetic ? (
+              <p className="text-sm text-muted-foreground">
+                A part used to build other characters — it has no pronunciation
+                of its own.
+              </p>
+            ) : (
+              <>
+                <div className={cn("hanzi text-3xl", meta.colorClass)}>
+                  {entry.pinyin}
+                </div>
+                {entry.vocabType === "component" && (
+                  <p className="text-sm text-muted-foreground">
+                    A part used to build other characters — its sound is a clue
+                    to how they are said.
+                  </p>
+                )}
+                {canPlayAudio(entry.audioUrl) && (
+                  <Button
+                    variant="outline"
+                    onClick={() => playAudio(entry.audioUrl)}
+                  >
+                    <Volume2 className="size-4" />
+                    Play audio
+                  </Button>
+                )}
+              </>
+            )}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const graphPanel = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-xl tracking-tight">Connections</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <DecompositionGraphPanel
+          vocabItem={entry.vocabItem}
+          linkable={partsLinkable}
+        />
+      </CardContent>
+    </Card>
+  );
+
+  /* The definition is out of the graph panel on purpose: there, every node
+     carries its own gloss on hover and the point is the structure rather than
+     the prose. */
+  const standardPanel = (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl tracking-tight">Definition</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {entry.translation ? (
+            <p className="text-lg text-foreground">{entry.translation}</p>
+          ) : (
+            <p className="text-lg text-muted-foreground">
+              No definition yet for this entry.
+            </p>
+          )}
+          {definitionFooter}
         </CardContent>
       </Card>
 
-      {canShowGraph && (
-        <div className="flex justify-end">
-          <SegmentedToggle
-            options={ENTRY_VIEWS}
-            value={view}
-            onChange={setView}
-            label="Entry view"
-          />
-        </div>
-      )}
-
-      {showingGraph && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl tracking-tight">
-              Connections
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DecompositionGraphPanel
-              vocabItem={entry.vocabItem}
-              linkable={partsLinkable}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Definition. Hidden in graph view, where every node carries its own gloss
-          on hover and the point is the structure rather than the prose. */}
-      {!showingGraph && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl tracking-tight">Definition</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {entry.translation ? (
-              <p className="text-lg text-foreground">{entry.translation}</p>
-            ) : (
-              <p className="text-lg text-muted-foreground">
-                No definition yet for this entry.
-              </p>
-            )}
-            {definitionFooter}
-          </CardContent>
-        </Card>
-      )}
-
-      {!showingGraph && visualCards > 0 && (
+      {visualCards > 0 && (
         <div
           // items-start so a short card (an Origin note) sits at its own height
           // instead of stretching to match the stroke animation beside it.
@@ -438,7 +423,49 @@ export function VocabEntryDetail({
           )}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  // A sentence has no graph view, so it gets the plain layout rather than a
+  // Tabs root with one panel and no tab — a tabpanel whose aria-labelledby
+  // names a trigger that was never rendered.
+  if (!canShowGraph) {
+    return (
+      <div className={cn("space-y-6", className)}>
+        {header}
+        {standardPanel}
+      </div>
+    );
+  }
+
+  return (
+    <Tabs
+      value={view}
+      onValueChange={(next) => setView(next as EntryView)}
+      className={cn("gap-6", className)}
+    >
+      {header}
+
+      <div className="flex justify-end">
+        <SegmentedTabsList
+          options={ENTRY_VIEWS}
+          label="Entry view"
+          // React attaches this pill's listeners about two seconds after it is
+          // painted, and a click in that window reaches no handler to be queued
+          // into, so it is lost rather than replayed.
+          disabled={!hydrated}
+        />
+      </div>
+
+      {/* flex-none over TabsContent's own flex-1: a panel here sizes to its
+          content in a page column, not to a share of the column. */}
+      <TabsContent value="graph" className="flex-none">
+        {graphPanel}
+      </TabsContent>
+      <TabsContent value="standard" className="flex-none space-y-6">
+        {standardPanel}
+      </TabsContent>
+    </Tabs>
   );
 }
 

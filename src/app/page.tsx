@@ -3,46 +3,12 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Flame, Target } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mika } from "@/components/mika";
+import { StatTile } from "@/components/stat-tile";
 import { authClient } from "@/lib/authClient";
-
-function StatTile({
-  icon,
-  tone,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  tone: "violet" | "coral" | "green";
-  value: string;
-  label: string;
-}) {
-  const toneClass = {
-    violet: "bg-type-character-soft text-type-character",
-    coral: "bg-secondary text-primary",
-    green: "bg-success/15 text-success",
-  }[tone];
-
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4">
-        <span
-          className={`flex size-12 items-center justify-center rounded-2xl ${toneClass}`}
-        >
-          {icon}
-        </span>
-        <div>
-          <div className="font-display text-2xl font-extrabold tracking-tight">
-            {value}
-          </div>
-          <div className="text-sm text-muted-foreground">{label}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function Home() {
   const { data: session, isPending } = authClient.useSession();
@@ -71,9 +37,12 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 font-display text-sm font-bold text-primary">
-            <Flame className="size-4" />5 day streak
-          </div>
+          <Badge
+            variant="secondary"
+            className="px-4 py-2 text-sm [&>svg]:size-4"
+          >
+            <Flame />5 day streak
+          </Badge>
         </div>
 
         {/* Resume hero */}
@@ -94,7 +63,7 @@ export default function Home() {
               asChild
               variant="secondary"
               size="icon"
-              className="size-12 shrink-0 bg-white text-primary hover:bg-white/90"
+              className="size-12 shrink-0 bg-card text-primary hover:bg-card/90"
             >
               <Link href="/study" aria-label="Resume studying">
                 <ArrowRight className="size-5" />

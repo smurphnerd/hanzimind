@@ -1,11 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, Flag, Lightbulb, Plus, Star } from "lucide-react";
+import { Flag, Lightbulb, Plus, Star } from "lucide-react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
+import { BackLink } from "@/components/back-link";
+import { MemoryAidCard } from "@/components/memory-aid-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { authClient } from "@/lib/authClient";
@@ -19,7 +20,6 @@ import { AdminVocabEditor } from "@/components/admin-vocab-editor";
 import { VocabEntryDetail } from "@/components/vocab-entry";
 import { EmptyState } from "@/components/empty-state";
 import type { MemoryAidDto } from "@/definitions/definitions";
-import { cn } from "@/lib/utils";
 
 function DictionaryWordContent() {
   const orpc = useORPC();
@@ -57,13 +57,7 @@ function DictionaryWordContent() {
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
-      <Link
-        href="/dictionary"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ChevronLeft className="size-4" />
-        Back to Dictionary
-      </Link>
+      <BackLink href="/dictionary">Back to Dictionary</BackLink>
 
       <VocabEntryDetail
         entry={vocabData}
@@ -99,39 +93,33 @@ function DictionaryWordContent() {
                   const isDefault =
                     mnemonic.id === vocabData.defaultMemoryAidId;
                   return (
-                    <div
+                    <MemoryAidCard
                       key={mnemonic.id}
-                      className={cn(
-                        "border-b border-border pb-4 last:border-b-0 last:pb-0",
-                        isDefault &&
-                          "-mx-3 rounded-2xl border-b-0 bg-secondary/40 px-3 py-3",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <p className="mb-2 text-foreground">
-                            {isDefault ? (
-                              <span className="mr-2 inline-flex translate-y-0.5 text-primary">
-                                <Star className="size-5 fill-current" />
-                              </span>
-                            ) : (
-                              <span className="mr-2 font-display text-lg font-bold text-primary tabular-nums">
-                                {index + 1}.
-                              </span>
-                            )}
-                            &ldquo;{mnemonic.memoryAid}&rdquo;
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {isDefault ? (
-                              <span className="font-display font-bold text-primary">
-                                Official pick
-                              </span>
-                            ) : (
-                              <>Saved by {mnemonic.usageCount} users</>
-                            )}{" "}
-                            • by {mnemonic.createdByUsername}
-                          </p>
-                        </div>
+                      highlighted={isDefault}
+                      marker={
+                        isDefault ? (
+                          <span className="inline-flex text-primary">
+                            <Star className="size-5 fill-current" />
+                          </span>
+                        ) : (
+                          <span className="font-display text-lg font-bold text-primary tabular-nums">
+                            {index + 1}.
+                          </span>
+                        )
+                      }
+                      meta={
+                        <span>
+                          {isDefault ? (
+                            <span className="font-display font-bold text-primary">
+                              Official pick
+                            </span>
+                          ) : (
+                            <>Saved by {mnemonic.usageCount} users</>
+                          )}{" "}
+                          • by {mnemonic.createdByUsername}
+                        </span>
+                      }
+                      action={
                         <Button
                           variant="ghost"
                           size="sm"
@@ -141,8 +129,10 @@ function DictionaryWordContent() {
                         >
                           <Flag className="size-4" />
                         </Button>
-                      </div>
-                    </div>
+                      }
+                    >
+                      {mnemonic.memoryAid}
+                    </MemoryAidCard>
                   );
                 })}
               </div>
@@ -165,7 +155,7 @@ function DictionaryWordContent() {
             <EmptyState
               bare
               pose="peek"
-              title="No memory aids yet"
+              heading="No memory aids yet"
               description="Be the first to write a hook that makes this one stick."
               action={
                 <Button onClick={() => setIsMemoryAidDialogOpen(true)}>

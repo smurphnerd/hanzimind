@@ -9,7 +9,7 @@ export function Footer() {
             <span className="font-display font-extrabold text-foreground">
               HanziMind
             </span>
-            <span>© 2025</span>
+            <span>© {new Date().getFullYear()}</span>
           </div>
 
           <div className="flex items-center gap-6">

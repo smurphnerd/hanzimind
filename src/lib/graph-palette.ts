@@ -13,7 +13,7 @@ import type { VocabType } from "@/definitions/definitions";
  * Consumed with `useSyncExternalStore(subscribeToTheme, paletteSnapshot, () => null)`
  * — the stylesheet is an external system, not React state.
  */
-export interface GraphPalette {
+interface GraphPalette {
   type: Record<VocabType, string>;
   focus: string;
   text: string;

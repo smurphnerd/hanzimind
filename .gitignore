@@ -45,3 +45,9 @@ next-env.d.ts
 
 # agent worktrees — separate checkouts of this repo, never part of a commit here
 /.claude/worktrees
+
+# verification lanes — per-lane env, pid and logs written by lane-up.sh
+/development/lanes
+
+# Copyrighted book sources and derived verbatim extracts (do not commit)
+books/

@@ -1,8 +1,9 @@
 import "server-only";
 
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
+import { escapeLike } from "@/lib/sql";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
@@ -16,12 +17,15 @@ import type {
   DeckGraphDto,
   DeckTypeCountsDto,
 } from "@/definitions/definitions";
+import { NotFoundError } from "@/server/endpoints/errors";
+import type { VocabService } from "@/server/services/VocabService";
 
 export class DeckService {
   constructor(
     private deps: {
       logger: Logger;
       database: Drizzle;
+      vocabService: VocabService;
     },
   ) {}
 
@@ -74,6 +78,138 @@ export class DeckService {
     )`;
   }
 
+  /**
+   * The columns every deck card is built from.
+   *
+   * Written out three times before this — browse, deck detail and "my decks" —
+   * with the three correlated subqueries copied along with them, so a card's
+   * counts could only stay the same in all three by being edited in all three.
+   */
+  private deckHeaderColumns() {
+    return {
+      id: schema.decks.id,
+      deckName: schema.decks.deckName,
+      description: schema.decks.description,
+      createdById: schema.decks.createdById,
+      createdByUsername: schema.users.name,
+      createdAt: schema.decks.createdAt,
+      updatedAt: schema.decks.updatedAt,
+      numLearners: this.getNumLearnersSubquery(),
+      itemCount: this.getItemCountSubquery(),
+      typeCounts: this.getTypeCountsSubquery(),
+    };
+  }
+
+  /**
+   * Build a deck from a list of glyphs, pulling in everything they are made of.
+   *
+   * Two phases, and the order is load-bearing. Everything that can fail slowly or
+   * partially — DeepL, speech synthesis, the S3 upload behind a new dictionary
+   * row — runs first as `prepareVocabItems`, which resolves those rows without
+   * writing them. The transaction then writes only values this already holds, so
+   * it is never open across a network call.
+   *
+   * The words the create invents are written on that same transaction, which is
+   * the difference between this and what it replaced. A create that failed
+   * partway used to leave them in the dictionary permanently: the learner got no
+   * deck, no way to remove what they typed, and a word of their choosing sat in
+   * the corpus every other learner searches. Now the failure takes the rows with
+   * it — the rows, and not the audio the prepare phase uploaded for them, which
+   * no database rollback can reach. That object is content-addressed by the
+   * word's md5, invisible to learners, absent from search, and reused by the
+   * next create of the same word, so it is litter rather than a leak. Trunk
+   * orphaned the object AND the row; this orphans only the object.
+   *
+   * What survives a rollback is decided by which rows the transaction wrote, not
+   * by a rule applied afterwards. A word the dictionary already held is never
+   * prepared, so it is never inserted, so ROLLBACK cannot reach it — another
+   * learner's deck keeps pointing at a row this create had no hand in. There is
+   * no delete anywhere in this path and no list of ids to get wrong.
+   *
+   * `skipped` names the requested glyphs that were refused for being disabled.
+   * The deck that results is larger than the request, not smaller: constituents
+   * are members too.
+   */
+  async createDeck(
+    userId: string,
+    input: { deckName: string; description: string; vocabList: string[] },
+  ): Promise<{ id: string; skipped: string[] }> {
+    const { deckName, description, vocabList } = input;
+
+    // A disabled glyph is meant to behave as if deleted, so drop it from the
+    // request rather than treating it as missing — it exists, it just cannot
+    // be taught, and trying to "create" a single character throws.
+    const rows = await this.deps.vocabService.getStoredVocabItems(vocabList);
+    const storedSet = new Set(rows.map((row) => row.vocabItem));
+    const usableSet = new Set(
+      rows.filter((row) => !row.disabled).map((row) => row.vocabItem),
+    );
+    const accepted = vocabList.filter(
+      (item) => !storedSet.has(item) || usableSet.has(item),
+    );
+    const acceptedSet = new Set(accepted);
+    const skipped = vocabList.filter((item) => !acceptedSet.has(item));
+
+    // Phase one: no writes, and every slow call in the whole create.
+    const prepared = await this.deps.vocabService.prepareVocabItems(
+      accepted.filter((vocabItem) => !usableSet.has(vocabItem)),
+    );
+
+    const id = await this.deps.database.transaction(async (tx) => {
+      await this.deps.vocabService.insertVocabItems(tx, prepared);
+
+      // On `tx`, and it has to be: the rows just inserted are not committed, so
+      // the closure would resolve without them on any other connection and the
+      // deck would be missing the words the learner actually typed.
+      const members = await this.deps.vocabService.resolveConstituentClosure(
+        accepted,
+        tx,
+      );
+
+      const [deck] = await tx
+        .insert(schema.decks)
+        .values({ deckName, description, createdById: userId })
+        .returning({ id: schema.decks.id });
+
+      if (!deck) {
+        throw new Error("Deck insert returned no row");
+      }
+
+      if (members.length > 0) {
+        const rows = await tx
+          .select({
+            id: schema.vocabItems.id,
+            vocabItem: schema.vocabItems.vocabItem,
+          })
+          .from(schema.vocabItems)
+          .where(
+            and(
+              inArray(schema.vocabItems.vocabItem, members),
+              // Redundant against the closure, which cannot return a disabled
+              // glyph — kept because it is the last read before the insert and
+              // a row can be disabled while the external calls above are running.
+              eq(schema.vocabItems.disabled, false),
+            ),
+          );
+
+        if (rows.length > 0) {
+          const requested = new Set(vocabList);
+          await tx.insert(schema.deckVocabItems).values(
+            rows.map((row) => ({
+              deckId: deck.id,
+              vocabItemId: row.id,
+              isConstituent: !requested.has(row.vocabItem),
+            })),
+          );
+        }
+      }
+
+      return deck.id;
+    });
+
+    return { id, skipped };
+  }
+
   async browseDeck(args: {
     search?: string;
     page: number;
@@ -84,10 +220,11 @@ export class DeckService {
 
     // Deck names are terse, so a learner searching "HSK" should still find a deck
     // that only says so in its blurb.
-    const conditions = search
+    const pattern = search ? `%${escapeLike(search.trim())}%` : undefined;
+    const conditions = pattern
       ? or(
-          ilike(schema.decks.deckName, `%${search}%`),
-          ilike(schema.decks.description, `%${search}%`),
+          ilike(schema.decks.deckName, pattern),
+          ilike(schema.decks.description, pattern),
         )
       : undefined;
 
@@ -99,18 +236,7 @@ export class DeckService {
     const total = totalResult?.count ?? 0;
 
     const decks = await this.deps.database
-      .select({
-        id: schema.decks.id,
-        deckName: schema.decks.deckName,
-        description: schema.decks.description,
-        createdById: schema.decks.createdById,
-        createdByUsername: schema.users.name,
-        createdAt: schema.decks.createdAt,
-        updatedAt: schema.decks.updatedAt,
-        numLearners: this.getNumLearnersSubquery(),
-        itemCount: this.getItemCountSubquery(),
-        typeCounts: this.getTypeCountsSubquery(),
-      })
+      .select(this.deckHeaderColumns())
       .from(schema.decks)
       .innerJoin(schema.users, eq(schema.decks.createdById, schema.users.id))
       .where(conditions)
@@ -136,24 +262,13 @@ export class DeckService {
     const { deckId } = args;
 
     const [deck] = await this.deps.database
-      .select({
-        id: schema.decks.id,
-        deckName: schema.decks.deckName,
-        description: schema.decks.description,
-        createdById: schema.decks.createdById,
-        createdByUsername: schema.users.name,
-        createdAt: schema.decks.createdAt,
-        updatedAt: schema.decks.updatedAt,
-        numLearners: this.getNumLearnersSubquery(),
-        itemCount: this.getItemCountSubquery(),
-        typeCounts: this.getTypeCountsSubquery(),
-      })
+      .select(this.deckHeaderColumns())
       .from(schema.decks)
       .innerJoin(schema.users, eq(schema.decks.createdById, schema.users.id))
       .where(eq(schema.decks.id, deckId));
 
     if (!deck) {
-      throw new Error("Deck not found");
+      throw new NotFoundError("Deck not found");
     }
 
     const whereConditions = and(
@@ -207,6 +322,15 @@ export class DeckService {
    * a projection of the corpus.
    */
   async getDeckGraph(args: { deckId: string }): Promise<DeckGraphDto> {
+    const [deck] = await this.deps.database
+      .select({ id: schema.decks.id })
+      .from(schema.decks)
+      .where(eq(schema.decks.id, args.deckId));
+
+    if (!deck) {
+      throw new NotFoundError("Deck not found");
+    }
+
     const rows = await this.deps.database
       .select({
         vocabItem: schema.vocabItems.vocabItem,
@@ -262,17 +386,8 @@ export class DeckService {
 
     const decks = await this.deps.database
       .select({
-        id: schema.decks.id,
-        deckName: schema.decks.deckName,
-        description: schema.decks.description,
-        createdById: schema.decks.createdById,
-        createdByUsername: schema.users.name,
-        createdAt: schema.decks.createdAt,
-        updatedAt: schema.decks.updatedAt,
+        ...this.deckHeaderColumns(),
         lastStudied: schema.userDecks.updatedAt,
-        numLearners: this.getNumLearnersSubquery(),
-        itemCount: this.getItemCountSubquery(),
-        typeCounts: this.getTypeCountsSubquery(),
         includeConstituents: schema.userDecks.includeConstituents,
         readingEnabled: schema.userDecks.readingEnabled,
         listeningEnabled: schema.userDecks.listeningEnabled,
@@ -283,6 +398,11 @@ export class DeckService {
       .innerJoin(schema.decks, eq(schema.userDecks.deckId, schema.decks.id))
       .innerJoin(schema.users, eq(schema.decks.createdById, schema.users.id))
       .where(eq(schema.userDecks.userId, userId))
+      // Same hazard browseDeck guards against: an unordered scan may be
+      // permuted between the page-1 and page-2 plans, duplicating some saved
+      // decks across pages and leaving others unreachable. Most recently
+      // studied first, with `id` breaking ties among decks studied together.
+      .orderBy(desc(schema.userDecks.updatedAt), schema.decks.id)
       .limit(perPage)
       .offset(offset);
 
