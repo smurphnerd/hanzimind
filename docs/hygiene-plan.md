@@ -1181,34 +1181,33 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 
 ## Store progress as one row per study type (P4-PROGRESS)
 
-**Depends on.** P4-INDEX, P3-SESSION.
+**Depends on.** P3-SESSION, which has merged. It also named P4-INDEX, which has not started; nothing here adds an index or a cascade, so P4-INDEX's list applies unchanged plus `user_study_progress.user_id`, which wants a cascade with the rest.
 
 **Files.**
 
 - [ ] Edit `src/server/database/schema.ts`.
-- [ ] Create `drizzle/0002_progress_rows.sql`.
 - [ ] Edit `src/server/services/StudyService.ts`, `src/server/study-rules.ts`, `src/server/study-scheduling.ts`, `src/server/decomposition-graph.ts`, `src/definitions/definitions.ts`, `src/app/study/**`, `src/components/study/**`, `src/app/decks/[deckId]/page.tsx`.
 - [ ] Edit every test that reads `readingLevel` and friends.
 
 **Build.**
 
 - [ ] Run `pstack:architect` first. Two candidates at least. A new `userStudyProgress(userId, vocabItemId, studyType, level, nextAt)` table replacing the four column pairs, and a JSONB map on the existing row. Record the decision in Appendix B.
-- [ ] Write the migration as SQL that copies the four pairs into rows, then drops the columns. The migration is reversible by a checked-in down script.
+- [ ] Write the migration as SQL that copies the four pairs into rows, then drops the columns. The copy is reversible by `--down` on the same script, so both directions share every SQL constant and one symmetric verification.
 - [ ] Replace every `${studyType}Level` template with a lookup on the new shape. `weakestServableLevel` and the constituent gate read the new shape.
 - [ ] DTOs expose `progress: Record<StudyType, { level, nextAt }>`.
 
 **You see.**
 
-- [ ] `grep -rn 'Level\`' src` prints zero lines and a learner's levels are identical before and after the migration.
+- [ ] `grep -rn '\[\`\${' src`prints zero lines. The obvious pattern is unachievable: it matches any inline code span ending in`Level`, such as `minLevel`, and prints ten lines of pure comment and a learner's levels are identical before and after the migration.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `study-rules.test.ts` and `study-scheduling.test.ts` are rewritten on the new shape with the same cases. `migrate.test.ts` gains a case that the copy SQL preserves a fixture of four levels. Run `pnpm test study-rules study-scheduling migrate`.
+- [ ] `study-rules.test.ts` is rewritten on the new shape with the same cases. `study-scheduling.ts` is untouched, because since P3-RULES it takes a plain `currentLevel: number` and never read a level column, so the original box was stale before it was written. `scripts/__tests__/backfill-study-progress.test.ts` covers the copy. Run `pnpm test study-rules backfill-study-progress`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
 
 - [ ] Lane 1. Seed a learner with distinct levels per type at trunk, snapshot via `psql`, migrate. Save `progress-migrate-parity.png`. Pass when every level and `next_at` matches the snapshot.
-- [ ] Lane 2. Run the down script and re-run the up. Save `progress-reversible.png`. Pass when the snapshot still matches.
+- [ ] Lane 2. Run `--down` on the backfill script and re-run the copy. Save `progress-reversible.png`. Pass when the snapshot still matches.
 - [ ] Lane 3. Study one card per type. Save `progress-writes.png`. Pass when exactly one row per type changes.
 - [ ] Lane 4. Study a character whose component is unknown by sound. Save `progress-gate.png`. Pass when 艮 is served before 很.
 - [ ] Lane 5. Open the deck progress panel. Save `progress-panel.png`. Pass when counts match `psql`.
