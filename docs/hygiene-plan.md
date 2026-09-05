@@ -1276,7 +1276,7 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] Metric. p50 milliseconds of a sign-up request for each address kind.
-- [ ] Probe. `oracle-probe.mjs --port <p> --endpoint sign-up --n 50`, which exits non-zero if status, headers, body or median separate the two kinds. Not `perf-probe.mjs`: it posts to `/api/rpc/auth/sign-up`, which does not exist because sign-up is a better-auth route under `/api/auth`, and it reuses one body so every call after the first is the taken case.
+- [ ] Probe. `oracle-probe.mjs --port <p> --endpoint sign-up --n 50`, which exits non-zero if status, headers, body or median separate the two kinds. Not `perf-probe.mjs`, which posts to `/api/rpc/auth/sign-up`, a route that does not exist because sign-up is a better-auth route under `/api/auth`, and it reuses one body so every call after the first is the taken case.
 - [ ] Baseline. Record the trunk values first.
 - [ ] Rule. Head fails when the two medians differ by more than 10 percent of each other.
 
