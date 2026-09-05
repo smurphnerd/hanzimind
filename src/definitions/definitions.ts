@@ -417,6 +417,17 @@ export const MEMORY_AID_MAX = 1000;
 
 export const DECK_NAME_MAX = 80;
 export const DECK_DESCRIPTION_MAX = 500;
+/**
+ * How many glyphs one deck create may name.
+ *
+ * Also, at present, what keeps the create under Postgres's 65,535 bound
+ * parameters per statement. `VocabService.insertVocabItems` sends every word a
+ * create invented as ONE multi-row INSERT at 7 parameters a row, so it fails
+ * above about 9,362 new rows in a single create — unreachable from 200 words,
+ * whose parts are already in the dictionary, and unreachable in practice
+ * because resolving that many new words would take over an hour of DeepL and
+ * speech synthesis first. Raising this materially means chunking that insert.
+ */
 export const DECK_ITEMS_MAX = 200;
 
 /**

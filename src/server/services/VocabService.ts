@@ -7,7 +7,7 @@ import { filterDecomposition } from "@/lib/decomposition";
 import { escapeLike } from "@/lib/sql";
 import { readingOf } from "@/server/study-rules";
 import { pageRange } from "@/lib/pagination";
-import type { Drizzle } from "@/server/database/database";
+import type { Drizzle, Executor } from "@/server/database/database";
 import {
   memoryAids,
   schema,
@@ -83,6 +83,26 @@ export function toVocabItemDto(
     updatedAt: row.updatedAt,
   };
 }
+
+/**
+ * A dictionary row a create needs but the dictionary does not hold yet: fully
+ * resolved — translated, transcribed, its audio already uploaded — and written
+ * nowhere.
+ *
+ * The whole point of it being a value rather than a side effect. Resolving one
+ * costs a DeepL call and a speech-synthesis upload, so it cannot happen inside a
+ * transaction; writing one has to happen inside the caller's transaction, or a
+ * create that fails afterwards leaves the learner's words in the shared
+ * dictionary with no deck to reach them from. The type is the seam between
+ * those two halves.
+ */
+export type PreparedVocabItem = {
+  vocabItem: string;
+  translation: string;
+  pinyin: string;
+  vocabType: VocabType;
+  audioUrl: string;
+};
 
 /**
  * ORDER BY terms for a memory-aid list: the starred aid first, then most-used.
@@ -380,7 +400,7 @@ export class VocabService {
   /**
    * A disabled row still occupies its unique glyph, so a write path must not read
    * it as absent and go off to create it: there is nothing to build a single
-   * character from but the dictionary seed, and addVocabItem throws.
+   * character from but the dictionary seed, and resolveNewVocabItem throws.
    */
   async getStoredVocabItems(
     vocabList: string[],
@@ -398,13 +418,72 @@ export class VocabService {
       .where(inArray(schema.vocabItems.vocabItem, vocabList));
   }
 
-  async addVocabItem(vocabItem: string): Promise<void> {
-    // Already stored — including as a disabled row, which still owns the glyph.
-    const existing = await this.getStoredVocabItems([vocabItem]);
-    if (existing.length > 0) {
-      return;
+  /**
+   * Resolve every glyph in `vocabList` the dictionary does not already hold,
+   * plus everything those glyphs are written with, and return the rows —
+   * without writing any of them.
+   *
+   * Nothing here writes, so the caller can insert the result inside its own
+   * transaction and have a later failure discard it. That is also what makes the
+   * discarding safe without a "was this ours" filter: a glyph the dictionary
+   * already holds is never prepared, so it is never inserted, so a rollback has
+   * nothing of it to undo. Another learner's word is not spared by a check — it
+   * is out of reach of an operation that never wrote it.
+   *
+   * One membership query per level of the hierarchy, batched across the whole
+   * frontier, rather than one per glyph. Same shape as
+   * resolveConstituentClosure, and for the same reason.
+   */
+  async prepareVocabItems(vocabList: string[]): Promise<PreparedVocabItem[]> {
+    const prepared: PreparedVocabItem[] = [];
+    // Every glyph that has reached a frontier, which deduplicates within a level
+    // as well as across them. Two words sharing a part used to be reconciled by
+    // the first one's INSERT being visible to the second one's lookup, and there
+    // are no inserts here to see.
+    const seen = new Set(vocabList);
+    let frontier = Array.from(seen);
+
+    while (frontier.length > 0) {
+      const stored = new Set(
+        (await this.getStoredVocabItems(frontier)).map((row) => row.vocabItem),
+      );
+
+      const next: string[] = [];
+      for (const vocabItem of frontier) {
+        // Already stored — including as a disabled row, which still owns the glyph.
+        if (stored.has(vocabItem)) {
+          continue;
+        }
+
+        const { row, parts } = await this.resolveNewVocabItem(vocabItem);
+        prepared.push(row);
+
+        for (const part of parts) {
+          if (!seen.has(part)) {
+            seen.add(part);
+            next.push(part);
+          }
+        }
+      }
+
+      frontier = next;
     }
 
+    return prepared;
+  }
+
+  /**
+   * Everything the dictionary needs in order to hold a glyph it has never seen,
+   * and the parts that have to be resolved after it.
+   *
+   * Every call that can fail slowly lives here and nowhere else: DeepL for the
+   * gloss, Edge TTS and the S3 upload for the audio. Keeping them out of
+   * insertVocabItems is what lets the insert run on a caller's transaction
+   * without holding one open across a network round trip.
+   */
+  private async resolveNewVocabItem(
+    vocabItem: string,
+  ): Promise<{ row: PreparedVocabItem; parts: string[] }> {
     // Check if it's a sentence by cutting it
     const parts = this.deps.translator.cutSentence(vocabItem);
 
@@ -442,22 +521,59 @@ export class VocabService {
     // Generate audio and get URL
     const audioUrl = await this.deps.tts.getVocabAudio(vocabItem);
 
-    // Recursively create components
-    for (const component of componentsToAdd) {
-      await this.addVocabItem(component);
+    return {
+      row: { vocabItem, translation, pinyin, vocabType, audioUrl },
+      parts: componentsToAdd,
+    };
+  }
+
+  /**
+   * Write prepared rows on the caller's executor, so that when it is a
+   * transaction they live or die with everything else it writes.
+   *
+   * ON CONFLICT DO NOTHING against the unique glyph is the whole of the
+   * concurrency story, and it is deliberately not a retry and not a re-check.
+   * Two creates naming the same new word both prepare it, because neither saw
+   * the other's row when it looked. The first to reach this statement holds an
+   * uncommitted unique-index entry and the second blocks on it rather than
+   * failing. If the first commits, the second's insert resolves to DO NOTHING
+   * and its later read finds the committed row, so one row exists and both decks
+   * point at it. If the first rolls back, the second's insert simply succeeds.
+   * Neither outcome needs a second attempt and neither leaves a duplicate.
+   *
+   * The wait is bounded because this transaction issues no network call, and the
+   * read that follows is a separate statement, so READ COMMITTED — the default,
+   * which nothing here overrides — gives it a snapshot taken after the other
+   * transaction ended. Raising the isolation level would break this: under
+   * REPEATABLE READ the same conflict is a serialization failure instead.
+   *
+   * Deliberately not `.returning()`. That yields only the rows this statement
+   * actually inserted, so deck membership built from it would silently drop the
+   * word a concurrent create won the race for. Membership is resolved by reading
+   * back the glyphs, which finds the row whoever wrote it.
+   *
+   * Sorted by glyph, which is what keeps the waiting above from becoming a
+   * deadlock. A multi-row insert takes its index entries in the order of the
+   * VALUES list, so two creates sharing two new words in opposite orders would
+   * each hold what the other is waiting for and Postgres would kill one of them.
+   * Any order both agree on fixes that; the glyph is the one they both have.
+   */
+  async insertVocabItems(
+    executor: Executor,
+    prepared: PreparedVocabItem[],
+  ): Promise<void> {
+    if (prepared.length === 0) {
+      return;
     }
 
-    // Create the vocab item
-    await this.deps.database
+    const ordered = [...prepared].sort((a, b) =>
+      a.vocabItem < b.vocabItem ? -1 : a.vocabItem > b.vocabItem ? 1 : 0,
+    );
+
+    await executor
       .insert(schema.vocabItems)
-      .values({
-        vocabItem,
-        translation,
-        pinyin,
-        vocabType,
-        audioUrl,
-      })
-      .returning({ id: schema.vocabItems.id });
+      .values(ordered)
+      .onConflictDoNothing({ target: schema.vocabItems.vocabItem });
   }
 
   async searchVocabItems(args: {
@@ -530,13 +646,21 @@ export class VocabService {
    * Disabled and absent glyphs drop out because the level query selects neither.
    * Dropping an absent one is a deliberate change: it is a part no learner could
    * be taught, and it is not reported in `skipped`, which names refused requests.
+   *
+   * Takes an executor because a deck create runs it on the transaction that has
+   * just inserted the words it invented. Those rows are not committed yet, so a
+   * pooled connection would not see them and the deck would be built without the
+   * very glyphs the learner typed.
    */
-  async resolveConstituentClosure(vocabItems: string[]): Promise<string[]> {
+  async resolveConstituentClosure(
+    vocabItems: string[],
+    executor: Executor = this.deps.database,
+  ): Promise<string[]> {
     const resolved = new Set<string>();
     let frontier = Array.from(new Set(vocabItems));
 
     while (frontier.length > 0) {
-      const rows = await this.deps.database
+      const rows = await executor
         .select({
           vocabItem: schema.vocabItems.vocabItem,
           vocabType: schema.vocabItems.vocabType,

@@ -104,13 +104,27 @@ export class DeckService {
    * Build a deck from a list of glyphs, pulling in everything they are made of.
    *
    * Two phases, and the order is load-bearing. Everything that can fail slowly or
-   * partially — DeepL, speech synthesis, the S3 upload behind addVocabItem — runs
-   * first, outside any transaction; the transaction then writes only rows this
-   * already holds, so it is never open across a network call.
+   * partially — DeepL, speech synthesis, the S3 upload behind a new dictionary
+   * row — runs first as `prepareVocabItems`, which resolves those rows without
+   * writing them. The transaction then writes only values this already holds, so
+   * it is never open across a network call.
    *
-   * It does not roll back the dictionary rows addVocabItem created on the way, and
-   * should not: those are corpus, not deck state, and the next deck asking for the
-   * same word reuses the row and its audio rather than paying DeepL again.
+   * The words the create invents are written on that same transaction, which is
+   * the difference between this and what it replaced. A create that failed
+   * partway used to leave them in the dictionary permanently: the learner got no
+   * deck, no way to remove what they typed, and a word of their choosing sat in
+   * the corpus every other learner searches. Now the failure takes the rows with
+   * it — the rows, and not the audio the prepare phase uploaded for them, which
+   * no database rollback can reach. That object is content-addressed by the
+   * word's md5, invisible to learners, absent from search, and reused by the
+   * next create of the same word, so it is litter rather than a leak. Trunk
+   * orphaned the object AND the row; this orphans only the object.
+   *
+   * What survives a rollback is decided by which rows the transaction wrote, not
+   * by a rule applied afterwards. A word the dictionary already held is never
+   * prepared, so it is never inserted, so ROLLBACK cannot reach it — another
+   * learner's deck keeps pointing at a row this create had no hand in. There is
+   * no delete anywhere in this path and no list of ids to get wrong.
    *
    * `skipped` names the requested glyphs that were refused for being disabled.
    * The deck that results is larger than the request, not smaller: constituents
@@ -136,16 +150,22 @@ export class DeckService {
     const acceptedSet = new Set(accepted);
     const skipped = vocabList.filter((item) => !acceptedSet.has(item));
 
-    for (const vocabItem of accepted) {
-      if (!usableSet.has(vocabItem)) {
-        await this.deps.vocabService.addVocabItem(vocabItem);
-      }
-    }
-
-    const members =
-      await this.deps.vocabService.resolveConstituentClosure(accepted);
+    // Phase one: no writes, and every slow call in the whole create.
+    const prepared = await this.deps.vocabService.prepareVocabItems(
+      accepted.filter((vocabItem) => !usableSet.has(vocabItem)),
+    );
 
     const id = await this.deps.database.transaction(async (tx) => {
+      await this.deps.vocabService.insertVocabItems(tx, prepared);
+
+      // On `tx`, and it has to be: the rows just inserted are not committed, so
+      // the closure would resolve without them on any other connection and the
+      // deck would be missing the words the learner actually typed.
+      const members = await this.deps.vocabService.resolveConstituentClosure(
+        accepted,
+        tx,
+      );
+
       const [deck] = await tx
         .insert(schema.decks)
         .values({ deckName, description, createdById: userId })
