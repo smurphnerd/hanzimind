@@ -28,7 +28,7 @@ import { DeleteAccountEmail } from "@/email/DeleteAccountEmail";
 import { EmailVerificationEmail } from "@/email/EmailVerificationEmail";
 import { ExistingAccountEmail } from "@/email/ExistingAccountEmail";
 import { PasswordResetEmail } from "@/email/PasswordResetEmail";
-import { AUTH_BASE_PATH } from "@/server/auth-timing";
+import { AUTH_BASE_PATH, SIGN_UP_PATH } from "@/server/auth-timing";
 import type { Cradle } from "@/server/initialization";
 
 import { schema } from "./database/schema";
@@ -52,9 +52,6 @@ export const DEFAULT_ROLE = "user";
 
 /** Where the learner lands after clicking a verification link. */
 const VERIFIED_CALLBACK = "/verified";
-
-/** better-auth's own path for sign-up, without the `/api/auth` mount point. */
-const SIGN_UP_PATH = "/sign-up/email";
 
 /**
  * The first field in the body that is longer than it is allowed to be, or null.

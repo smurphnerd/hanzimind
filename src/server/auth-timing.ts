@@ -78,6 +78,9 @@
 /** Where `src/app/api/auth/[...all]/route.ts` mounts better-auth. */
 export const AUTH_BASE_PATH = "/api/auth";
 
+/** better-auth's own path for sign-up, without the mount point above. */
+export const SIGN_UP_PATH = "/sign-up/email";
+
 /**
  * The routes that take an email address with no session, and so answer — in a
  * body, a status, or a duration — "does this address have an account".
@@ -89,7 +92,7 @@ export const AUTH_BASE_PATH = "/api/auth";
  * quarters of a second on the one auth route a learner uses more than once.
  */
 export const LEVELLED_AUTH_ROUTES = [
-  "/sign-up/email",
+  SIGN_UP_PATH,
   "/request-password-reset",
   "/send-verification-email",
 ] as const;
