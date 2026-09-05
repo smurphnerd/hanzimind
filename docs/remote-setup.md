@@ -91,6 +91,44 @@ Runtime is dominated by TTS (~325 ms per character). `SEED_BATCH_SIZE` in
 `src/server/database/seed/seed-dictionary.ts` controls concurrency — 12 takes
 roughly 5 minutes; raise it if the TTS endpoint tolerates more.
 
+### The study-progress reshape, deployed by discarding progress
+
+`user_vocab_items` used to carry four `<type>_level` / `<type>_next_at` column
+pairs. They are gone, replaced by `user_study_progress`, one row per learner,
+item and study type.
+
+**On this database the reshape was deployed by throwing the progress away.**
+Production held one test account, 398 item rows, 30 of them with a non-default
+level, and one saved deck. The operator judged those 30 levels not worth
+carrying, so the deploy was a plain `pnpm db:push --force` — the eight columns
+dropped, `user_study_progress` created empty, and the learner started again from
+zero. No data was carried across, and nothing went wrong; if the levels look
+like they reset around this change, that is why.
+
+**The copy path exists and is proven, and a future deployment with data worth
+keeping should use it.** `scripts/backfill-study-progress.ts` moves the levels
+into the new table before push drops the columns, commits only a copy whose
+verification passes in the same transaction, and reverses with `--down`. Its
+header documents the order; the short version is snapshot, `--dry-run`, copy,
+`--verify`, deploy, then push.
+
+Two things worth knowing before running a hard push like this one again:
+
+- **`--force` is required and is not gentle.** Dropping columns is destructive,
+  so drizzle-kit prompts, and the prompt hangs in a non-tty shell. `--force`
+  answers it. Never read its exit code as success: it exits 0 when a statement
+  fails and 0 when the database is unreachable. Read the schema back instead —
+  `select count(*) from information_schema.columns where table_name =
+'user_vocab_items' and column_name like '%\_level'` should return 0, and a
+  second `pnpm db:push` should report "No changes detected".
+- **Nothing refuses to start afterwards.** The migration script guards against
+  exactly this ordering and will refuse if you run it on a database whose
+  columns went without a copy — but the app never consults that guard, and the
+  seed declines to claim its marker and completes normally. A deliberate hard
+  push does not need an override to deploy. If you ever do need to silence the
+  script on a database you have checked by hand, that is
+  `--accept-missing-marker`.
+
 ## 5. Repointing existing audio URLs
 
 Moving audio to a new public domain means rewriting the `endpoint/bucketName`
