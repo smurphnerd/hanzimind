@@ -194,9 +194,34 @@ const headerFingerprint = (response) =>
       : `${name}:${response.headers.get(name) ?? ""}`,
   ).join(" | ");
 
+/**
+ * Every ISO-8601 field in a response, as an OFFSET in milliseconds from the
+ * moment this request was sent.
+ *
+ * The raw values are useless for comparison and blanking them — which
+ * `canonical()` does, and must keep doing — hides a real channel: `createdAt` is
+ * sampled at a different POINT on each path, before the mail send on one and
+ * after it on the other, so the two answers carry the clock at systematically
+ * different offsets even though neither value is predictable.
+ *
+ * An offset from the probe's own send time is the comparable quantity. It also
+ * cancels clock skew between the probe and the server, because the finding is
+ * the difference between the two arms rather than either arm's number.
+ */
+const ISO_DATE = /"([A-Za-z]\w*)":"(\d{4}-\d{2}-\d{2}T[\d:.]+Z)"/g;
+const stampOffsets = (text, sentAtWallClock) => {
+  const offsets = {};
+  for (const [, field, value] of text.matchAll(ISO_DATE)) {
+    const at = Date.parse(value);
+    if (!Number.isNaN(at)) offsets[field] = at - sentAtWallClock;
+  }
+  return offsets;
+};
+
 let forwarded = 0;
 const callOnce = async (email, leverValue) => {
   forwarded += 1;
+  const sentAt = Date.now();
   const started = performance.now();
   const response = await fetch(`${base}${spec.path}`, {
     method: "POST",
@@ -218,6 +243,7 @@ const callOnce = async (email, leverValue) => {
     status: response.status,
     body: canonical(text, email),
     headers: headerFingerprint(response),
+    stamps: stampOffsets(text, sentAt),
   };
 };
 
@@ -243,9 +269,20 @@ const call = async (email, leverValue, k = concurrent) => {
   const results = await Promise.all(
     Array.from({ length: k }, () => callOnce(email, leverValue)),
   );
+  const stamps = {};
+  for (const r of results) {
+    for (const [field, offset] of Object.entries(r.stamps)) {
+      (stamps[field] ??= []).push(offset);
+    }
+  }
   return {
     // The burst is as slow as its slowest member, which is what a caller waits.
     ms: Math.max(...results.map((r) => r.ms)),
+    // The earliest stamp in the burst, so a burst is one observation like any
+    // other rather than k of them.
+    stamps: Object.fromEntries(
+      Object.entries(stamps).map(([field, all]) => [field, Math.min(...all)]),
+    ),
     status: results
       .map((r) => r.status)
       .sort()
@@ -280,12 +317,19 @@ const percentile = (sorted, p) =>
  */
 const measure = async (leverValue, runs, k = concurrent, asControl = control) => {
   const kinds = {
-    free: { ms: [], statuses: new Map(), bodies: new Set(), headers: new Set() },
+    free: {
+      ms: [],
+      statuses: new Map(),
+      bodies: new Set(),
+      headers: new Set(),
+      stamps: {},
+    },
     taken: {
       ms: [],
       statuses: new Map(),
       bodies: new Set(),
       headers: new Set(),
+      stamps: {},
     },
   };
   const record = (kind, result) => {
@@ -297,6 +341,9 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     );
     bucket.bodies.add(result.body);
     bucket.headers.add(result.headers);
+    for (const [field, offset] of Object.entries(result.stamps)) {
+      (bucket.stamps[field] ??= []).push(offset);
+    }
   };
 
   for (let i = 0; i < runs; i++) {
@@ -330,6 +377,19 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     ),
       bodies: [...kinds[kind].bodies],
       headers: [...kinds[kind].headers],
+      stamps: Object.fromEntries(
+        Object.entries(kinds[kind].stamps).map(([field, all]) => {
+          const sorted = [...all].sort((a, b) => a - b);
+          return [
+            field,
+            {
+              p50: Math.round(percentile(sorted, 50)),
+              min: Math.round(sorted[0]),
+              max: Math.round(sorted[sorted.length - 1]),
+            },
+          ];
+        }),
+      ),
     };
   };
   const free = summary("free");
@@ -356,6 +416,32 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     sameStatus:
       JSON.stringify(free.statuses) === JSON.stringify(taken.statuses),
     sameBuckets: JSON.stringify(free.buckets) === JSON.stringify(taken.buckets),
+    // Which timestamp fields separate the two paths, tested by DISJOINTNESS
+    // rather than by a difference of medians.
+    //
+    // That distinction is the whole finding. `createdAt` is sampled before the
+    // mail send on one path and after it on the other, so the medians differ by
+    // roughly one mail send — 11 ms against a loopback server. But the run-to-
+    // run wander of that offset is the same size, so a median comparison called
+    // it a leak in the real run and an equal and opposite leak in the control.
+    // What makes the channel usable from a SINGLE request is whether the two
+    // ranges overlap at all, and that is what is measured here.
+    stampGaps: Object.fromEntries(
+      Object.keys({ ...free.stamps, ...taken.stamps })
+        .map((field) => {
+          const f = free.stamps[field];
+          const t2 = taken.stamps[field];
+          if (!f || !t2) return [field, null];
+          const separation =
+            f.max < t2.min
+              ? t2.min - f.max
+              : t2.max < f.min
+                ? f.min - t2.max
+                : 0;
+          return [field, separation === 0 ? null : separation];
+        })
+        .filter(([, separation]) => separation !== null),
+    ),
   };
 };
 
@@ -417,6 +503,7 @@ const verdictOf = (r) => {
   if (!r.sameBody) differs.push("body");
   if (!r.sameHeaders) differs.push("headers");
   if (!r.sameBuckets) differs.push("bucket");
+  for (const field of Object.keys(r.stampGaps)) differs.push(`stamp:${field}`);
   return differs;
 };
 
@@ -466,6 +553,23 @@ const reportDefault = (r) => {
   console.log(
     `buckets  ${r.sameBuckets ? "identical" : "DIFFERENT"} (quantum ${quantum} ms)`,
   );
+  const stampFields = [
+    ...new Set([
+      ...Object.keys(r.free.stamps),
+      ...Object.keys(r.taken.stamps),
+    ]),
+  ];
+  for (const field of stampFields) {
+    const f = r.free.stamps[field];
+    const t2 = r.taken.stamps[field];
+    const separation = r.stampGaps[field];
+    console.log(
+      `stamp    ${field} free +${f.p50} ms [${f.min}..${f.max}], taken +${t2.p50} ms [${t2.min}..${t2.max}]` +
+        (separation === undefined
+          ? "  ranges OVERLAP, so one request cannot sort them"
+          : `  DISJOINT by ${separation} ms, so one request sorts them`),
+    );
+  }
   // The 10% rule is meaningful against a 750 ms bucket and close to meaningless
   // against a 20 ms rejection, where 10% is two milliseconds of jitter. When
   // the only thing separating the two kinds is the median, say so rather than
