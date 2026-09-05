@@ -28,10 +28,19 @@ import type { Drizzle } from "../database";
  * `seen` is the wider fact and just as safe. A non-default legacy pair could
  * only be written by `processAnswer`, which sets `seen` in the same statement,
  * so no seen row implies every legacy pair was still at its default and there
- * was nothing to lose. The window also cannot close before it opens: studying
- * requires a dictionary, the dictionary arrives with the first seed, so at the
- * first seed of any database `seen` is necessarily zero. A re-seed of a studied
- * database leaves the marker exactly as it found it.
+ * was nothing to lose. A re-seed of a studied database leaves the marker exactly
+ * as it found it.
+ *
+ * WHAT MAKES THE WINDOW RELIABLE is the ORDER, not the width. This runs first in
+ * `seed/index.ts`, before anything else writes, so the claim is evaluated when
+ * the database is definitionally free of learner data. An earlier version ran
+ * last and justified itself with "studying needs a dictionary and the dictionary
+ * arrives with the first seed" — which is false, because `seedDictionary` commits
+ * in batches, so an interrupted first seed leaves a usable dictionary and no
+ * marker. Killing one at thirty seconds left 420 rows and no marker; one answer
+ * after that shut the window permanently. Running first makes an interruption
+ * harmless: the marker is written, the dictionary is partial, and the marker is
+ * still true. Do not move this call later in the seed.
  */
 const MOVES = [
   {
@@ -72,6 +81,19 @@ const MOVES = [
  */
 export function shouldClaimMarker(state: {
   markerTableExists: boolean;
+  /**
+   * Rows in `user_vocab_items`, which is one per deck item the moment a learner
+   * SAVES a deck, long before they answer anything.
+   *
+   * Deliberately passed and deliberately unread. An earlier gate consulted this
+   * instead of `studiedItems` and refused healthy databases; with the number
+   * absent from the signature that mistake is not expressible here, so a test
+   * cannot kill it and reverting to it looks like a no-op. Present, the
+   * difference between the two rules is a case with a value that must not change
+   * the answer. Do not delete it without moving that case somewhere it can still
+   * fail.
+   */
+  learnerRows: number;
   studiedItems: number;
   legacyColumnsRemaining: number;
 }): boolean {
@@ -103,10 +125,15 @@ export async function seedDataMigrations(database: Drizzle): Promise<string[]> {
     (markerTable.rows[0] as { name: string | null }).name !== null;
   if (!markerTableExists) return claimed;
 
-  const studied = await database.execute(
-    sql.raw("select count(*)::int as count from user_vocab_items where seen"),
+  const counts = await database.execute(
+    sql.raw(`select count(*)::int as rows,
+                    count(*) filter (where seen)::int as studied
+               from user_vocab_items`),
   );
-  const studiedItems = (studied.rows[0] as { count: number }).count;
+  const { rows: learnerRows, studied: studiedItems } = counts.rows[0] as {
+    rows: number;
+    studied: number;
+  };
 
   for (const move of MOVES) {
     // `studied` above reads `user_vocab_items` by name while each move declares
@@ -127,6 +154,7 @@ export async function seedDataMigrations(database: Drizzle): Promise<string[]> {
     if (
       !shouldClaimMarker({
         markerTableExists,
+        learnerRows,
         studiedItems,
         legacyColumnsRemaining,
       })

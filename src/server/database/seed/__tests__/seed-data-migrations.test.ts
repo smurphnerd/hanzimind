@@ -11,6 +11,7 @@ import { shouldClaimMarker } from "../seed-data-migrations";
 describe("shouldClaimMarker", () => {
   const fresh = {
     markerTableExists: true,
+    learnerRows: 0,
     studiedItems: 0,
     legacyColumnsRemaining: 0,
   };
@@ -24,13 +25,21 @@ describe("shouldClaimMarker", () => {
     // gate that asked for an empty table closed the window at the first deck
     // anyone saved, and a healthy never-migrated database seeded after that was
     // told to restore a snapshot of a migration it never ran.
-    expect(shouldClaimMarker({ ...fresh, studiedItems: 0 })).toBe(true);
+    //
+    // 398 learner rows and nothing studied is that exact state, and it is the
+    // case that kills the old rule: a gate reading `learnerRows` answers false
+    // here. The previous version of this test passed `studiedItems: 0` onto a
+    // fixture that already had it, so it was deep-equal to the case above and
+    // stayed green against the bug it named.
+    expect(shouldClaimMarker({ ...fresh, learnerRows: 398 })).toBe(true);
   });
 
   it("should refuse once anyone has studied", () => {
     // The state a dropped database is in: the columns are gone, and the learners
     // who filled them are still here. Claiming here launders the loss.
-    expect(shouldClaimMarker({ ...fresh, studiedItems: 1 })).toBe(false);
+    expect(
+      shouldClaimMarker({ ...fresh, learnerRows: 398, studiedItems: 1 }),
+    ).toBe(false);
   });
 
   it("should refuse while the old shape is still present", () => {
@@ -59,6 +68,7 @@ describe("shouldClaimMarker", () => {
     expect(
       shouldClaimMarker({
         markerTableExists: false,
+        learnerRows: 398,
         studiedItems: 12,
         legacyColumnsRemaining: 8,
       }),
