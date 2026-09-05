@@ -97,8 +97,42 @@ DEEPL_API_KEY=${DEEPL_API_KEY:-lane-no-deepl}
 SEED_TEST_USER=1
 EOF
 
-(cd "$REPO" && lane_env && pnpm exec drizzle-kit push --force >"$LANE_DIR/db-push.log" 2>&1) ||
-	{ printf 'lane %s: drizzle-kit push failed, see %s\n' "$LANE" "$LANE_DIR/db-push.log" >&2; exit 1; }
+# The exit status is not the signal. `drizzle-kit push --force` exits 0 both
+# when a statement fails and when it cannot reach the database at all; only a
+# malformed config gets a non-zero code. So the old `||` guard could not fire,
+# and a lane whose schema half applied did not stop or even complain: it
+# seeded, printed `ready`, and saved a seed cache keyed on the schema that
+# failed, which every later lane in every checkout would then have restored.
+# The push is not atomic either, so "half applied" is literal — a valid table
+# gets created beside a failing one.
+#
+# Assert success positively instead: a push that did anything prints "Changes
+# applied", and one that had nothing to do prints "No changes detected". A
+# statement error always aborts before either line. If drizzle ever renames
+# them, a healthy lane stops with the whole log on screen, which is the
+# failure worth having.
+#
+# This says the push finished, not that it was safe. `--force` accepts
+# data-loss statements, so it can print "Changes applied" over a truncated
+# table. That is drizzle's documented behaviour and out of scope here; the
+# operator's own `pnpm db:push` carries no `--force` and prompts.
+(cd "$REPO" && lane_env && pnpm exec drizzle-kit push --force >"$LANE_DIR/db-push.log" 2>&1) &&
+	grep -q 'Changes applied\|No changes detected' "$LANE_DIR/db-push.log" ||
+	{
+		# Print the log, do not point at it. In CI the lane directory is on a
+		# runner nobody can open, so "see development/lanes/0/db-push.log" is the
+		# entire diagnostic a human gets for a schema that would not build.
+		# 200 lines, not 40, because the window has to hold the whole failure
+		# and not just its tail. drizzle-kit never echoes the statement it was
+		# running: it prints the one useful sentence first and then buries it
+		# under a 24-line dump of the Postgres error object, below whatever the
+		# push had already printed. A short tail therefore keeps the dump and
+		# drops the sentence, which is the wrong half. A whole failing push log
+		# is a few tens of lines, so 200 prints all of it.
+		printf 'lane %s: drizzle-kit push failed, last 200 lines of %s:\n' "$LANE" "$LANE_DIR/db-push.log" >&2
+		tail -n 200 "$LANE_DIR/db-push.log" 2>/dev/null | sed 's/^/  /' >&2
+		exit 1
+	}
 
 cache_key=$(seed_cache_key)
 cache_root="${HANZIMIND_LANE_CACHE:-$HOME/.cache/hanzimind-lanes}"
