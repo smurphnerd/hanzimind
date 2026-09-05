@@ -8,9 +8,9 @@ import {
   CREATE_TABLE_SQL,
   LEGACY_COLUMNS,
   halfSchemaRefusal,
-  lostProgressRefusal,
-  unexplainedSeen,
-  UNEXPLAINED_SEEN_LIMIT,
+  MARKER_NAME,
+  missingMarkerRefusal,
+  CREATE_MARKERS_TABLE_SQL,
   RESTORE_COLUMNS_SQL,
   RESTORE_ROWS_SQL,
   VERIFY_SQL,
@@ -201,140 +201,119 @@ describe("RESTORE_ROWS_SQL", () => {
  * `pnpm db:push` running before the copy, which drops the eight columns and
  * every level in them.
  *
- * Every case below is a state the two call sites can actually produce. An
- * earlier version of this suite passed `legacyColumnsPresent: true` for the copy
- * direction, which the caller hardcoded false, so four cells tested the function
- * and nothing tested the guard.
+ * It reads a recorded fact, not the shape of the data. Three earlier versions
+ * inferred the accident from the data and each failed differently, because after
+ * the columns are gone a database that was migrated and one that was dropped are
+ * indistinguishable by inspection. So the copy writes a `data_migrations` row
+ * and the seed writes the same row for a database that never had the old shape.
  *
- * Two states are deliberately absent because the caller cannot produce them.
- * `itemsWithProgress > seenItems` cannot happen: `worstLearner` counts outward
- * from seen rows and only ever joins progress onto them, so the difference is
- * non-negative by construction, and a test for it would be pinning arithmetic
- * nobody can reach. And a partial legacy schema never arrives here at all —
- * both entry points refuse on it before the guard is consulted.
- *
- * The grouping itself — maximum per learner, never a sum — is SQL in
- * `worstLearner` and is proven on a lane, not here. This function is handed one
- * learner and cannot tell how it was chosen.
+ * All eight cells below are reachable, and each names how. That question is
+ * asked here because the last suite tested four states the caller could not
+ * produce.
  */
-describe("lostProgressRefusal", () => {
-  const learner = (seenItems: number, itemsWithProgress: number) => ({
-    userId: "learner-1",
-    seenItems,
-    itemsWithProgress,
-  });
-
+describe("missingMarkerRefusal", () => {
   const base = {
     direction: "copy",
     legacyColumnsPresent: false,
-    worst: learner(54, 54),
+    markerPresent: true,
     accepted: false,
   } as const;
   const check = (
-    overrides: Partial<Parameters<typeof lostProgressRefusal>[0]>,
-  ) => lostProgressRefusal({ ...base, ...overrides });
+    overrides: Partial<Parameters<typeof missingMarkerRefusal>[0]>,
+  ) => missingMarkerRefusal({ ...base, ...overrides });
 
-  it("should allow a database that was migrated correctly", () => {
-    expect(check({})).toBeNull();
+  describe("copying", () => {
+    it("should proceed when the copy has not run and the columns are there", () => {
+      // The normal starting point, on every database that has not migrated yet.
+      expect(
+        check({ legacyColumnsPresent: true, markerPresent: false }),
+      ).toBeNull();
+    });
+
+    it("should proceed when the copy has run but push has not", () => {
+      // Between step 2 and step 3 of the documented sequence.
+      expect(
+        check({ legacyColumnsPresent: true, markerPresent: true }),
+      ).toBeNull();
+    });
+
+    it("should proceed when the whole sequence ran correctly", () => {
+      expect(
+        check({ legacyColumnsPresent: false, markerPresent: true }),
+      ).toBeNull();
+    });
+
+    it("should refuse when the columns went without a copy", () => {
+      // The catastrophe, and the only cell that refuses. Reached by running
+      // `pnpm db:push` before the copy: push drops the columns and creates
+      // data_migrations empty in the same run.
+      expect(
+        check({ legacyColumnsPresent: false, markerPresent: false }),
+      ).toContain("REFUSING TO CONTINUE");
+    });
   });
 
-  it("should allow a database nobody has studied", () => {
-    expect(check({ worst: null })).toBeNull();
-  });
+  describe("restoring", () => {
+    it("should proceed on a normal rollback", () => {
+      expect(check({ direction: "restore", markerPresent: true })).toBeNull();
+    });
 
-  it("should refuse when the columns are gone and nothing was copied", () => {
-    expect(check({ worst: learner(61, 0) })).toContain("REFUSING TO CONTINUE");
-  });
+    it("should proceed rolling back a copy that push has not followed", () => {
+      expect(
+        check({
+          direction: "restore",
+          legacyColumnsPresent: true,
+          markerPresent: true,
+        }),
+      ).toBeNull();
+    });
 
-  it("should still refuse after one card is answered post-catastrophe", () => {
-    // The hole the first guard had, demonstrated live: it keyed on "the table is
-    // empty", so a single answer through the API after the loss switched it off
-    // and the script reported "nothing to do" over 103 destroyed pairs. In a
-    // rolling deploy that window is seconds.
-    expect(check({ worst: learner(61, 1) })).toContain("REFUSING TO CONTINUE");
-  });
+    it("should refuse to restore when the columns went without a copy", () => {
+      expect(check({ direction: "restore", markerPresent: false })).toContain(
+        "REFUSING TO CONTINUE",
+      );
+    });
 
-  it("should not refuse a healthy database over one introduction card", () => {
-    // The other hole, also demonstrated live. An intro sets `seen` and writes no
-    // progress row, so the first guard fired on a database that had never had
-    // legacy columns and never lost anything -- and told the operator to restore
-    // a snapshot of a migration that never happened.
-    expect(check({ worst: learner(1, 0) })).toBeNull();
-  });
-
-  it("should allow a learner who abandoned sessions right up to the limit", () => {
-    expect(
-      check({ worst: learner(40, 40 - UNEXPLAINED_SEEN_LIMIT) }),
-    ).toBeNull();
-  });
-
-  it("should refuse one item past the limit", () => {
-    expect(
-      check({ worst: learner(40, 40 - UNEXPLAINED_SEEN_LIMIT - 1) }),
-    ).toContain("REFUSING TO CONTINUE");
-  });
-
-  it("should never refuse a copy while the columns are still there", () => {
-    // The normal starting point: every level is in the columns, the new table is
-    // empty because the copy has not run. Reachable, and must not refuse.
-    expect(
-      check({ legacyColumnsPresent: true, worst: learner(61, 0) }),
-    ).toBeNull();
-  });
-
-  it("should refuse a restore from a short table even with the columns present", () => {
-    // The restore zeroes all eight columns before filling them, so restoring
-    // from a table that does not account for the history writes that shortfall
-    // over the only copy left.
-    expect(
-      check({
+    it("should refuse to restore when the copy simply never ran", () => {
+      // Stricter than the copy direction, and it has to be: the restore starts
+      // by zeroing all eight columns, so running it before any copy would write
+      // emptiness over the only place the levels still are.
+      const message = check({
         direction: "restore",
         legacyColumnsPresent: true,
-        worst: learner(61, 0),
-      }),
-    ).toContain("REFUSING TO CONTINUE");
+        markerPresent: false,
+      });
+      expect(message).toContain("REFUSING TO CONTINUE");
+      expect(message).toContain("zeroing all eight columns");
+    });
   });
 
-  it("should allow a restore that has something to restore from", () => {
-    expect(check({ direction: "restore" })).toBeNull();
-  });
-
-  it("should defer to the operator who says the intros are real", () => {
-    expect(check({ worst: learner(61, 0), accepted: true })).toBeNull();
+  it("should defer to an operator who migrated by hand before the marker", () => {
+    expect(check({ markerPresent: false, accepted: true })).toBeNull();
   });
 
   describe("the message", () => {
-    const message = check({ worst: learner(61, 0) })!;
+    const message = check({ markerPresent: false })!;
 
-    it("should report what was observed rather than assert the accident", () => {
+    it("should say what it observed", () => {
       expect(message).toContain("Observed:");
-      expect(message).not.toContain("cannot come from a correct sequence");
+      expect(message).toContain(MARKER_NAME);
     });
 
-    it("should name the learner it is talking about", () => {
-      expect(message).toContain("learner learner-1");
+    it("should not name a learner", () => {
+      // The statistic it replaced named the learner with the largest shortfall,
+      // which in a mixed fixture was a harmless one -- so an operator checked
+      // that learner, found nothing wrong, overrode, and lost the real data.
+      expect(message).not.toMatch(/learner \w/);
     });
 
-    it("should say the figure is one learner and not a total", () => {
-      // Otherwise an operator with a thousand learners reads 61 as a fleet-wide
-      // number and goes looking for a fleet-wide problem.
-      expect(message).toContain("worst single learner, not a total");
-    });
-
-    it("should give both readings", () => {
-      expect(message).toContain("Two things look like that");
-      expect(message).toContain("only ever shown as introductions");
-    });
-
-    it("should make the destructive advice conditional on the first reading", () => {
-      // "restore a pre-migration snapshot" is ruinous advice on a database that
-      // was never migrated, so it must sit under reading (1) and not stand alone.
-      const [beforeAdvice] = message.split("restore from the snapshot");
-      expect(beforeAdvice).toContain("If this is what happened");
+    it("should make the snapshot advice conditional", () => {
+      const [before] = message.split("recovery is a restore from the snapshot");
+      expect(before).toContain("If the levels were still in those columns");
     });
 
     it("should name the override", () => {
-      expect(message).toContain("--accept-unexplained-seen");
+      expect(message).toContain("--accept-missing-marker");
     });
 
     it("should say nothing was written", () => {
@@ -343,11 +322,30 @@ describe("lostProgressRefusal", () => {
   });
 });
 
-describe("unexplainedSeen", () => {
-  it("should count one learner's seen items with no progress row", () => {
-    expect(
-      unexplainedSeen({ userId: "u", seenItems: 61, itemsWithProgress: 1 }),
-    ).toBe(60);
+/**
+ * The marker table has to be hand-written too, for the same reason as the
+ * progress table: the copy runs before push has applied `schema.ts`. And it has
+ * to be DECLARED in schema.ts as well, or the next push drops it -- measured on
+ * lane 8, where an undeclared table did not survive a single push.
+ */
+describe("CREATE_MARKERS_TABLE_SQL", () => {
+  const table = getTableConfig(schema.dataMigrations);
+  const columnNames = table.columns.map((column) => snake(column.name));
+
+  it("should declare every column the Drizzle table has", () => {
+    const missing = columnNames.filter(
+      (name) => !CREATE_MARKERS_TABLE_SQL.includes(`"${name}"`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("should key on the migration name", () => {
+    expect(table.columns.find((c) => c.primary)?.name).toBe("name");
+    expect(CREATE_MARKERS_TABLE_SQL).toContain(`"name" text primary key`);
+  });
+
+  it("should be safe to re-run", () => {
+    expect(CREATE_MARKERS_TABLE_SQL).toContain("create table if not exists");
   });
 });
 

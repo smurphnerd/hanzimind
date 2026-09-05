@@ -103,6 +103,10 @@ The API uses **oRPC** (not tRPC) for type-safe RPC communication between client 
   which memory aid they pinned
 - `userStudyProgress` - One row per learner, item and study type: the level and
   the next due time
+- `dataMigrations` - Data moves `db:push` cannot make, and the record that they
+  ran. Push reconciles the schema's shape and knows nothing about carrying data
+  between shapes, so a reshape needs a script beside it and something has to
+  remember whether that script ran
 
 **Progress is one row per study type**
 `userStudyProgress(userId, vocabItemId, studyType, level, nextAt)` replaced four
@@ -278,10 +282,18 @@ effect.
 
   Re-running it is only a true no-op AFTER push has dropped the columns. Before
   that a second run never overwrites a row, but the stale legacy column and the
-  advanced row disagree, so the verification rolls it back non-zero. And if push
-  ran BEFORE the copy, the levels are gone and nothing here can recover them —
-  the script detects that state (`lostProgressRefusal`) and refuses rather than
-  reporting "nothing to do". Take a `pg_dump` first.
+  advanced row disagree, so the verification rolls it back non-zero.
+
+  If push runs BEFORE the copy, the levels are gone and nothing here can recover
+  them, so the script refuses rather than reporting "nothing to do". It knows
+  because the copy writes a `data_migrations` row inside its own transaction and
+  the seed writes the same row for a database that never had the old columns:
+  columns gone with no such row means the schema moved on without the data. That
+  is a recorded fact, and it has to be — after the columns are dropped, a
+  database that was migrated and one that was dropped with its data still in it
+  are indistinguishable by inspection, which is why three attempts to infer it
+  from the shape of the data all failed in different directions. Take a
+  `pg_dump` first regardless.
 
 - `tsx scripts/backfill-etymology-roles.ts` (`--dry-run`) — unrelated to
   classification: fills `etymologyPhonetic` / `etymologySemantic` from

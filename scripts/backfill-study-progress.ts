@@ -44,10 +44,10 @@
  *   --down     Restores the columns from the rows. See above.
  *   (default)  Copies and commits.
  *
- *   --accept-unexplained-seen   Overrides the refusal below, for an operator who
- *              knows their learners really do have that many introduction-only
- *              items. The refusal cannot prove which state it is looking at, so
- *              it must not be a dead end.
+ *   --accept-missing-marker   Records the marker and carries on, for a database
+ *              migrated by hand before the marker existed. The refusal is about
+ *              a missing record, and a missing record is not always a missing
+ *              migration, so it must not be a dead end.
  *
  * RE-RUNNING IT. Only genuinely inert AFTER `pnpm db:push` has dropped the legacy
  * columns: there is then nothing to read, and the script says so and exits 0,
@@ -64,12 +64,12 @@
  * — `--down` restores what the rows hold, and there would be no rows. Take a
  * `pg_dump` before step 2.
  *
- * `lostProgressRefusal` notices when a database stops accounting for the history
- * it should have, and stops rather than reporting success over it. It measures
- * how many seen items have no progress row at all, NOT whether the new table is
- * empty: the empty test was silent one graded answer after the loss, and fired
- * on a healthy database one introduction card in. It cannot prove what happened,
- * so it says what it saw, gives both readings, and takes an override.
+ * The script records that the copy happened, in `data_migrations`, and refuses
+ * when the columns are gone and no such record exists. That is a fact rather
+ * than a guess: after the columns are dropped, a database migrated correctly and
+ * one dropped with its data still in it are indistinguishable by inspection, so
+ * three earlier attempts to infer it from the data all failed. See
+ * `missingMarkerRefusal`.
  *
  * WHAT IS NOT COPIED. A pair at level 0 with a null due time is exactly what a
  * missing row means, so it is left out rather than written as several hundred
@@ -219,107 +219,87 @@ type Executor = {
   execute: (query: ReturnType<typeof sql.raw>) => Promise<{ rows: unknown[] }>;
 };
 
-/**
- * How many seen items a learner may have with no progress row before the state
- * stops looking like ordinary use.
- *
- * An item gets `seen` and no progress row exactly one way: it was shown as an
- * introduction and never answered. That is a session boundary, and it is rare by
- * construction — an introduction writes no `next_at`, so the item is immediately
- * due at level 0, and selection puts due reviews ahead of introductions, which
- * means the very next card is almost always the graded one for the same item.
- * A learner accumulates roughly one of these per abandoned session.
- *
- * So a handful is ordinary and sixty is not. 20 sits well above what abandoned
- * sessions produce and two thirds below the real learner's 61, which is the
- * margin that matters: the number has to separate "one intro card" from "every
- * level is gone".
- *
- * PER LEARNER, not summed. This is the whole reason the limit can be a constant.
- * Summed, the statistic grows with the user base while the limit does not, so a
- * hundred learners each holding one abandoned introduction would cross 20 and
- * refuse a database where nothing is wrong. The catastrophe does not look like
- * that: it puts nearly every seen item of EVERY learner out of account at once,
- * so the worst single learner is already far past the limit. Taking the maximum
- * asks "is there a learner whose history stopped adding up", which means the
- * same thing on the operator's one-learner database and on a thousand.
- *
- * It is a judgement, not a measurement, which is why crossing it refuses with an
- * override rather than deciding on the operator's behalf.
- */
-export const UNEXPLAINED_SEEN_LIMIT = 20;
+/** The row `data_migrations` carries once this move has been made. */
+export const MARKER_NAME = "study-progress-rows";
 
 /**
- * The refusal to print when the database no longer accounts for the progress it
- * should have, or null when it does. Pure, so the truth table is a unit test.
+ * `data_migrations` as `drizzle-kit push` would create it.
  *
- * WHAT THIS MEASURES, and why the earlier version was wrong. It first asked "is
- * `user_study_progress` empty while something is marked seen", which is neither
- * necessary nor sufficient. One card answered through the API after the loss
- * makes the table non-empty and the check silent, and one introduction card on a
- * healthy database makes it fire. Both were demonstrated live.
- *
- * The statistic that does separate them is how many of ONE learner's seen items
- * have NO progress of any kind. On a healthy learner that is the count of their
- * abandoned sessions; on a database whose levels were dropped it is very nearly
- * every seen item they have, and an answer trickling in afterwards moves it by
- * one rather than switching it off.
- *
- * `worst` is the learner with the most such items, so the caller does the
- * grouping and this stays pure. Null when nobody has seen anything.
- *
- * WHAT IT CANNOT DO. It cannot prove the accident happened, only that the
- * database does not look like one that was migrated correctly. So the message
- * gives both readings, makes the destructive advice conditional on the first,
- * and takes an override for an operator who knows it is the second.
+ * Hand-written for the same reason as the progress table: the copy runs before
+ * push, so at that moment `schema.ts` has not been applied. Pinned against the
+ * Drizzle table by the test.
  */
-export interface LearnerProgress {
-  userId: string;
-  /** Items this learner has answered or been shown at least once. */
-  seenItems: number;
-  /** How many of those have at least one user_study_progress row. */
-  itemsWithProgress: number;
-}
+export const CREATE_MARKERS_TABLE_SQL = `
+create table if not exists "data_migrations" (
+  "name" text primary key,
+  "note" text not null,
+  "created_at" timestamp not null default now(),
+  "updated_at" timestamp not null
+)`;
 
-/** Seen items this learner has no progress of any kind for. */
-export const unexplainedSeen = (learner: LearnerProgress) =>
-  learner.seenItems - learner.itemsWithProgress;
-
-export function lostProgressRefusal(state: {
+/**
+ * Whether the columns were dropped without the copy ever running, or null when
+ * nothing is wrong. Pure, so the truth table is a unit test.
+ *
+ * WHY A RECORDED FACT AND NOT A MEASUREMENT. Three earlier versions of this
+ * tried to infer the accident from the shape of the data — an empty progress
+ * table, then a shortfall of progress rows against seen items, then that
+ * shortfall per learner. Each failed in its own direction, and the reason is
+ * structural rather than a bad threshold: **after the columns are gone, a
+ * database that was migrated correctly and one whose data was dropped with them
+ * look exactly alike.** No statistic separates them, because the difference is
+ * not in the data. Every threshold only moves the blind spot: the last one went
+ * blind on any deployment where nobody had studied twenty-one items, which is
+ * most of them.
+ *
+ * So the fact gets written down instead of guessed at. The copy inserts its
+ * `data_migrations` row inside its own transaction, and the seed inserts the
+ * same row for a database that never had the old columns. Then:
+ *
+ *   marker  columns  meaning
+ *   ------  -------  ------------------------------------------------------
+ *   yes     yes      the copy ran, push has not. Proceed.
+ *   yes     no       the sequence ran correctly. Nothing to do.
+ *   no      yes      the copy has not run yet. The normal starting point.
+ *   no      no       the columns went without a copy. REFUSE.
+ *
+ * It fails safe: an unmarked database refuses rather than proceeding, so the
+ * worst case is an operator reading a message, not a silent loss. The one state
+ * it misreads is a database migrated by hand before this marker existed, which
+ * is what the override is for.
+ *
+ * A restore is stricter: it refuses on ANY missing marker. With the columns gone
+ * that is the catastrophe; with the columns still present it means the copy
+ * never ran, and the restore begins by zeroing all eight of them.
+ */
+export function missingMarkerRefusal(state: {
   direction: "copy" | "restore";
   legacyColumnsPresent: boolean;
-  worst: LearnerProgress | null;
+  markerPresent: boolean;
   accepted: boolean;
 }): string | null {
   if (state.accepted) return null;
-
-  // Nothing can have been lost while the columns that hold it are still there
-  // and all the copy would do is read them.
+  if (state.markerPresent) return null;
   if (state.direction === "copy" && state.legacyColumnsPresent) return null;
 
-  if (!state.worst) return null;
-  const unexplained = unexplainedSeen(state.worst);
-  if (unexplained <= UNEXPLAINED_SEEN_LIMIT) return null;
-
+  const observed = state.legacyColumnsPresent
+    ? `the eight legacy columns are still on user_vocab_items, so the copy has not run`
+    : `the eight legacy columns are gone from user_vocab_items`;
   const consequence =
     state.direction === "copy"
-      ? "the copy would have nothing to read, and this script would report success over a database that had already lost its levels"
-      : "the restore starts by zeroing all eight columns, so it would write that shortfall over whatever the columns still hold";
+      ? "the copy has nothing to read, and continuing would report success over a database that had already lost its levels"
+      : "the restore begins by zeroing all eight columns, so continuing would write emptiness over whatever is left";
 
   return [
     "REFUSING TO CONTINUE.",
     "",
-    `Observed: learner ${state.worst.userId} has ${state.worst.seenItems} items marked seen, but only ${state.worst.itemsWithProgress} of them have any row in user_study_progress. That leaves ${unexplained} seen items with no progress of any kind, against a limit of ${UNEXPLAINED_SEEN_LIMIT}. This is the worst single learner, not a total: a large user base does not add up to a refusal.`,
+    `Observed: ${observed}, and data_migrations has no "${MARKER_NAME}" row. Nothing recorded a successful copy on this database.`,
     "",
-    "Two things look like that, and this script cannot tell them apart:",
+    `That means the schema moved on without the data. ${consequence[0].toUpperCase()}${consequence.slice(1)}.`,
     "",
-    "  1. `pnpm db:push` ran before the copy. That drops the eight legacy columns and every level in them, and no mode here can bring them back. If this is what happened, the levels are gone from everywhere this script can read, and the recovery is a restore from the snapshot taken before the migration.",
+    "If the levels were still in those columns when they were dropped, they are gone from everywhere this script can read, and the recovery is a restore from the snapshot taken before the migration.",
     "",
-    "  2. Those items were genuinely only ever shown as introductions and never answered. Ordinary in ones and twos; this many is not, which is why it stopped.",
-    "",
-    `Either way, continuing is wrong: under (1) ${consequence}.`,
-    "",
-    "Nothing has been written by this run. If you know (2) is the true reading, re-run with --accept-unexplained-seen.",
+    `Nothing has been written by this run. If this database was migrated by hand before the marker existed, and you have checked that user_study_progress holds the history, re-run with --accept-missing-marker to record the marker and carry on.`,
   ].join("\n");
 }
 
@@ -355,12 +335,18 @@ async function legacySchema(database: Executor) {
 export const halfSchemaRefusal = (present: string[]) =>
   `user_vocab_items has ${present.length} of the ${LEGACY_COLUMNS.length} legacy columns (${present.join(", ")}). Refusing to act on half a schema.`;
 
-/** What the database says about the learner's history, on both shapes. */
+/** What the database says about its own shape and history. */
 async function progressState(database: Executor) {
   const table = await database.execute(
     sql.raw("select to_regclass('user_study_progress') as name"),
   );
   const tableExists = (table.rows[0] as { name: string | null }).name !== null;
+  const markers = await database.execute(
+    sql.raw("select to_regclass('data_migrations') as name"),
+  );
+  const markerTableExists =
+    (markers.rows[0] as { name: string | null }).name !== null;
+
   return {
     tableExists,
     progressRows: tableExists
@@ -370,51 +356,12 @@ async function progressState(database: Executor) {
       database,
       "select 1 from user_vocab_items where seen",
     ),
-    worst: await worstLearner(database, tableExists),
-  };
-}
-
-/**
- * The learner with the most seen items that have no progress row, or null when
- * nobody has seen anything.
- *
- * Grouped rather than summed, so the limit means the same thing whatever the
- * user base. Counted from `user_vocab_items` outward and restricted to seen
- * rows, so the subtraction cannot go negative: every item counted in
- * `itemsWithProgress` is one already counted in `seenItems`.
- */
-async function worstLearner(
-  database: Executor,
-  tableExists: boolean,
-): Promise<LearnerProgress | null> {
-  const withProgress = tableExists
-    ? `left join (select distinct user_id, vocab_item_id from user_study_progress) p
-         on p.user_id = u.user_id and p.vocab_item_id = u.vocab_item_id`
-    : "";
-  const progressCount = tableExists
-    ? "count(*) filter (where p.user_id is not null)"
-    : "0";
-
-  const result = await database.execute(
-    sql.raw(`select u.user_id,
-                    count(*)::int as seen_items,
-                    ${progressCount}::int as items_with_progress
-               from user_vocab_items u
-               ${withProgress}
-              where u.seen
-              group by u.user_id
-              order by (count(*) - ${progressCount}) desc
-              limit 1`),
-  );
-  const row = result.rows[0] as
-    | { user_id: string; seen_items: number; items_with_progress: number }
-    | undefined;
-  if (!row) return null;
-
-  return {
-    userId: row.user_id,
-    seenItems: row.seen_items,
-    itemsWithProgress: row.items_with_progress,
+    markerPresent: markerTableExists
+      ? (await countOf(
+          database,
+          `select 1 from data_migrations where name = '${MARKER_NAME}'`,
+        )) > 0
+      : false,
   };
 }
 
@@ -459,13 +406,14 @@ async function goingBack(args: {
     throw new Error(halfSchemaRefusal(columns.present));
   }
 
-  const refusal = lostProgressRefusal({
+  const refusal = missingMarkerRefusal({
     direction: "restore",
     legacyColumnsPresent: columns.state === "present",
-    worst: state.worst,
+    markerPresent: state.markerPresent,
     accepted,
   });
-  if (refusal) throw new Error(refusal);
+  if (refusal && !dryRun) throw new Error(refusal);
+  if (refusal) logger.warn("A real run would refuse here:\n" + refusal);
 
   try {
     await database.transaction(async (tx) => {
@@ -473,6 +421,11 @@ async function goingBack(args: {
       for (const statement of RESTORE_ROWS_SQL) {
         await tx.execute(sql.raw(statement));
       }
+      // The copy is being undone, so the record of it goes too: the database is
+      // back to "the columns hold the levels and no copy has run".
+      await tx.execute(
+        sql.raw(`delete from data_migrations where name = '${MARKER_NAME}'`),
+      );
 
       // A progress row whose parent is gone has nowhere to be restored to, and
       // VERIFY_SQL walks from the parent so it would never see it.
@@ -518,7 +471,7 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const verifyOnly = process.argv.includes("--verify");
   const down = process.argv.includes("--down");
-  const accepted = process.argv.includes("--accept-unexplained-seen");
+  const accepted = process.argv.includes("--accept-missing-marker");
   if (dryRun && verifyOnly) {
     throw new Error("Pass --dry-run or --verify, not both");
   }
@@ -535,7 +488,6 @@ async function main() {
   // reports what it can see and leaves the judgement to the reader.
   if (verifyOnly) {
     const state = await progressState(database);
-    const unexplained = state.worst ? unexplainedSeen(state.worst) : 0;
 
     if (!state.tableExists) {
       logger.info(
@@ -554,8 +506,7 @@ async function main() {
           legacyColumns: columns.present.length,
           progressRows: state.progressRows,
           seenRows: state.seenRows,
-          worstLearner: state.worst?.userId,
-          worstLearnerSeenWithNoProgress: unexplained,
+          copyRecorded: state.markerPresent,
         },
         columns.state === "absent"
           ? "The legacy columns are gone, so there is nothing left to compare against. The counts above are what remains; seenWithNoProgress far above zero would mean the levels never reached user_study_progress."
@@ -575,7 +526,7 @@ async function main() {
     logger.info(
       {
         legacyPairs: await countOf(database, LEGACY_ROWS_SQL),
-        worstLearnerSeenWithNoProgress: unexplained,
+        copyRecorded: state.markerPresent,
       },
       "Every legacy level and due time is accounted for in user_study_progress",
     );
@@ -589,21 +540,39 @@ async function main() {
   if (down) return goingBack({ logger, database, dryRun, accepted });
 
   const state = await progressState(database);
-  const refusal = lostProgressRefusal({
+  const refusal = missingMarkerRefusal({
     direction: "copy",
     legacyColumnsPresent: columns.state === "present",
-    worst: state.worst,
+    markerPresent: state.markerPresent,
     accepted,
   });
-  if (refusal) throw new Error(refusal);
+  // A rehearsal commits nothing, so there is no state it should decline to
+  // rehearse; it reports the refusal and carries on to show what it would find.
+  if (refusal && !dryRun) throw new Error(refusal);
+  if (refusal) logger.warn("A real run would refuse here:\n" + refusal);
 
   if (columns.state === "absent") {
+    // The override says it will record the marker, so it has to: an operator who
+    // has checked their database once should not have to keep passing the flag,
+    // and a database that stays unmarked keeps refusing every future run.
+    if (accepted && !state.markerPresent) {
+      await database.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
+      await database.execute(
+        sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
+                 values ('${MARKER_NAME}',
+                         'recorded by --accept-missing-marker: an operator confirmed user_study_progress holds the history',
+                         now(), now())
+                 on conflict (name) do nothing`),
+      );
+      logger.warn(
+        "Recorded the marker on your word, without checking. Nothing was copied.",
+      );
+    }
+
     logger.info(
       {
         progressRows: state.progressRows,
-        worstLearnerSeenWithNoProgress: state.worst
-          ? unexplainedSeen(state.worst)
-          : 0,
+        copyRecorded: state.markerPresent || accepted,
       },
       "user_vocab_items has no legacy level columns, so this database already keeps progress in user_study_progress. Nothing to do.",
     );
@@ -613,6 +582,7 @@ async function main() {
   try {
     await database.transaction(async (tx) => {
       await tx.execute(sql.raw(CREATE_TABLE_SQL));
+      await tx.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
 
       const before = await countOf(tx, "select 1 from user_study_progress");
       await tx.execute(sql.raw(COPY_SQL));
@@ -626,6 +596,17 @@ async function main() {
         );
         throw new Error("Verification failed, nothing was written");
       }
+
+      // Inside the transaction, so a copy that rolls back leaves no record of
+      // having happened. This row is the whole reason the next run can tell a
+      // migrated database from a dropped one.
+      await tx.execute(
+        sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
+                 values ('${MARKER_NAME}',
+                         'copied ' || ${after - before} || ' progress rows from the legacy user_vocab_items columns',
+                         now(), now())
+                 on conflict (name) do nothing`),
+      );
 
       logger.info(
         {

@@ -1,3 +1,4 @@
+import { seedDataMigrations } from "./seed-data-migrations";
 import { seedDictionary } from "./seed-dictionary";
 import { seedTestUsers } from "./seed-test-users";
 import { TranslatorService } from "../../services/TranslatorService";
@@ -50,6 +51,11 @@ async function main() {
       NODE_ENV: env.NODE_ENV,
     });
     logger.info({ testUsers }, "Seeded test users");
+    const dataMigrations = await seedDataMigrations(database);
+    logger.info(
+      { dataMigrations },
+      "Recorded the data moves this database was born past",
+    );
     logger.info("Database seeding completed successfully");
     process.exit(0);
   } catch (error) {

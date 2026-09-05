@@ -178,6 +178,35 @@ export const userVocabItems = pgTable(
 );
 
 /**
+ * Data moves that `pnpm db:push` cannot perform, and the record that they ran.
+ *
+ * Push reconciles the SHAPE of the schema. It knows nothing about carrying data
+ * from an old shape into a new one, so a reshape needs a script run beside it —
+ * and once push has dropped the old columns, nothing in the database says
+ * whether that script ever ran. The two outcomes are indistinguishable
+ * afterwards: a database that was migrated correctly and one whose columns were
+ * dropped with the data still in them look exactly alike.
+ *
+ * They are only indistinguishable if nobody wrote it down. This is where it gets
+ * written down. `backfill-study-progress.ts` inserts its row inside the same
+ * transaction as the copy, so a copy that rolls back leaves no row, and the seed
+ * inserts the same row for a database that never had the old shape to begin
+ * with. A missing row where the old columns are also missing is then a fact
+ * rather than an inference.
+ *
+ * It has to be declared here rather than created by the script alone: a table
+ * `schema.ts` does not know about is dropped by the next `db:push` — measured,
+ * not assumed, on lane 8.
+ */
+export const dataMigrations = pgTable("data_migrations", {
+  /** Stable id of the move, e.g. `study-progress-rows`. */
+  name: text().primaryKey(),
+  /** What ran and what it moved. For a human reading the table, never parsed. */
+  note: text().notNull(),
+  ...timestampFields,
+});
+
+/**
  * How far one learner has got with one item in one study type.
  *
  * One row per type, replacing the four `<type>Level` / `<type>NextAt` column
@@ -409,6 +438,7 @@ export const schema = {
   vocabItems,
   userVocabItems,
   userStudyProgress,
+  dataMigrations,
   deckVocabItems,
   userDecks,
   memoryAids,
