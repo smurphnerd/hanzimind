@@ -1198,7 +1198,7 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 
 **You see.**
 
-- [ ] `grep -rn '\[\`\${' src`prints zero lines. The obvious pattern is unachievable: it matches any inline code span ending in`Level`, such as `minLevel`, and prints ten lines of pure comment and a learner's levels are identical before and after the migration.
+- [ ] `grep -rn '\[\`\${' src` prints zero lines, and a learner's levels are identical before and after the copy. The obvious pattern is unachievable, because it matches any inline code span ending in Level, such as minLevel, and prints ten lines of pure comment.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
