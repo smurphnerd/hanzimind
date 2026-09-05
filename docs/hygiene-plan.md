@@ -1271,7 +1271,7 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 - [ ] Lane 7. Check the server log for either case. Save `oracle-logs.png`. Pass when the log still records which happened, since only the response is blinded.
 - [ ] Lane 8. Sign in normally afterwards. Save `oracle-signin.png`. Pass when authentication is unaffected.
 - [ ] Lane 9. Request a password reset for a free and a taken address. Save `oracle-reset.png`. Pass when that path does not leak the same fact.
-- [ ] Lane 10. Run the e2e suite. Save `oracle-e2e.png`. Pass when the suite passes; it is 6 spec files and 15 tests, and the count is checked against the suite rather than against this line.
+- [ ] Lane 10. Run the e2e suite. Save `oracle-e2e.png`. Pass when the suite passes; it is 5 spec files and 15 tests, and the count is checked against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
