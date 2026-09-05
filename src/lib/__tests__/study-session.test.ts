@@ -54,16 +54,14 @@ function answeredItem(id = "card-1"): UserVocabItemDto {
     userId: "learner",
     username: "learner",
     seen: true,
-    readingLevel: 3,
-    listeningLevel: 2,
-    understandingLevel: 1,
-    writingLevel: 0,
+    progress: {
+      reading: { level: 3, nextAt: null },
+      listening: { level: 2, nextAt: null },
+      understanding: { level: 1, nextAt: null },
+      writing: { level: 0, nextAt: null },
+    },
     memoryAidId: null,
     memoryAid: null,
-    readingNextAt: null,
-    listeningNextAt: null,
-    understandingNextAt: null,
-    writingNextAt: null,
     constituents: [],
   };
 }
@@ -322,7 +320,7 @@ describe("levelFor", () => {
   ];
 
   for (const [studyType, level] of cases) {
-    it(`should read ${studyType} off its own column`, () => {
+    it(`should read ${studyType} off its own progress entry`, () => {
       expect(levelFor(studyType, answeredItem())).toBe(level);
     });
   }

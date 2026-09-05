@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import type { StudyType } from "@/definitions/definitions";
+import {
+  emptyStudyProgress,
+  STUDY_TYPES,
+  type StudyProgressDto,
+  type StudyType,
+} from "@/definitions/definitions";
 import {
   canStudy,
   constituentsOf,
@@ -19,7 +24,23 @@ const ALL_TYPES: StudyType[] = [
   "writing",
 ];
 
-function item(overrides: Partial<StudiableItem> = {}): StudiableItem {
+/**
+ * Levels named by study type, which is how every case here is written. The
+ * item factory turns them into the total `progress` map the rules read, so a
+ * case that cares about one type says so and nothing else.
+ */
+type Levels = Partial<Record<StudyType, number>>;
+type Overrides = Partial<StudiableItem> & { levels?: Levels };
+
+function progressWith(levels: Levels): StudyProgressDto {
+  const progress = emptyStudyProgress();
+  for (const type of STUDY_TYPES) {
+    progress[type] = { level: levels[type] ?? 0, nextAt: null };
+  }
+  return progress;
+}
+
+function item({ levels, ...overrides }: Overrides = {}): StudiableItem {
   return {
     vocabItem: "人",
     vocabType: "character",
@@ -29,10 +50,7 @@ function item(overrides: Partial<StudiableItem> = {}): StudiableItem {
     phonetic: false,
     decomposition: "？",
     seen: true,
-    readingLevel: 0,
-    listeningLevel: 0,
-    understandingLevel: 0,
-    writingLevel: 0,
+    progress: progressWith(levels ?? {}),
     ...overrides,
   };
 }
@@ -42,7 +60,7 @@ function item(overrides: Partial<StudiableItem> = {}): StudiableItem {
  * 亻 the same "rén" as 人, and 97 production rows still carry theirs — because
  * `phonetic`, not an empty pinyin, is what must keep it out of a card.
  */
-const component = (overrides: Partial<StudiableItem> = {}) =>
+const component = (overrides: Overrides = {}) =>
   item({
     vocabItem: "亻",
     vocabType: "component",
@@ -57,7 +75,7 @@ const component = (overrides: Partial<StudiableItem> = {}) =>
  * A component whose reading is its own and predicts the series it heads — 艮 gěn
  * behind 很, 跟, 根, 恨 — so it is quizzed on sound as well as meaning.
  */
-const phonetic = (overrides: Partial<StudiableItem> = {}) =>
+const phonetic = (overrides: Overrides = {}) =>
   component({
     vocabItem: "艮",
     pinyin: "gěn",
@@ -199,28 +217,29 @@ describe("weakestServableLevel", () => {
     // The deadlock in miniature: reading/listening/writing are pinned at 0 for a
     // component forever, so counting them would hold the level at 0 for good.
     const advanced = component({
-      understandingLevel: 4,
-      readingLevel: 0,
-      listeningLevel: 0,
-      writingLevel: 0,
+      levels: { understanding: 4, reading: 0, listening: 0, writing: 0 },
     });
     expect(weakestServableLevel(advanced, ALL_TYPES)).toBe(4);
   });
 
   it("should take the minimum across servable types for a character", () => {
     const mixed = item({
-      readingLevel: 3,
-      listeningLevel: 1,
-      understandingLevel: 5,
-      writingLevel: 2,
+      levels: { reading: 3, listening: 1, understanding: 5, writing: 2 },
     });
     expect(weakestServableLevel(mixed, ALL_TYPES)).toBe(1);
   });
 
-  it("should treat a null level as zero", () => {
-    expect(weakestServableLevel(item({ readingLevel: null }), ALL_TYPES)).toBe(
-      0,
-    );
+  it("should treat a type with no progress row as zero", () => {
+    // The sparse storage in one assertion. `user_study_progress` holds nothing
+    // for a type until its first answer, so understanding has moved here and
+    // the three types with no row sit at `emptyStudyProgress`'s zero.
+    const partly = item({
+      progress: {
+        ...emptyStudyProgress(),
+        understanding: { level: 4, nextAt: null },
+      },
+    });
+    expect(weakestServableLevel(partly, ALL_TYPES)).toBe(0);
   });
 
   it("should return Infinity when nothing is servable", () => {
@@ -260,10 +279,7 @@ describe("isUnlocked", () => {
     // readingLevel locked 你 forever no matter how well 亻 was known.
     const mature = component({
       seen: true,
-      understandingLevel: GATE,
-      readingLevel: 0,
-      listeningLevel: 0,
-      writingLevel: 0,
+      levels: { understanding: GATE, reading: 0, listening: 0, writing: 0 },
     });
     expect(isUnlocked(target, deps(mature), ALL_TYPES, GATE)).toBe(true);
   });
@@ -274,27 +290,27 @@ describe("isUnlocked", () => {
     const built = item({ vocabItem: "很", decomposition: "⿰彳艮" });
     const half = phonetic({
       seen: true,
-      understandingLevel: GATE,
-      readingLevel: GATE - 1,
+      levels: { understanding: GATE, reading: GATE - 1 },
     });
     expect(isUnlocked(built, deps(half), ALL_TYPES, GATE)).toBe(false);
 
     const whole = phonetic({
       seen: true,
-      understandingLevel: GATE,
-      readingLevel: GATE,
-      listeningLevel: GATE,
+      levels: { understanding: GATE, reading: GATE, listening: GATE },
     });
     expect(isUnlocked(built, deps(whole), ALL_TYPES, GATE)).toBe(true);
   });
 
   it("should stay locked while a component dependency is below the gate", () => {
-    const immature = component({ seen: true, understandingLevel: GATE - 1 });
+    const immature = component({
+      seen: true,
+      levels: { understanding: GATE - 1 },
+    });
     expect(isUnlocked(target, deps(immature), ALL_TYPES, GATE)).toBe(false);
   });
 
   it("should stay locked while a dependency is unseen", () => {
-    const unseen = component({ seen: false, understandingLevel: 9 });
+    const unseen = component({ seen: false, levels: { understanding: 9 } });
     expect(isUnlocked(target, deps(unseen), ALL_TYPES, GATE)).toBe(false);
   });
 
@@ -329,14 +345,16 @@ describe("isUnlocked", () => {
   });
 
   it("should require every dependency to clear the gate", () => {
-    const ready = component({ seen: true, understandingLevel: GATE });
+    const ready = component({ seen: true, levels: { understanding: GATE } });
     const notReady = item({
       vocabItem: "尔",
       seen: true,
-      readingLevel: 0,
-      listeningLevel: GATE,
-      understandingLevel: GATE,
-      writingLevel: GATE,
+      levels: {
+        reading: 0,
+        listening: GATE,
+        understanding: GATE,
+        writing: GATE,
+      },
     });
     expect(isUnlocked(target, deps(ready, notReady), ALL_TYPES, GATE)).toBe(
       false,

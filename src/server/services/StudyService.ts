@@ -6,8 +6,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
+  emptyStudyProgress,
   type DeckProgressDto,
   type VocabItemStudyDto,
+  type StudyProgressDto,
   type StudyType,
   type UserVocabItemDto,
   type StudyAnswerDto,
@@ -25,7 +27,7 @@ import {
   readingOf,
   selectNextCard,
   summariseDeckProgress,
-  type ProgressRollupItem,
+  type StudiableItem,
   writableType,
 } from "@/server/study-rules";
 import {
@@ -80,17 +82,39 @@ const cardColumns = {
   decomposition: schema.vocabItems.decomposition,
 } as const;
 
-/** The learner's standing against an item, as the rules read it. */
-const progressColumns = {
-  seen: schema.userVocabItems.seen,
-  readingLevel: schema.userVocabItems.readingLevel,
-  listeningLevel: schema.userVocabItems.listeningLevel,
-  understandingLevel: schema.userVocabItems.understandingLevel,
-  writingLevel: schema.userVocabItems.writingLevel,
-  readingNextAt: schema.userVocabItems.readingNextAt,
-  listeningNextAt: schema.userVocabItems.listeningNextAt,
-  understandingNextAt: schema.userVocabItems.understandingNextAt,
-  writingNextAt: schema.userVocabItems.writingNextAt,
+/**
+ * Fold the learner's progress rows into one total map per vocab item.
+ *
+ * Storage is sparse — a study type gets a row only once it has been answered —
+ * and every rule downstream reads a total map, so the gaps are filled exactly
+ * once, here. Nothing past this point has to know what a missing row meant.
+ */
+export function progressByItem(
+  rows: readonly {
+    vocabItemId: string;
+    studyType: StudyType;
+    level: number;
+    nextAt: Date | null;
+  }[],
+): Map<string, StudyProgressDto> {
+  const byItem = new Map<string, StudyProgressDto>();
+  for (const row of rows) {
+    let progress = byItem.get(row.vocabItemId);
+    if (!progress) {
+      progress = emptyStudyProgress();
+      byItem.set(row.vocabItemId, progress);
+    }
+    progress[row.studyType] = { level: row.level, nextAt: row.nextAt };
+  }
+  return byItem;
+}
+
+/** The four columns a progress row contributes, wherever it is read. */
+const studyProgressColumns = {
+  vocabItemId: schema.userStudyProgress.vocabItemId,
+  studyType: schema.userStudyProgress.studyType,
+  level: schema.userStudyProgress.level,
+  nextAt: schema.userStudyProgress.nextAt,
 } as const;
 
 export class StudyService {
@@ -365,16 +389,7 @@ export class StudyService {
       checker: this.deps.translationChecker,
     });
 
-    const levelField = `${answer.studyType}Level` as
-      | "readingLevel"
-      | "listeningLevel"
-      | "understandingLevel"
-      | "writingLevel";
-    const nextAtField = `${answer.studyType}NextAt` as
-      | "readingNextAt"
-      | "listeningNextAt"
-      | "understandingNextAt"
-      | "writingNextAt";
+    const studyType = answer.studyType;
 
     // Read the level and write it back atomically.
     //
@@ -387,34 +402,64 @@ export class StudyService {
     // second silently overwrites the first. The level is read again inside,
     // because the value fetched before grading may be stale by now.
     await this.deps.database.transaction(async (tx) => {
-      const [locked] = await tx
-        .select({ level: schema.userVocabItems[levelField] })
-        .from(schema.userVocabItems)
-        .where(
-          and(
-            eq(schema.userVocabItems.userId, userId),
-            eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
-          ),
-        )
-        .for("update");
-
-      // Stamped after grading resolves, because the interval runs from when
-      // the learner finished, not when they started.
-      const { nextLevel, nextAt } = nextReviewAt(
-        locked?.level ?? 0,
-        answerCorrect,
-        new Date(),
-      );
-
+      // The lock, and the `seen` write, in one statement. An UPDATE takes the
+      // same exclusive row lock a `SELECT ... FOR UPDATE` would, and this row
+      // is guaranteed to exist by the block above.
+      //
+      // It has to be THIS row rather than the progress row the level lives on:
+      // a study type has no progress row until its first answer, and locking a
+      // row that is not there serialises nothing, so two concurrent first
+      // answers would both read level 0 and one would be lost — the defect
+      // P3-STUDY-SVC fixed.
       await tx
         .update(schema.userVocabItems)
-        .set({ seen: true, [levelField]: nextLevel, [nextAtField]: nextAt })
+        .set({ seen: true })
         .where(
           and(
             eq(schema.userVocabItems.userId, userId),
             eq(schema.userVocabItems.vocabItemId, answer.vocabItemId),
           ),
         );
+
+      const [current] = await tx
+        .select({ level: schema.userStudyProgress.level })
+        .from(schema.userStudyProgress)
+        .where(
+          and(
+            eq(schema.userStudyProgress.userId, userId),
+            eq(schema.userStudyProgress.vocabItemId, answer.vocabItemId),
+            eq(schema.userStudyProgress.studyType, studyType),
+          ),
+        );
+
+      // Stamped after grading resolves, because the interval runs from when
+      // the learner finished, not when they started.
+      const { nextLevel, nextAt } = nextReviewAt(
+        current?.level ?? 0,
+        answerCorrect,
+        new Date(),
+      );
+
+      await tx
+        .insert(schema.userStudyProgress)
+        .values({
+          userId,
+          vocabItemId: answer.vocabItemId,
+          studyType,
+          level: nextLevel,
+          nextAt,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.userStudyProgress.userId,
+            schema.userStudyProgress.vocabItemId,
+            schema.userStudyProgress.studyType,
+          ],
+          // `$onUpdateFn` fires on `.update()`, not on a conflict clause, so
+          // the timestamp is set by hand or the row keeps the one it was
+          // inserted with.
+          set: { level: nextLevel, nextAt, updatedAt: new Date() },
+        });
     });
 
     return answerCorrect;
@@ -471,33 +516,57 @@ export class StudyService {
       throw new InvalidInputError("No study types enabled for this deck");
     }
 
-    // Fetch all vocab items in the deck with user progress
-    const vocabItems = await this.deps.database
-      .select({
-        ...cardColumns,
-        ...progressColumns,
-      })
-      .from(schema.deckVocabItems)
-      .innerJoin(
-        schema.vocabItems,
-        eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
-      )
-      .leftJoin(
-        schema.userVocabItems,
-        and(
-          eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
-          eq(schema.userVocabItems.userId, userDeck.userId),
+    // The deck's cards and the learner's progress against them, in parallel.
+    // Two queries rather than one join: joining the per-type rows would repeat
+    // every card column up to four times, which is what the projection work in
+    // P3-STUDY-SVC was for. Neither query depends on the other's result.
+    const [rows, progressRows] = await Promise.all([
+      this.deps.database
+        .select({ ...cardColumns, seen: schema.userVocabItems.seen })
+        .from(schema.deckVocabItems)
+        .innerJoin(
+          schema.vocabItems,
+          eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+        )
+        .leftJoin(
+          schema.userVocabItems,
+          and(
+            eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
+            eq(schema.userVocabItems.userId, userDeck.userId),
+          ),
+        )
+        .where(
+          and(
+            eq(schema.deckVocabItems.deckId, userDeck.deckId),
+            // Disabled items are never served, and because the prerequisite
+            // gating below is built from this same result set, they also stop
+            // gating the characters they used to be part of.
+            eq(schema.vocabItems.disabled, false),
+          ),
         ),
-      )
-      .where(
-        and(
-          eq(schema.deckVocabItems.deckId, userDeck.deckId),
-          // Disabled items are never served, and because the prerequisite
-          // gating below is built from this same result set, they also stop
-          // gating the characters they used to be part of.
-          eq(schema.vocabItems.disabled, false),
+      this.deps.database
+        .select(studyProgressColumns)
+        .from(schema.userStudyProgress)
+        .innerJoin(
+          schema.deckVocabItems,
+          eq(
+            schema.deckVocabItems.vocabItemId,
+            schema.userStudyProgress.vocabItemId,
+          ),
+        )
+        .where(
+          and(
+            eq(schema.userStudyProgress.userId, userDeck.userId),
+            eq(schema.deckVocabItems.deckId, userDeck.deckId),
+          ),
         ),
-      );
+    ]);
+
+    const progress = progressByItem(progressRows);
+    const vocabItems = rows.map((row) => ({
+      ...row,
+      progress: progress.get(row.id) ?? emptyStudyProgress(),
+    }));
 
     if (vocabItems.length === 0) {
       // Empty deck (or no items match the current settings) — nothing to study.
@@ -587,34 +656,46 @@ export class StudyService {
     // Selecting the table itself rather than naming columns is what lets
     // toVocabItemDto take it, which is the only sanctioned way a row becomes a
     // dictionary DTO.
-    const result = await this.deps.database
-      .select({
-        item: schema.vocabItems,
-        username: schema.users.name,
-        ...progressColumns,
-        memoryAidId: schema.userVocabItems.memoryAidId,
-        memoryAid: schema.memoryAids.memoryAid,
-      })
-      .from(schema.vocabItems)
-      .innerJoin(
-        schema.userVocabItems,
-        and(
-          eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
-          eq(schema.userVocabItems.userId, userId),
+    const [result, progressRows] = await Promise.all([
+      this.deps.database
+        .select({
+          item: schema.vocabItems,
+          username: schema.users.name,
+          seen: schema.userVocabItems.seen,
+          memoryAidId: schema.userVocabItems.memoryAidId,
+          memoryAid: schema.memoryAids.memoryAid,
+        })
+        .from(schema.vocabItems)
+        .innerJoin(
+          schema.userVocabItems,
+          and(
+            eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
+            eq(schema.userVocabItems.userId, userId),
+          ),
+        )
+        .innerJoin(schema.users, eq(schema.users.id, userId))
+        .leftJoin(
+          schema.memoryAids,
+          eq(schema.memoryAids.id, schema.userVocabItems.memoryAidId),
+        )
+        .where(
+          and(
+            eq(schema.vocabItems.id, vocabItemId),
+            eq(schema.vocabItems.disabled, false),
+          ),
+        )
+        .limit(1),
+      // At most four rows, keyed on this table's primary key.
+      this.deps.database
+        .select(studyProgressColumns)
+        .from(schema.userStudyProgress)
+        .where(
+          and(
+            eq(schema.userStudyProgress.userId, userId),
+            eq(schema.userStudyProgress.vocabItemId, vocabItemId),
+          ),
         ),
-      )
-      .innerJoin(schema.users, eq(schema.users.id, userId))
-      .leftJoin(
-        schema.memoryAids,
-        eq(schema.memoryAids.id, schema.userVocabItems.memoryAidId),
-      )
-      .where(
-        and(
-          eq(schema.vocabItems.id, vocabItemId),
-          eq(schema.vocabItems.disabled, false),
-        ),
-      )
-      .limit(1);
+    ]);
 
     if (result.length === 0) {
       throw new Error(
@@ -646,16 +727,10 @@ export class StudyService {
       userId,
       username: item.username,
       seen: item.seen,
-      readingLevel: item.readingLevel,
-      listeningLevel: item.listeningLevel,
-      understandingLevel: item.understandingLevel,
-      writingLevel: item.writingLevel,
+      progress:
+        progressByItem(progressRows).get(vocabItemId) ?? emptyStudyProgress(),
       memoryAidId,
       memoryAid,
-      readingNextAt: item.readingNextAt,
-      listeningNextAt: item.listeningNextAt,
-      understandingNextAt: item.understandingNextAt,
-      writingNextAt: item.writingNextAt,
       constituents: await this.deps.vocabService.getVocabItemParts({
         vocabItem: item.item.vocabItem,
         vocabType: item.item.vocabType,
@@ -699,36 +774,51 @@ export class StudyService {
     // The same join getNextVocabItem selects from, widened to every enrolled
     // deck at once. Disabled items are excluded here too, so they neither
     // count towards progress nor gate anything.
-    const rows = await this.deps.database
-      .select({
-        deckId: schema.deckVocabItems.deckId,
-        ...cardColumns,
-        ...progressColumns,
-      })
-      .from(schema.deckVocabItems)
-      .innerJoin(
-        schema.vocabItems,
-        eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
-      )
-      .leftJoin(
-        schema.userVocabItems,
-        and(
-          eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
-          eq(schema.userVocabItems.userId, userId),
+    const [rows, progressRows] = await Promise.all([
+      this.deps.database
+        .select({
+          deckId: schema.deckVocabItems.deckId,
+          ...cardColumns,
+          seen: schema.userVocabItems.seen,
+        })
+        .from(schema.deckVocabItems)
+        .innerJoin(
+          schema.vocabItems,
+          eq(schema.deckVocabItems.vocabItemId, schema.vocabItems.id),
+        )
+        .leftJoin(
+          schema.userVocabItems,
+          and(
+            eq(schema.userVocabItems.vocabItemId, schema.vocabItems.id),
+            eq(schema.userVocabItems.userId, userId),
+          ),
+        )
+        .where(
+          and(
+            inArray(schema.deckVocabItems.deckId, [...enabledByDeck.keys()]),
+            eq(schema.vocabItems.disabled, false),
+          ),
         ),
-      )
-      .where(
-        and(
-          inArray(schema.deckVocabItems.deckId, [...enabledByDeck.keys()]),
-          eq(schema.vocabItems.disabled, false),
-        ),
-      );
+      // Every progress row this learner has, without a deck join. The join
+      // would repeat a row for each deck the item belongs to, and the rollup
+      // wants all of their decks anyway; rows for items no longer in a deck
+      // simply go unread.
+      this.deps.database
+        .select(studyProgressColumns)
+        .from(schema.userStudyProgress)
+        .where(eq(schema.userStudyProgress.userId, userId)),
+    ]);
 
-    const itemsByDeck = new Map<string, ProgressRollupItem[]>();
+    const progress = progressByItem(progressRows);
+    const itemsByDeck = new Map<string, StudiableItem[]>();
     for (const row of rows) {
+      const item = {
+        ...row,
+        progress: progress.get(row.id) ?? emptyStudyProgress(),
+      };
       const items = itemsByDeck.get(row.deckId);
-      if (items) items.push(row);
-      else itemsByDeck.set(row.deckId, [row]);
+      if (items) items.push(item);
+      else itemsByDeck.set(row.deckId, [item]);
     }
 
     const now = new Date();

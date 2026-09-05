@@ -7,6 +7,42 @@ const studyTypeValues = [
   "writing",
 ] as const;
 export type StudyType = (typeof studyTypeValues)[number];
+export const StudyTypeEnum = z.enum(studyTypeValues);
+export const STUDY_TYPES: readonly StudyType[] = studyTypeValues;
+
+/** Where one study type stands for one learner against one item. */
+export const StudyProgressEntryDto = z.object({
+  level: z.number().int().nonnegative(),
+  /** Null when the type has never been scheduled, which reads as due now. */
+  nextAt: z.date().nullable(),
+});
+export type StudyProgressEntryDto = z.infer<typeof StudyProgressEntryDto>;
+
+/**
+ * A learner's standing against one item, per study type.
+ *
+ * Total rather than partial: every type is always present, so a reader never
+ * has to remember what a missing key means. The storage underneath is sparse —
+ * `user_study_progress` holds a row only once a type has been answered — and
+ * `emptyStudyProgress` is the value that absence stands for.
+ */
+export const StudyProgressDto = z.object({
+  reading: StudyProgressEntryDto,
+  listening: StudyProgressEntryDto,
+  understanding: StudyProgressEntryDto,
+  writing: StudyProgressEntryDto,
+});
+export type StudyProgressDto = z.infer<typeof StudyProgressDto>;
+
+/** Never answered: level 0, due immediately. What a missing row means. */
+export function emptyStudyProgress(): StudyProgressDto {
+  return {
+    reading: { level: 0, nextAt: null },
+    listening: { level: 0, nextAt: null },
+    understanding: { level: 0, nextAt: null },
+    writing: { level: 0, nextAt: null },
+  };
+}
 
 // Ordered largest to smallest. `component` is a bound radical form (亻, 氵, ⺮) —
 // a graphical part of a character that is never typed as a word on its own.
@@ -350,16 +386,9 @@ export const UserVocabItemDto = VocabItemDto.extend({
   userId: z.string(),
   username: z.string(),
   seen: z.boolean(),
-  readingLevel: z.number(),
-  listeningLevel: z.number(),
-  understandingLevel: z.number(),
-  writingLevel: z.number(),
+  progress: StudyProgressDto,
   memoryAidId: z.string().nullable(),
   memoryAid: z.string().nullable(),
-  readingNextAt: z.date().nullable(),
-  listeningNextAt: z.date().nullable(),
-  understandingNextAt: z.date().nullable(),
-  writingNextAt: z.date().nullable(),
   /** See VocabItemStudyNewDto.constituents — resolved server-side, disabled parts removed. */
   constituents: z.array(z.string()),
 });

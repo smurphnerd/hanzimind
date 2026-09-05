@@ -1,5 +1,6 @@
 import type {
   DeckProgressDto,
+  StudyProgressDto,
   StudyType,
   VocabType,
 } from "@/definitions/definitions";
@@ -33,15 +34,20 @@ export interface QuizzableItem {
   phonetic: boolean;
 }
 
-/** Adds the decomposition and per-learner progress that the gating rules read. */
+/**
+ * Adds the decomposition and per-learner progress that the gating, ordering and
+ * rollup rules read.
+ *
+ * `progress` is total: every study type is present, and a type the learner has
+ * never answered carries `emptyStudyProgress`'s level 0 and null `nextAt`. The
+ * storage is sparse, so filling the gaps is the query layer's job and no rule
+ * here has to know what a missing entry would have meant.
+ */
 export interface StudiableItem extends QuizzableItem {
   decomposition: string | null;
   /** Null when the learner has no progress row yet — the deck query left-joins it. */
   seen: boolean | null;
-  readingLevel: number | null;
-  listeningLevel: number | null;
-  understandingLevel: number | null;
-  writingLevel: number | null;
+  progress: StudyProgressDto;
 }
 
 const hasPinyin = (item: QuizzableItem) =>
@@ -118,7 +124,7 @@ export function weakestServableLevel(
   const servable = servableStudyTypes(item, enabledStudyTypes);
   if (servable.length === 0) return Infinity;
 
-  return Math.min(...servable.map((type) => item[`${type}Level`] ?? 0));
+  return Math.min(...servable.map((type) => item.progress[type].level));
 }
 
 /** The parts this item is built from, one level down. */
@@ -222,14 +228,6 @@ export const VOCAB_TYPE_PRIORITY: Record<VocabType, number> = {
   sentence: 3,
 };
 
-/** A `StudiableItem` plus the due times selection reads. */
-export interface ScorableItem extends StudiableItem {
-  readingNextAt: Date | null;
-  listeningNextAt: Date | null;
-  understandingNextAt: Date | null;
-  writingNextAt: Date | null;
-}
-
 export interface SelectionContext {
   /**
    * Order is load-bearing. The pick below uses a strict `<`, so among types at
@@ -301,7 +299,7 @@ function compareCandidates(a: CandidateScore, b: CandidateScore): number {
  * own job, and unifying them would promote an item whose weakest type is not
  * yet due.
  */
-export function selectNextCard<T extends ScorableItem>(
+export function selectNextCard<T extends StudiableItem>(
   items: readonly T[],
   ctx: SelectionContext,
 ): Selection<T> | null {
@@ -343,8 +341,7 @@ export function selectNextCard<T extends ScorableItem>(
     for (const candidateType of enabledStudyTypes) {
       if (!canStudy(item, candidateType)) continue;
 
-      const level = item[`${candidateType}Level`] ?? 0;
-      const nextAt = item[`${candidateType}NextAt`];
+      const { level, nextAt } = item.progress[candidateType];
       const isDue = nextAt === null || nextAt <= now;
 
       if (isDue && level < minLevel) {
@@ -372,12 +369,6 @@ export function selectNextCard<T extends ScorableItem>(
   return { item: candidates[0].item, studyType: candidates[0].studyType };
 }
 
-/**
- * What the rollup reads for one item. The same shape selection needs, and the
- * same idea: an item carrying the learner's progress against it.
- */
-export type ProgressRollupItem = ScorableItem;
-
 export const emptyStages = (): number[] => [0, 0, 0, 0, 0, 0];
 
 /**
@@ -393,7 +384,7 @@ export const emptyStages = (): number[] => [0, 0, 0, 0, 0, 0];
  */
 export function summariseDeckProgress(args: {
   deckId: string;
-  items: readonly ProgressRollupItem[];
+  items: readonly StudiableItem[];
   enabledStudyTypes: readonly StudyType[];
   gateLevel: number;
   now: Date;
@@ -430,7 +421,7 @@ export function summariseDeckProgress(args: {
       // A type that has never been scheduled is due immediately, matching how
       // getNextVocabItem treats a null nextAt.
       const isDue = servable.some((type) => {
-        const nextAt = item[`${type}NextAt`];
+        const { nextAt } = item.progress[type];
         return nextAt === null || nextAt <= now;
       });
       if (isDue) dueNow++;

@@ -13,6 +13,7 @@ import { timestampFields } from "./databaseUtils";
 import {
   EtymologyType,
   Script,
+  StudyType,
   SuggestionKind,
   SuggestionStatus,
   VocabType,
@@ -167,19 +168,82 @@ export const userVocabItems = pgTable(
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
+    // Answered at least once, in any study type. Says nothing about the level:
+    // a wrong answer leaves the item seen at 0.
     seen: boolean().notNull().default(false),
-    readingLevel: integer().notNull().default(0),
-    listeningLevel: integer().notNull().default(0),
-    understandingLevel: integer().notNull().default(0),
-    writingLevel: integer().notNull().default(0),
     memoryAidId: text().references(() => memoryAids.id),
-    readingNextAt: timestamp(),
-    listeningNextAt: timestamp(),
-    understandingNextAt: timestamp(),
-    writingNextAt: timestamp(),
     ...timestampFields,
   },
   (table) => [primaryKey({ columns: [table.userId, table.vocabItemId] })],
+);
+
+/**
+ * Data moves that `pnpm db:push` cannot perform, and the record that they ran.
+ *
+ * Push reconciles the SHAPE of the schema. It knows nothing about carrying data
+ * from an old shape into a new one, so a reshape needs a script run beside it —
+ * and once push has dropped the old columns, nothing in the database says
+ * whether that script ever ran. The two outcomes are indistinguishable
+ * afterwards: a database that was migrated correctly and one whose columns were
+ * dropped with the data still in them look exactly alike.
+ *
+ * They are only indistinguishable if nobody wrote it down. This is where it gets
+ * written down. `backfill-study-progress.ts` inserts its row inside the same
+ * transaction as the copy, so a copy that rolls back leaves no row, and the seed
+ * inserts the same row for a database that never had the old shape to begin
+ * with. A missing row where the old columns are also missing is then a fact
+ * rather than an inference.
+ *
+ * It has to be declared here rather than created by the script alone: a table
+ * `schema.ts` does not know about is dropped by the next `db:push` — measured,
+ * not assumed, on lane 8.
+ */
+export const dataMigrations = pgTable("data_migrations", {
+  /** Stable id of the move, e.g. `study-progress-rows`. */
+  name: text().primaryKey(),
+  /** What ran and what it moved. For a human reading the table, never parsed. */
+  note: text().notNull(),
+  ...timestampFields,
+});
+
+/**
+ * How far one learner has got with one item in one study type.
+ *
+ * One row per type, replacing the four `<type>Level` / `<type>NextAt` column
+ * pairs this table used to carry. The pairs forced every reader to build a
+ * column name from a study type at runtime, which no type system checks and
+ * which spread a four-way `switch` through the query layer, the rules and the
+ * client.
+ *
+ * Sparse on purpose: a type that has never been answered has no row, and means
+ * level 0 due immediately (`emptyStudyProgress`). A level of 0 WITH a `nextAt`
+ * is a different thing — an answer got wrong — and does get a row.
+ *
+ * Locking. Writers take the `user_vocab_items` row for the pair first and only
+ * then touch this table, because the row here does not exist before the first
+ * answer of its type and a lock on a row that is not there serialises nothing.
+ * See `StudyService.processAnswer`.
+ */
+export const userStudyProgress = pgTable(
+  "user_study_progress",
+  {
+    userId: text()
+      .notNull()
+      .references(() => users.id),
+    vocabItemId: text()
+      .notNull()
+      .references(() => vocabItems.id),
+    studyType: text().notNull().$type<StudyType>(),
+    level: integer().notNull().default(0),
+    /** Null means never scheduled, which selection reads as due now. */
+    nextAt: timestamp(),
+    ...timestampFields,
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.vocabItemId, table.studyType],
+    }),
+  ],
 );
 
 // Deck vocabulary items table (vocab items in a deck)
@@ -373,6 +437,8 @@ export const schema = {
   decks,
   vocabItems,
   userVocabItems,
+  userStudyProgress,
+  dataMigrations,
   deckVocabItems,
   userDecks,
   memoryAids,

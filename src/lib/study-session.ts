@@ -76,16 +76,9 @@ export type StudySessionAction =
 
 export const initialStudySession: StudySessionState = { phase: "loading" };
 
-const LEVEL_FIELD = {
-  reading: "readingLevel",
-  listening: "listeningLevel",
-  understanding: "understandingLevel",
-  writing: "writingLevel",
-} as const satisfies Record<StudyType, keyof UserVocabItemDto>;
-
 /** The level `studyType` sits at on `item`, which is the only one worth showing. */
 export function levelFor(studyType: StudyType, item: UserVocabItemDto): number {
-  return item[LEVEL_FIELD[studyType]] ?? 0;
+  return item.progress[studyType].level;
 }
 
 /**
