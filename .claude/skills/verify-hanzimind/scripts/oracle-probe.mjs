@@ -377,6 +377,7 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     ),
       bodies: [...kinds[kind].bodies],
       headers: [...kinds[kind].headers],
+      raw: kinds[kind].stamps,
       stamps: Object.fromEntries(
         Object.entries(kinds[kind].stamps).map(([field, all]) => {
           const sorted = [...all].sort((a, b) => a - b);
@@ -426,21 +427,11 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     // it a leak in the real run and an equal and opposite leak in the control.
     // What makes the channel usable from a SINGLE request is whether the two
     // ranges overlap at all, and that is what is measured here.
-    stampGaps: Object.fromEntries(
-      Object.keys({ ...free.stamps, ...taken.stamps })
-        .map((field) => {
-          const f = free.stamps[field];
-          const t2 = taken.stamps[field];
-          if (!f || !t2) return [field, null];
-          const separation =
-            f.max < t2.min
-              ? t2.min - f.max
-              : t2.max < f.min
-                ? f.min - t2.max
-                : 0;
-          return [field, separation === 0 ? null : separation];
-        })
-        .filter(([, separation]) => separation !== null),
+    stampSeparability: Object.fromEntries(
+      Object.keys({ ...free.stamps, ...taken.stamps }).map((field) => [
+        field,
+        separability(free.raw[field] ?? [], taken.raw[field] ?? []),
+      ]),
     ),
   };
 };
@@ -497,13 +488,51 @@ const CONTENT_CLASSES = [
   { name: "percent", value: "Oracle%00Probe" },
 ];
 
+/**
+ * How often ONE observation of a field's offset identifies which kind it came
+ * from, using the best single threshold: 50% is chance, 100% is single-request
+ * reliable.
+ *
+ * This replaces a disjointness test that was wrong in an instructive way. Taking
+ * min and max over the samples made the statistic n-dependent in the worst
+ * direction — more samples widen a range, so the sweep reported FOURTEEN leaking
+ * classes at n=3 and FOUR at n=8. A probe whose finding count falls as you look
+ * harder is not measuring the system, it is measuring its own sample size.
+ *
+ * Best-threshold accuracy estimates a property of the two distributions rather
+ * than of this sample's extremes, so it is stable in n. It is upward-biased at
+ * small n, because the threshold is fitted to the same data it is scored on —
+ * which is exactly why the control matters: the control carries the identical
+ * bias, so the comparison between them cancels it.
+ */
+const separability = (freeValues, takenValues) => {
+  const total = freeValues.length + takenValues.length;
+  if (!freeValues.length || !takenValues.length) return 0.5;
+  const candidates = [...new Set([...freeValues, ...takenValues])].sort(
+    (a, b) => a - b,
+  );
+  let best = 0;
+  for (let i = 0; i < candidates.length - 1; i += 1) {
+    const threshold = (candidates[i] + candidates[i + 1]) / 2;
+    const below =
+      freeValues.filter((v) => v < threshold).length +
+      takenValues.filter((v) => v >= threshold).length;
+    // Either polarity counts: the channel is that the two differ, not which is
+    // larger, and which is larger can flip between deployments.
+    best = Math.max(best, below, total - below);
+  }
+  return best / total;
+};
+
+/** Above this much better than its own control, a field sorts the two kinds. */
+const SEPARABILITY_MARGIN = 0.2;
+
 const verdictOf = (r) => {
   const differs = [];
   if (!r.sameStatus) differs.push("status");
   if (!r.sameBody) differs.push("body");
   if (!r.sameHeaders) differs.push("headers");
   if (!r.sameBuckets) differs.push("bucket");
-  for (const field of Object.keys(r.stampGaps)) differs.push(`stamp:${field}`);
   return differs;
 };
 
@@ -521,6 +550,12 @@ const verdictOf = (r) => {
  */
 const findingOf = (real, ctrl) => {
   const realDiffers = verdictOf(real);
+  for (const [field, accuracy] of Object.entries(real.stampSeparability)) {
+    const floor = ctrl.stampSeparability[field] ?? 0.5;
+    if (accuracy - floor >= SEPARABILITY_MARGIN) {
+      realDiffers.push(`stamp:${field}`);
+    }
+  }
   const controlDiffers = new Set(verdictOf(ctrl));
   const genuine = realDiffers.filter((d) => !controlDiffers.has(d));
   const masked = realDiffers.filter((d) => controlDiffers.has(d));
@@ -562,12 +597,9 @@ const reportDefault = (r) => {
   for (const field of stampFields) {
     const f = r.free.stamps[field];
     const t2 = r.taken.stamps[field];
-    const separation = r.stampGaps[field];
+    const accuracy = r.stampSeparability[field] ?? 0.5;
     console.log(
-      `stamp    ${field} free +${f.p50} ms [${f.min}..${f.max}], taken +${t2.p50} ms [${t2.min}..${t2.max}]` +
-        (separation === undefined
-          ? "  ranges OVERLAP, so one request cannot sort them"
-          : `  DISJOINT by ${separation} ms, so one request sorts them`),
+      `stamp    ${field} free +${f.p50} ms [${f.min}..${f.max}], taken +${t2.p50} ms [${t2.min}..${t2.max}]  one request sorts them ${(accuracy * 100).toFixed(0)}% of the time`,
     );
   }
   // The 10% rule is meaningful against a 750 ms bucket and close to meaningless
