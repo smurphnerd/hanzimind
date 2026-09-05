@@ -66,6 +66,22 @@ fi
 
 auth_secret=$(sed -n 's/^AUTH_SECRET=//p' "$ENV_FILE" 2>/dev/null || true)
 [ -n "$auth_secret" ] || auth_secret=$(openssl rand -hex 32)
+# EMAIL_CONNECTION_URL is 127.0.0.1, never localhost. Compose publishes
+# Mailpit's SMTP port on IPv4 only, and localhost resolves to both ::1 and
+# 127.0.0.1. nodemailer picks one of the two at random for every send, so half
+# its connections open on an address nothing is listening on and fail with
+# `ESOCKET connect ECONNREFUSED ::1:<port>`. Recent nodemailer retries the
+# other address and recent Node hedges its own connect, but `^9.0.1` floats
+# over versions that do neither, and a lane's mail should not rest on either.
+# An address has no coin to flip.
+#
+# The rationale sits here rather than in the file it writes. The heredoc below
+# is unquoted, so a backtick inside it runs as a command at generation: this
+# block, written into the heredoc, printed three shell errors on every lane
+# boot and landed with the two strings it exists to name eaten. And .env.lane
+# is rewritten in full on every run, which is the same reason a hand fix there
+# never lasts. Whoever needs this is editing lane-up.sh, and they are already
+# in it.
 cat >"$ENV_FILE" <<EOF
 NODE_ENV=development
 LOG_LEVEL=info
@@ -73,15 +89,50 @@ GIT_SHA=$(git -C "$REPO" rev-parse HEAD)
 BASE_URL=http://localhost:$DEV_PORT
 DATABASE_URL=postgres://postgres:postgres@localhost:$POSTGRES_PORT/postgres
 S3_OPTIONS='{"credentials":{"accessKeyId":"lane","secretAccessKey":"lane"},"endpoint":"http://localhost:$S3_PORT","region":"local","bucketName":"default-bucket","forcePathStyle":true}'
-EMAIL_CONNECTION_URL=smtp://lane:lane@localhost:$MAILPIT_SMTP_PORT
+# EMAIL_CONNECTION_URL: 127.0.0.1, never localhost. See lane-up.sh.
+EMAIL_CONNECTION_URL=smtp://lane:lane@127.0.0.1:$MAILPIT_SMTP_PORT
 SYSTEM_EMAIL_FROM="HanziMind <no-reply@hanzimind.test>"
 AUTH_SECRET=$auth_secret
 DEEPL_API_KEY=${DEEPL_API_KEY:-lane-no-deepl}
 SEED_TEST_USER=1
 EOF
 
-(cd "$REPO" && lane_env && pnpm exec drizzle-kit push --force >"$LANE_DIR/db-push.log" 2>&1) ||
-	{ printf 'lane %s: drizzle-kit push failed, see %s\n' "$LANE" "$LANE_DIR/db-push.log" >&2; exit 1; }
+# The exit status is not the signal. `drizzle-kit push --force` exits 0 both
+# when a statement fails and when it cannot reach the database at all; only a
+# malformed config gets a non-zero code. So the old `||` guard could not fire,
+# and a lane whose schema half applied did not stop or even complain: it
+# seeded, printed `ready`, and saved a seed cache keyed on the schema that
+# failed, which every later lane in every checkout would then have restored.
+# The push is not atomic either, so "half applied" is literal — a valid table
+# gets created beside a failing one.
+#
+# Assert success positively instead: a push that did anything prints "Changes
+# applied", and one that had nothing to do prints "No changes detected". A
+# statement error always aborts before either line. If drizzle ever renames
+# them, a healthy lane stops with the whole log on screen, which is the
+# failure worth having.
+#
+# This says the push finished, not that it was safe. `--force` accepts
+# data-loss statements, so it can print "Changes applied" over a truncated
+# table. That is drizzle's documented behaviour and out of scope here; the
+# operator's own `pnpm db:push` carries no `--force` and prompts.
+(cd "$REPO" && lane_env && pnpm exec drizzle-kit push --force >"$LANE_DIR/db-push.log" 2>&1) &&
+	grep -q 'Changes applied\|No changes detected' "$LANE_DIR/db-push.log" ||
+	{
+		# Print the log, do not point at it. In CI the lane directory is on a
+		# runner nobody can open, so "see development/lanes/0/db-push.log" is the
+		# entire diagnostic a human gets for a schema that would not build.
+		# 200 lines, not 40, because the window has to hold the whole failure
+		# and not just its tail. drizzle-kit never echoes the statement it was
+		# running: it prints the one useful sentence first and then buries it
+		# under a 24-line dump of the Postgres error object, below whatever the
+		# push had already printed. A short tail therefore keeps the dump and
+		# drops the sentence, which is the wrong half. A whole failing push log
+		# is a few tens of lines, so 200 prints all of it.
+		printf 'lane %s: drizzle-kit push failed, last 200 lines of %s:\n' "$LANE" "$LANE_DIR/db-push.log" >&2
+		tail -n 200 "$LANE_DIR/db-push.log" 2>/dev/null | sed 's/^/  /' >&2
+		exit 1
+	}
 
 cache_key=$(seed_cache_key)
 cache_root="${HANZIMIND_LANE_CACHE:-$HOME/.cache/hanzimind-lanes}"

@@ -93,15 +93,25 @@ roughly 5 minutes; raise it if the TTS endpoint tolerates more.
 
 ## 5. Repointing existing audio URLs
 
-`pnpm db:migrate-audio-urls` rewrites rows whose `audio_url` starts with
-`endpoint/bucketName` to use `cloudfrontDistributionUrl` instead. It only
-rewrites the **prefix** — the object keys are unchanged — so it is the right
-tool when the same files are reachable at a new public domain.
+Moving audio to a new public domain means rewriting the `endpoint/bucketName`
+prefix in `vocab_items.audio_url`. There is no script for this. The one that
+used to do it, `src/server/database/migrations/migrate-audio-urls.ts`, was
+deleted as dead code in `a06d851` and this page kept naming it. It was a
+prefix rewrite and nothing more, so here it is as SQL, which cannot rot the
+same way:
 
-It does **not** copy objects between buckets. Moving from the local s3mock to
-R2 means the audio files themselves don't exist in R2 yet, so re-run
-`pnpm db:seed` after clearing `audio_url` (or against an empty database)
-rather than migrating the URLs.
+```sql
+update vocab_items
+   set audio_url = replace(audio_url, 'https://OLD-ENDPOINT/BUCKET', 'https://NEW-PUBLIC-DOMAIN')
+ where audio_url like 'https://OLD-ENDPOINT/BUCKET%';
+```
+
+The object keys are unchanged, so this is only right when the same files are
+already reachable at the new domain. Moving from the local s3mock to R2 is not
+that case — the audio does not exist in R2 yet — so re-seed instead of
+rewriting the prefix. Note that `pnpm db:seed` skips every character already in
+`vocab_items`, so emptying `audio_url` alone changes nothing: the rows have to
+go too, or the seed has to run against a fresh database.
 
 ## 6. Verify
 
