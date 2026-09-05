@@ -65,6 +65,9 @@ const pad = Number(args.get("pad") ?? 0);
 const quantum = Number(args.get("quantum") ?? 750);
 const control = args.has("control");
 const content = args.has("content");
+const sweep = args.has("sweep")
+  ? Number(args.get("sweep") === true ? 32 : args.get("sweep"))
+  : 0;
 const concurrent = Number(args.get("concurrent") ?? 1);
 const sameIp = args.has("same-ip");
 const json = args.has("json");
@@ -72,7 +75,7 @@ if (!port || !n) {
   console.error(
     "usage: oracle-probe.mjs --port <p> [--endpoint sign-up|password-reset|send-verification|sign-in]\n" +
       "                       [--n 50] [--taken <email>] [--pad <chars>] [--quantum 750]\n" +
-      "                       [--concurrent <k>] [--content] [--same-ip] [--control] [--json]",
+      "                       [--concurrent <k>] [--content] [--sweep <maxK>] [--same-ip] [--control] [--json]",
   );
   process.exit(2);
 }
@@ -235,10 +238,10 @@ const callOnce = async (email, leverValue) => {
  * `body` as its distinct shapes lets the rest of this script compare bursts
  * exactly as it compares single requests.
  */
-const call = async (email, leverValue) => {
-  if (concurrent <= 1) return callOnce(email, leverValue);
+const call = async (email, leverValue, k = concurrent) => {
+  if (k <= 1) return callOnce(email, leverValue);
   const results = await Promise.all(
-    Array.from({ length: concurrent }, () => callOnce(email, leverValue)),
+    Array.from({ length: k }, () => callOnce(email, leverValue)),
   );
   return {
     // The burst is as slow as its slowest member, which is what a caller waits.
@@ -262,7 +265,7 @@ const call = async (email, leverValue) => {
  * 4 MB body looked like a finding until the control put the floor at the same
  * 8 ms. Run the control whenever a comparison reports a gap.
  */
-const secondArm = () => (control ? freeAddress() : taken);
+const secondArm = (asControl) => (asControl ? freeAddress() : taken);
 
 const percentile = (sorted, p) =>
   sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
@@ -275,7 +278,7 @@ const percentile = (sorted, p) =>
  * lets a sweep drive this — over content classes, or over burst widths —
  * instead of the script asking one question per invocation.
  */
-const measure = async (leverValue, runs) => {
+const measure = async (leverValue, runs, k = concurrent, asControl = control) => {
   const kinds = {
     free: { ms: [], statuses: new Map(), bodies: new Set(), headers: new Set() },
     taken: {
@@ -299,11 +302,11 @@ const measure = async (leverValue, runs) => {
   for (let i = 0; i < runs; i++) {
     // Alternate which kind leads, so a per-pair ordering cost lands on both.
     if (i % 2 === 0) {
-      record("free", await call(freeAddress(), leverValue));
-      record("taken", await call(secondArm(), leverValue));
+      record("free", await call(freeAddress(), leverValue, k));
+      record("taken", await call(secondArm(asControl), leverValue, k));
     } else {
-      record("taken", await call(secondArm(), leverValue));
-      record("free", await call(freeAddress(), leverValue));
+      record("taken", await call(secondArm(asControl), leverValue, k));
+      record("free", await call(freeAddress(), leverValue, k));
     }
   }
 
@@ -417,6 +420,26 @@ const verdictOf = (r) => {
   return differs;
 };
 
+/**
+ * A finding is what the real run shows and the control does not.
+ *
+ * Every sweep runs its own control rather than trusting whoever reads it to run
+ * one and diff by eye, because that trust has now failed twice. The second time
+ * cost nothing only because the control happened to be read: a k=32 burst
+ * straddles a bucket boundary, so `bucket DIFFERENT` showed up in the control
+ * too, and the sweep had already printed it as a leak. A difference the control
+ * reproduces is the measurement's own instability at that setting, not an
+ * account-existence signal, and the two are indistinguishable from the real run
+ * alone.
+ */
+const findingOf = (real, ctrl) => {
+  const realDiffers = verdictOf(real);
+  const controlDiffers = new Set(verdictOf(ctrl));
+  const genuine = realDiffers.filter((d) => !controlDiffers.has(d));
+  const masked = realDiffers.filter((d) => controlDiffers.has(d));
+  return { genuine, masked };
+};
+
 const statusesOf = (s) =>
   Object.entries(s.statuses)
     .map(([code, count]) => `${code}x${count}`)
@@ -470,21 +493,26 @@ const reportDefault = (r) => {
 
 const runContentSweep = async () => {
   console.log(
-    `content sweep  ${endpoint}  ${spec.path}  lever ${spec.lever}  ${n} pairs per class` +
-      (control ? "  CONTROL: both arms are free addresses" : ""),
+    `content sweep  ${endpoint}  ${spec.path}  lever ${spec.lever}  ${n} pairs per class, each with its own control`,
   );
   console.log(
     `${"class".padEnd(16)} ${"free".padEnd(14)} ${"taken".padEnd(14)} verdict`,
   );
   const leaked = [];
   for (const klass of CONTENT_CLASSES) {
-    const r = await measure(klass.value, n);
-    const differs = verdictOf(r);
-    if (differs.length) leaked.push({ klass, r, differs });
+    const r = await measure(klass.value, n, concurrent, false);
+    const ctrl = await measure(klass.value, n, concurrent, true);
+    const { genuine, masked } = findingOf(r, ctrl);
+    if (genuine.length) leaked.push({ klass, r, genuine });
+    const verdict = genuine.length
+      ? `*** LEAK: ${genuine.join(", ")}`
+      : masked.length
+        ? `unstable (${masked.join(", ")} differs in the control too)`
+        : "identical";
     console.log(
       `${klass.name.padEnd(16)} ${statusesOf(r.free).padEnd(14)} ${statusesOf(
         r.taken,
-      ).padEnd(14)} ${differs.length ? `*** LEAK: ${differs.join(", ")}` : "identical"}`,
+      ).padEnd(14)} ${verdict}`,
     );
   }
   console.log("");
@@ -493,8 +521,8 @@ const runContentSweep = async () => {
     return 0;
   }
   console.log(`${leaked.length} of ${CONTENT_CLASSES.length} classes leak:`);
-  for (const { klass, r, differs } of leaked) {
-    console.log(`  ${klass.name} — ${differs.join(", ")}`);
+  for (const { klass, r, genuine } of leaked) {
+    console.log(`  ${klass.name} — ${genuine.join(", ")}`);
     console.log(`    lever   ${JSON.stringify(klass.value)}`);
     if (!r.sameBody) {
       console.log(`    free    ${r.free.bodies.join(" | ").slice(0, 300)}`);
@@ -508,10 +536,89 @@ const runContentSweep = async () => {
 // its first request, and whichever kind went first would otherwise carry the
 // whole compile.
 await call(freeAddress(), lever);
-await call(secondArm(), lever);
+await call(secondArm(control), lever);
 
-const failed = content
-  ? await runContentSweep()
+/**
+ * Burst widths for `--sweep`, geometric so a handful of runs cover two orders of
+ * magnitude, and carried past where the current code looks comfortable.
+ *
+ * The last regression was found the moment someone ran the probe at k=20; the
+ * sweep that missed it stopped at 5, because 5 was where the fix looked fine. A
+ * sweep chosen to confirm the current behaviour is not a measurement. So this
+ * one runs to 32 by default — far enough to break a fix that merely raised a
+ * constant — and reports the WIDEST gap it saw and the FIRST width at which the
+ * buckets diverged, rather than passing or failing at one point.
+ *
+ * Cost scales badly on purpose: at k=32 a free burst is one winner and 31
+ * losers, and on this branch every loser replays a whole sign-up. That cost IS
+ * the channel, so the sweep has to be willing to pay it to see it.
+ */
+const sweepWidths = (max) => [1, 2, 3, 5, 8, 13, 20, 32].filter((k) => k <= max);
+
+const runWidthSweep = async () => {
+  const widths = sweepWidths(sweep);
+  console.log(
+    `width sweep  ${endpoint}  ${spec.path}  k = ${widths.join(" ")}  ${n} bursts per width, each with its own control`,
+  );
+  console.log(
+    `${"k".padStart(3)}  ${"free p50".padStart(9)}  ${"taken p50".padStart(9)}  ${"gap".padStart(7)}  ${"buckets".padEnd(11)} verdict`,
+  );
+  let widest = { gapPercent: 0, k: null };
+  let firstBucketSplit = null;
+  const leaks = [];
+  for (const k of widths) {
+    const r = await measure(lever, n, k, false);
+    const ctrl = await measure(lever, n, k, true);
+    const { genuine, masked } = findingOf(r, ctrl);
+    if (genuine.length) leaks.push({ k, genuine, r });
+    if (genuine.includes("bucket") && firstBucketSplit === null) {
+      firstBucketSplit = k;
+    }
+    if (genuine.length && r.gapPercent > widest.gapPercent) {
+      widest = { gapPercent: r.gapPercent, k };
+    }
+    const buckets = `${r.free.buckets.map((b) => `x${b}`).join(",")} / ${r.taken.buckets.map((b) => `x${b}`).join(",")}`;
+    const verdict = genuine.length
+      ? `*** LEAK: ${genuine.join(", ")}`
+      : masked.length
+        ? `unstable (${masked.join(", ")} differs in the control too)`
+        : "identical";
+    console.log(
+      `${String(k).padStart(3)}  ${String(r.free.p50).padStart(9)}  ${String(r.taken.p50).padStart(9)}  ${`${r.gapPercent.toFixed(1)}%`.padStart(7)}  ${buckets.padEnd(11)} ${verdict}`,
+    );
+  }
+  console.log("");
+  console.log(
+    widest.k === null
+      ? `no width produced a gap the control did not also produce`
+      : `widest genuine gap ${widest.gapPercent.toFixed(1)}% at k=${widest.k}`,
+  );
+  console.log(
+    firstBucketSplit === null
+      ? `buckets never diverged beyond the control up to k=${widths[widths.length - 1]}`
+      : `buckets first diverge at k=${firstBucketSplit}, so the fix holds below it`,
+  );
+  if (!leaks.length) {
+    console.log(`no burst width separated the two kinds`);
+    return 0;
+  }
+  console.log(
+    `${leaks.length} of ${widths.length} widths leak: ${leaks.map((l) => `k=${l.k} (${l.genuine.join("/")})`).join(", ")}`,
+  );
+  return 1;
+};
+
+if ((sweep || content) && control) {
+  console.error(
+    "--control is redundant with --sweep and --content: both run their own control at every point, and forcing it on would compare free against free twice and report everything identical.",
+  );
+  process.exit(2);
+}
+
+const failed = sweep
+  ? await runWidthSweep()
+  : content
+    ? await runContentSweep()
   : await (async () => {
       const r = await measure(lever, n);
       if (json) {
