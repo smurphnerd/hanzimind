@@ -225,6 +225,27 @@ describe("sign-up is not an account-existence oracle", () => {
       "Sign-up: the address already has an account, answered as if new",
     );
   });
+
+  /**
+   * The create hook fires for any user the adapter writes, and the admin plugin
+   * serves a create-user route of its own, so the line is keyed on the sign-up
+   * endpoint. Without that, `grep 'Sign-up: '` would report accounts nobody
+   * signed up for.
+   */
+  it("does not call a user created outside sign-up a sign-up", async () => {
+    const { auth, logger } = instance();
+    const context = await auth.$context;
+    await context.internalAdapter.createUser({
+      email: "made-by-hand@hanzimind.test",
+      name: "Made By Hand",
+      emailVerified: false,
+    });
+
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "Sign-up: the address was free, created an account",
+    );
+  });
 });
 
 describe("response-time levelling", () => {

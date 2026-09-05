@@ -48,6 +48,9 @@ export const DEFAULT_ROLE = "user";
 /** Where the learner lands after clicking a verification link. */
 const VERIFIED_CALLBACK = "/verified";
 
+/** better-auth's own path for sign-up, without the `/api/auth` mount point. */
+const SIGN_UP_PATH = "/sign-up/email";
+
 /**
  * Every option better-auth runs on, as data, so a test can read them without
  * standing up an instance.
@@ -337,7 +340,12 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
+          // Keyed on the endpoint, because this hook fires for any user the
+          // adapter writes — the admin plugin serves a create-user route too —
+          // and a log line an operator is meant to trust must not call that a
+          // sign-up. It is also what keeps `grep 'Sign-up: '` exact.
+          after: async (user, context) => {
+            if (context?.path !== SIGN_UP_PATH) return;
             deps.logger.info(
               { email: user.email, userId: user.id },
               "Sign-up: the address was free, created an account",
