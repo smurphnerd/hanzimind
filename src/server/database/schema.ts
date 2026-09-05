@@ -13,6 +13,7 @@ import { timestampFields } from "./databaseUtils";
 import {
   EtymologyType,
   Script,
+  StudyType,
   SuggestionKind,
   SuggestionStatus,
   VocabType,
@@ -167,19 +168,53 @@ export const userVocabItems = pgTable(
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
+    // Answered at least once, in any study type. Says nothing about the level:
+    // a wrong answer leaves the item seen at 0.
     seen: boolean().notNull().default(false),
-    readingLevel: integer().notNull().default(0),
-    listeningLevel: integer().notNull().default(0),
-    understandingLevel: integer().notNull().default(0),
-    writingLevel: integer().notNull().default(0),
     memoryAidId: text().references(() => memoryAids.id),
-    readingNextAt: timestamp(),
-    listeningNextAt: timestamp(),
-    understandingNextAt: timestamp(),
-    writingNextAt: timestamp(),
     ...timestampFields,
   },
   (table) => [primaryKey({ columns: [table.userId, table.vocabItemId] })],
+);
+
+/**
+ * How far one learner has got with one item in one study type.
+ *
+ * One row per type, replacing the four `<type>Level` / `<type>NextAt` column
+ * pairs this table used to carry. The pairs forced every reader to build a
+ * column name from a study type at runtime, which no type system checks and
+ * which spread a four-way `switch` through the query layer, the rules and the
+ * client.
+ *
+ * Sparse on purpose: a type that has never been answered has no row, and means
+ * level 0 due immediately (`emptyStudyProgress`). A level of 0 WITH a `nextAt`
+ * is a different thing — an answer got wrong — and does get a row.
+ *
+ * Locking. Writers take the `user_vocab_items` row for the pair first and only
+ * then touch this table, because the row here does not exist before the first
+ * answer of its type and a lock on a row that is not there serialises nothing.
+ * See `StudyService.processAnswer`.
+ */
+export const userStudyProgress = pgTable(
+  "user_study_progress",
+  {
+    userId: text()
+      .notNull()
+      .references(() => users.id),
+    vocabItemId: text()
+      .notNull()
+      .references(() => vocabItems.id),
+    studyType: text().notNull().$type<StudyType>(),
+    level: integer().notNull().default(0),
+    /** Null means never scheduled, which selection reads as due now. */
+    nextAt: timestamp(),
+    ...timestampFields,
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.vocabItemId, table.studyType],
+    }),
+  ],
 );
 
 // Deck vocabulary items table (vocab items in a deck)
@@ -373,6 +408,7 @@ export const schema = {
   decks,
   vocabItems,
   userVocabItems,
+  userStudyProgress,
   deckVocabItems,
   userDecks,
   memoryAids,

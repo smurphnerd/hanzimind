@@ -1,11 +1,16 @@
 import { describe, it, expect } from "vitest";
 
-import type { StudyType } from "@/definitions/definitions";
+import {
+  emptyStudyProgress,
+  STUDY_TYPES,
+  type StudyProgressDto,
+  type StudyType,
+} from "@/definitions/definitions";
 import {
   summariseDeckProgress,
-  type ProgressRollupItem,
+  type StudiableItem,
 } from "@/server/study-rules";
-import { enabledStudyTypes } from "../StudyService";
+import { enabledStudyTypes, progressByItem } from "../StudyService";
 
 const ALL_TYPES: StudyType[] = [
   "reading",
@@ -20,7 +25,24 @@ const SCHEDULED = new Date("2026-01-02T00:00:00Z");
 
 const GATE_LEVEL = 2;
 
-function item(overrides: Partial<ProgressRollupItem> = {}): ProgressRollupItem {
+/**
+ * Levels and due times named by study type. The factory folds them into the
+ * total `progress` map the rollup reads, so a case still says only the one
+ * thing it is about.
+ */
+type Levels = Partial<Record<StudyType, number>>;
+type Due = Partial<Record<StudyType, Date | null>>;
+type Overrides = Partial<StudiableItem> & { levels?: Levels; due?: Due };
+
+function progressWith(levels: Levels, due: Due): StudyProgressDto {
+  const progress = emptyStudyProgress();
+  for (const type of STUDY_TYPES) {
+    progress[type] = { level: levels[type] ?? 0, nextAt: due[type] ?? null };
+  }
+  return progress;
+}
+
+function item({ levels, due, ...overrides }: Overrides = {}): StudiableItem {
   return {
     vocabItem: "人",
     vocabType: "character",
@@ -30,14 +52,7 @@ function item(overrides: Partial<ProgressRollupItem> = {}): ProgressRollupItem {
     phonetic: false,
     decomposition: "？",
     seen: false,
-    readingLevel: 0,
-    listeningLevel: 0,
-    understandingLevel: 0,
-    writingLevel: 0,
-    readingNextAt: null,
-    listeningNextAt: null,
-    understandingNextAt: null,
-    writingNextAt: null,
+    progress: progressWith(levels ?? {}, due ?? {}),
     ...overrides,
   };
 }
@@ -46,7 +61,7 @@ function item(overrides: Partial<ProgressRollupItem> = {}): ProgressRollupItem {
  * A bound form. The borrowed reading is present, as it is on 97 production rows;
  * `phonetic: false` is what makes meaning the only thing askable.
  */
-const component = (overrides: Partial<ProgressRollupItem> = {}) =>
+const component = (overrides: Overrides = {}) =>
   item({
     vocabItem: "亻",
     vocabType: "component",
@@ -59,7 +74,7 @@ const component = (overrides: Partial<ProgressRollupItem> = {}) =>
   });
 
 const summarise = (
-  items: ProgressRollupItem[],
+  items: StudiableItem[],
   enabledStudyTypes: StudyType[] = ALL_TYPES,
 ) =>
   summariseDeckProgress({
@@ -91,7 +106,7 @@ describe("summariseDeckProgress", () => {
       const progress = summarise([
         component({ translation: null }),
         item({ vocabItem: "人" }),
-        item({ vocabItem: "大", seen: true, readingLevel: 2 }),
+        item({ vocabItem: "大", seen: true, levels: { reading: 2 } }),
       ]);
       const bucketed = progress.byStage.reduce((a, b) => a + b, 0);
       expect(bucketed).toBe(progress.total);
@@ -113,7 +128,7 @@ describe("summariseDeckProgress", () => {
       // The trap: a plain minimum over every enabled type would read this
       // component's untouchable readingLevel of 0 and report it as not started.
       const progress = summarise([
-        component({ seen: true, understandingLevel: 3 }),
+        component({ seen: true, levels: { understanding: 3 } }),
       ]);
       expect(progress.byStage[3]).toBe(1);
     });
@@ -122,10 +137,7 @@ describe("summariseDeckProgress", () => {
       const progress = summarise([
         item({
           seen: true,
-          readingLevel: 4,
-          listeningLevel: 2,
-          understandingLevel: 5,
-          writingLevel: 3,
+          levels: { reading: 4, listening: 2, understanding: 5, writing: 3 },
         }),
       ]);
       expect(progress.byStage[2]).toBe(1);
@@ -133,7 +145,7 @@ describe("summariseDeckProgress", () => {
 
     it("should ignore levels of disabled study types", () => {
       const progress = summarise(
-        [item({ seen: true, readingLevel: 4, listeningLevel: 0 })],
+        [item({ seen: true, levels: { reading: 4, listening: 0 } })],
         ["reading"],
       );
       expect(progress.byStage[4]).toBe(1);
@@ -165,10 +177,12 @@ describe("summariseDeckProgress", () => {
       const progress = summarise([
         item({
           seen: true,
-          readingNextAt: OVERDUE,
-          listeningNextAt: SCHEDULED,
-          understandingNextAt: SCHEDULED,
-          writingNextAt: SCHEDULED,
+          due: {
+            reading: OVERDUE,
+            listening: SCHEDULED,
+            understanding: SCHEDULED,
+            writing: SCHEDULED,
+          },
         }),
       ]);
       expect(progress.dueNow).toBe(1);
@@ -178,10 +192,12 @@ describe("summariseDeckProgress", () => {
       const progress = summarise([
         item({
           seen: true,
-          readingNextAt: SCHEDULED,
-          listeningNextAt: SCHEDULED,
-          understandingNextAt: SCHEDULED,
-          writingNextAt: SCHEDULED,
+          due: {
+            reading: SCHEDULED,
+            listening: SCHEDULED,
+            understanding: SCHEDULED,
+            writing: SCHEDULED,
+          },
         }),
       ]);
       expect(progress.dueNow).toBe(0);
@@ -197,8 +213,7 @@ describe("summariseDeckProgress", () => {
       const progress = summarise([
         component({
           seen: true,
-          readingNextAt: OVERDUE,
-          understandingNextAt: SCHEDULED,
+          due: { reading: OVERDUE, understanding: SCHEDULED },
         }),
       ]);
       expect(progress.dueNow).toBe(0);
@@ -216,7 +231,7 @@ describe("summariseDeckProgress", () => {
 
     it("should count an unseen item behind an immature part as locked", () => {
       const progress = summarise([
-        component({ seen: true, understandingLevel: GATE_LEVEL - 1 }),
+        component({ seen: true, levels: { understanding: GATE_LEVEL - 1 } }),
         item({ vocabItem: "什", decomposition: "⿰亻十" }),
       ]);
       expect(progress.locked).toBe(1);
@@ -224,7 +239,7 @@ describe("summariseDeckProgress", () => {
 
     it("should release it once the part reaches the gate", () => {
       const progress = summarise([
-        component({ seen: true, understandingLevel: GATE_LEVEL }),
+        component({ seen: true, levels: { understanding: GATE_LEVEL } }),
         item({ vocabItem: "什", decomposition: "⿰亻十" }),
       ]);
       expect(progress.newAvailable).toBe(1);
@@ -288,5 +303,55 @@ describe("enabledStudyTypes", () => {
         writingEnabled: true,
       }),
     ).toEqual(["reading", "listening", "understanding", "writing"]);
+  });
+});
+
+describe("progressByItem", () => {
+  const row = (
+    vocabItemId: string,
+    studyType: StudyType,
+    level: number,
+    nextAt: Date | null = null,
+  ) => ({ vocabItemId, studyType, level, nextAt });
+
+  it("should key each item's progress by its id", () => {
+    const byItem = progressByItem([row("v1", "reading", 3, SCHEDULED)]);
+    expect(byItem.get("v1")?.reading).toEqual({
+      level: 3,
+      nextAt: SCHEDULED,
+    });
+  });
+
+  it("should fill the types with no row from emptyStudyProgress", () => {
+    // The whole contract of the sparse table: a type nobody has answered is
+    // level 0, due now — the same thing the four nullable columns used to say
+    // with a default and a null.
+    const byItem = progressByItem([row("v1", "reading", 3, SCHEDULED)]);
+    expect(byItem.get("v1")).toEqual({
+      ...emptyStudyProgress(),
+      reading: { level: 3, nextAt: SCHEDULED },
+    });
+  });
+
+  it("should keep a level of zero that carries a due time", () => {
+    // An answer got wrong leaves the level at 0 WITH a nextAt, which is not
+    // the same as never answered and must survive the round trip.
+    const byItem = progressByItem([row("v1", "writing", 0, OVERDUE)]);
+    expect(byItem.get("v1")?.writing).toEqual({ level: 0, nextAt: OVERDUE });
+  });
+
+  it("should keep separate items apart", () => {
+    const byItem = progressByItem([
+      row("v1", "reading", 1),
+      row("v2", "reading", 2),
+    ]);
+    expect([
+      byItem.get("v1")?.reading.level,
+      byItem.get("v2")?.reading.level,
+    ]).toEqual([1, 2]);
+  });
+
+  it("should return no entry for an item with no rows", () => {
+    expect(progressByItem([]).get("v1")).toBeUndefined();
   });
 });

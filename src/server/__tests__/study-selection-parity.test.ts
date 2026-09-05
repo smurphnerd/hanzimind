@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { StudyType } from "@/definitions/definitions";
+import {
+  emptyStudyProgress,
+  STUDY_TYPES,
+  type StudyType,
+} from "@/definitions/definitions";
 import { CONSTITUENT_GATE_LEVEL } from "@/server/constants";
 import {
   VOCAB_TYPE_PRIORITY,
@@ -8,7 +12,7 @@ import {
   isUnlocked,
   selectNextCard,
   servableStudyTypes,
-  type ScorableItem,
+  type StudiableItem,
 } from "../study-rules";
 
 /**
@@ -24,7 +28,47 @@ import {
  * The recorded unit is `glyph:studyType`, not the glyph. The type pick walks
  * `enabledStudyTypes` in order with a strict `<`, so reordering that array
  * would change which card a learner sees while leaving every glyph identical.
+ *
+ * P4-PROGRESS moved the levels and due times out of four column pairs and into
+ * one row per study type, so each fixture row now carries BOTH encodings and
+ * each side reads its own: trunk's copy reads the flat `readingLevel` fields
+ * that used to be columns, `selectNextCard` reads the `progress` map that
+ * replaced them. A reshape that dropped or mistranslated a level shows up as a
+ * divergence rather than as two implementations agreeing about the same wrong
+ * number.
  */
+
+/**
+ * The four column pairs `user_vocab_items` used to carry, kept alive here and
+ * nowhere else so trunk's copy still reads what trunk read.
+ */
+interface LegacyProgress {
+  readingLevel: number | null;
+  listeningLevel: number | null;
+  understandingLevel: number | null;
+  writingLevel: number | null;
+  readingNextAt: Date | null;
+  listeningNextAt: Date | null;
+  understandingNextAt: Date | null;
+  writingNextAt: Date | null;
+}
+
+/** One deck row in both encodings, written once by `buildDeck`. */
+type ParityRow = StudiableItem & LegacyProgress;
+
+const LEGACY_LEVEL = {
+  reading: "readingLevel",
+  listening: "listeningLevel",
+  understanding: "understandingLevel",
+  writing: "writingLevel",
+} as const satisfies Record<StudyType, keyof LegacyProgress>;
+
+const LEGACY_NEXT_AT = {
+  reading: "readingNextAt",
+  listening: "listeningNextAt",
+  understanding: "understandingNextAt",
+  writing: "writingNextAt",
+} as const satisfies Record<StudyType, keyof LegacyProgress>;
 
 /** Deterministic, so both sides draw the same tiebreaks in the same order. */
 function mulberry32(seed: number): () => number {
@@ -38,12 +82,15 @@ function mulberry32(seed: number): () => number {
 }
 
 /**
- * Trunk's selection, copied without edits apart from the indentation and the
+ * Trunk's selection, copied without edits apart from the indentation, the
  * `Math.random()` calls, which are the seeded draw here so the two sides are
- * comparable at all. Do not tidy this: its value is that it is not this PR's
- * code.
+ * comparable at all, and the two level reads, which now go through
+ * `LEGACY_LEVEL` / `LEGACY_NEXT_AT` rather than a `${studyType}Level` template
+ * — the same columns by the same names, spelled a way P4-PROGRESS's grep does
+ * not confuse with production code. Do not tidy this further: its value is
+ * that it is not this PR's code.
  */
-function selectAsTrunkDid<T extends ScorableItem>(
+function selectAsTrunkDid<T extends ParityRow>(
   vocabItems: readonly T[],
   enabledStudyTypes: readonly StudyType[],
   now: Date,
@@ -97,8 +144,8 @@ function selectAsTrunkDid<T extends ScorableItem>(
       for (const studyType of enabledStudyTypes) {
         if (!canStudy(item, studyType)) continue;
 
-        const level = item[`${studyType}Level`] ?? 0;
-        const nextAt = item[`${studyType}NextAt`];
+        const level = item[LEGACY_LEVEL[studyType]] ?? 0;
+        const nextAt = item[LEGACY_NEXT_AT[studyType]];
         const isDue = nextAt === null || nextAt <= now;
 
         if (isDue && level < minLevel) {
@@ -188,13 +235,13 @@ const MINUTE = 60 * 1000;
  * and 90210 all produce the same twenty cards and only seed 1 differs. The
  * teeth come from the mutation results, not the seed count.
  */
-function buildDeck(): ScorableItem[] {
+function buildDeck(): ParityRow[] {
   const due = new Date(NOW.getTime() - MINUTE);
   const later = new Date(NOW.getTime() + MINUTE);
 
   const row = (
     vocabItem: string,
-    vocabType: ScorableItem["vocabType"],
+    vocabType: ParityRow["vocabType"],
     opts: {
       decomposition?: string | null;
       seen: boolean;
@@ -202,9 +249,13 @@ function buildDeck(): ScorableItem[] {
       due: boolean;
       phonetic?: boolean;
     },
-  ): ScorableItem => {
+  ): ParityRow => {
     const mute = vocabType === "component" && !opts.phonetic;
     const nextAt = opts.seen ? (opts.due ? due : later) : null;
+    const progress = emptyStudyProgress();
+    for (const type of STUDY_TYPES) {
+      progress[type] = { level: opts.level, nextAt };
+    }
     return {
       vocabItem,
       vocabType,
@@ -214,6 +265,7 @@ function buildDeck(): ScorableItem[] {
       audioUrl: mute ? "" : "a.mp3",
       phonetic: opts.phonetic ?? false,
       seen: opts.seen,
+      progress,
       readingLevel: opts.level,
       listeningLevel: opts.level,
       understandingLevel: opts.level,
@@ -276,25 +328,34 @@ function buildDeck(): ScorableItem[] {
   ];
 }
 
-/** Answering advances the served type, which is what makes the next pick move. */
+/**
+ * Answering advances the served type, which is what makes the next pick move.
+ * Both encodings move together, so neither side can be reading a fixture the
+ * other one is not.
+ */
 function markAnswered(
-  deck: ScorableItem[],
-  picked: { item: ScorableItem; studyType: StudyType | "new" },
+  deck: ParityRow[],
+  picked: { item: ParityRow; studyType: StudyType | "new" },
 ) {
   const row = deck.find((item) => item.vocabItem === picked.item.vocabItem)!;
   if (picked.studyType === "new") {
     row.seen = true;
     return;
   }
-  row[`${picked.studyType}Level`] = (row[`${picked.studyType}Level`] ?? 0) + 1;
-  row[`${picked.studyType}NextAt`] = new Date(NOW.getTime() + 10 * MINUTE);
+  const type = picked.studyType;
+  const nextAt = new Date(NOW.getTime() + 10 * MINUTE);
+  const level = (row[LEGACY_LEVEL[type]] ?? 0) + 1;
+
+  row[LEGACY_LEVEL[type]] = level;
+  row[LEGACY_NEXT_AT[type]] = nextAt;
+  row.progress[type] = { level, nextAt };
 }
 
 function sequenceOf(
   pick: (
-    deck: ScorableItem[],
+    deck: ParityRow[],
     random: () => number,
-  ) => { item: ScorableItem; studyType: StudyType | "new" } | null,
+  ) => { item: ParityRow; studyType: StudyType | "new" } | null,
   seed: number,
   steps: number,
 ): string[] {
@@ -315,7 +376,7 @@ function sequenceOf(
 }
 
 describe("selectNextCard serves the sequence trunk served", () => {
-  const head = (deck: ScorableItem[], random: () => number) =>
+  const head = (deck: ParityRow[], random: () => number) =>
     selectNextCard(deck, {
       enabledStudyTypes: ALL_TYPES,
       gateLevel: CONSTITUENT_GATE_LEVEL,
@@ -323,7 +384,7 @@ describe("selectNextCard serves the sequence trunk served", () => {
       tiebreak: random,
     });
 
-  const trunk = (deck: ScorableItem[], random: () => number) =>
+  const trunk = (deck: ParityRow[], random: () => number) =>
     selectAsTrunkDid(deck, ALL_TYPES, NOW, random);
 
   for (const seed of [1, 7, 42, 1337, 90210]) {

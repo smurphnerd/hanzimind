@@ -22,6 +22,7 @@ describe("clearedTables", () => {
       "memory_aids",
       "suggestions",
       "user_decks",
+      "user_study_progress",
       "user_vocab_items",
       "user_vocab_synonyms",
       "users",
@@ -40,6 +41,7 @@ describe("blockingReferences", () => {
       "suggestions.resolved_by_id",
       "user_decks.deck_id",
       "user_decks.user_id",
+      "user_study_progress.user_id",
       "user_vocab_items.memory_aid_id",
       "user_vocab_items.user_id",
       "user_vocab_synonyms.user_id",
@@ -83,6 +85,7 @@ describe("coverage", () => {
       "user_decks.user_id": "delete",
       "user_vocab_items.memory_aid_id": "release",
       "user_vocab_items.user_id": "delete",
+      "user_study_progress.user_id": "delete",
       "user_vocab_synonyms.user_id": "delete",
       "vocab_items.default_memory_aid_id": "release",
     });
