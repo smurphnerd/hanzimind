@@ -18,6 +18,11 @@
  * signal, and no amount of care in the body closes it. Both are enough to
  * enumerate a user base with a stopwatch.
  *
+ * Independent verification of the same trunk put password reset at 79.8% rather
+ * than 62.5%. Both are honest runs of the same comparison on the same commit;
+ * a ratio between two sub-30 ms medians moves that much between machines, which
+ * is the reason the fix does not try to shave the gap down to a number.
+ *
  * `/send-verification-email` is flat because better-auth holds it to a 500 ms
  * floor of its own when there is no session. That is the technique; this module
  * is the same technique applied at the HTTP boundary, where it covers the whole
