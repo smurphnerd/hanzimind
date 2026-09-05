@@ -233,7 +233,16 @@ type Executor = {
  * So a handful is ordinary and sixty is not. 20 sits well above what abandoned
  * sessions produce and two thirds below the real learner's 61, which is the
  * margin that matters: the number has to separate "one intro card" from "every
- * level is gone" on the one production database this will ever run against.
+ * level is gone".
+ *
+ * PER LEARNER, not summed. This is the whole reason the limit can be a constant.
+ * Summed, the statistic grows with the user base while the limit does not, so a
+ * hundred learners each holding one abandoned introduction would cross 20 and
+ * refuse a database where nothing is wrong. The catastrophe does not look like
+ * that: it puts nearly every seen item of EVERY learner out of account at once,
+ * so the worst single learner is already far past the limit. Taking the maximum
+ * asks "is there a learner whose history stopped adding up", which means the
+ * same thing on the operator's one-learner database and on a thousand.
  *
  * It is a judgement, not a measurement, which is why crossing it refuses with an
  * override rather than deciding on the operator's behalf.
@@ -250,21 +259,36 @@ export const UNEXPLAINED_SEEN_LIMIT = 20;
  * makes the table non-empty and the check silent, and one introduction card on a
  * healthy database makes it fire. Both were demonstrated live.
  *
- * The statistic that does separate them is how many seen items have NO progress
- * of any kind. On a healthy database that is the count of abandoned sessions; on
- * a database whose levels were dropped it is very nearly every seen item, and an
- * answer trickling in afterwards moves it by one rather than switching it off.
+ * The statistic that does separate them is how many of ONE learner's seen items
+ * have NO progress of any kind. On a healthy learner that is the count of their
+ * abandoned sessions; on a database whose levels were dropped it is very nearly
+ * every seen item they have, and an answer trickling in afterwards moves it by
+ * one rather than switching it off.
+ *
+ * `worst` is the learner with the most such items, so the caller does the
+ * grouping and this stays pure. Null when nobody has seen anything.
  *
  * WHAT IT CANNOT DO. It cannot prove the accident happened, only that the
  * database does not look like one that was migrated correctly. So the message
  * gives both readings, makes the destructive advice conditional on the first,
  * and takes an override for an operator who knows it is the second.
  */
+export interface LearnerProgress {
+  userId: string;
+  /** Items this learner has answered or been shown at least once. */
+  seenItems: number;
+  /** How many of those have at least one user_study_progress row. */
+  itemsWithProgress: number;
+}
+
+/** Seen items this learner has no progress of any kind for. */
+export const unexplainedSeen = (learner: LearnerProgress) =>
+  learner.seenItems - learner.itemsWithProgress;
+
 export function lostProgressRefusal(state: {
   direction: "copy" | "restore";
   legacyColumnsPresent: boolean;
-  seenRows: number;
-  itemsWithProgress: number;
+  worst: LearnerProgress | null;
   accepted: boolean;
 }): string | null {
   if (state.accepted) return null;
@@ -273,7 +297,8 @@ export function lostProgressRefusal(state: {
   // and all the copy would do is read them.
   if (state.direction === "copy" && state.legacyColumnsPresent) return null;
 
-  const unexplained = state.seenRows - state.itemsWithProgress;
+  if (!state.worst) return null;
+  const unexplained = unexplainedSeen(state.worst);
   if (unexplained <= UNEXPLAINED_SEEN_LIMIT) return null;
 
   const consequence =
@@ -284,7 +309,7 @@ export function lostProgressRefusal(state: {
   return [
     "REFUSING TO CONTINUE.",
     "",
-    `Observed: ${state.seenRows} items are marked seen, but only ${state.itemsWithProgress} of them have any row in user_study_progress. ${unexplained} seen items have no progress of any kind, and the limit before this stops is ${UNEXPLAINED_SEEN_LIMIT}.`,
+    `Observed: learner ${state.worst.userId} has ${state.worst.seenItems} items marked seen, but only ${state.worst.itemsWithProgress} of them have any row in user_study_progress. That leaves ${unexplained} seen items with no progress of any kind, against a limit of ${UNEXPLAINED_SEEN_LIMIT}. This is the worst single learner, not a total: a large user base does not add up to a refusal.`,
     "",
     "Two things look like that, and this script cannot tell them apart:",
     "",
@@ -341,18 +366,55 @@ async function progressState(database: Executor) {
     progressRows: tableExists
       ? await countOf(database, "select 1 from user_study_progress")
       : 0,
-    // Distinct (learner, item) pairs, so this compares like with like against
-    // seenRows. Four rows for one item is one item, not four.
-    itemsWithProgress: tableExists
-      ? await countOf(
-          database,
-          "select distinct user_id, vocab_item_id from user_study_progress",
-        )
-      : 0,
     seenRows: await countOf(
       database,
       "select 1 from user_vocab_items where seen",
     ),
+    worst: await worstLearner(database, tableExists),
+  };
+}
+
+/**
+ * The learner with the most seen items that have no progress row, or null when
+ * nobody has seen anything.
+ *
+ * Grouped rather than summed, so the limit means the same thing whatever the
+ * user base. Counted from `user_vocab_items` outward and restricted to seen
+ * rows, so the subtraction cannot go negative: every item counted in
+ * `itemsWithProgress` is one already counted in `seenItems`.
+ */
+async function worstLearner(
+  database: Executor,
+  tableExists: boolean,
+): Promise<LearnerProgress | null> {
+  const withProgress = tableExists
+    ? `left join (select distinct user_id, vocab_item_id from user_study_progress) p
+         on p.user_id = u.user_id and p.vocab_item_id = u.vocab_item_id`
+    : "";
+  const progressCount = tableExists
+    ? "count(*) filter (where p.user_id is not null)"
+    : "0";
+
+  const result = await database.execute(
+    sql.raw(`select u.user_id,
+                    count(*)::int as seen_items,
+                    ${progressCount}::int as items_with_progress
+               from user_vocab_items u
+               ${withProgress}
+              where u.seen
+              group by u.user_id
+              order by (count(*) - ${progressCount}) desc
+              limit 1`),
+  );
+  const row = result.rows[0] as
+    | { user_id: string; seen_items: number; items_with_progress: number }
+    | undefined;
+  if (!row) return null;
+
+  return {
+    userId: row.user_id,
+    seenItems: row.seen_items,
+    itemsWithProgress: row.items_with_progress,
   };
 }
 
@@ -400,8 +462,7 @@ async function goingBack(args: {
   const refusal = lostProgressRefusal({
     direction: "restore",
     legacyColumnsPresent: columns.state === "present",
-    seenRows: state.seenRows,
-    itemsWithProgress: state.itemsWithProgress,
+    worst: state.worst,
     accepted,
   });
   if (refusal) throw new Error(refusal);
@@ -474,7 +535,7 @@ async function main() {
   // reports what it can see and leaves the judgement to the reader.
   if (verifyOnly) {
     const state = await progressState(database);
-    const unexplained = state.seenRows - state.itemsWithProgress;
+    const unexplained = state.worst ? unexplainedSeen(state.worst) : 0;
 
     if (!state.tableExists) {
       logger.info(
@@ -492,9 +553,9 @@ async function main() {
         {
           legacyColumns: columns.present.length,
           progressRows: state.progressRows,
-          itemsWithProgress: state.itemsWithProgress,
           seenRows: state.seenRows,
-          seenWithNoProgress: unexplained,
+          worstLearner: state.worst?.userId,
+          worstLearnerSeenWithNoProgress: unexplained,
         },
         columns.state === "absent"
           ? "The legacy columns are gone, so there is nothing left to compare against. The counts above are what remains; seenWithNoProgress far above zero would mean the levels never reached user_study_progress."
@@ -514,7 +575,7 @@ async function main() {
     logger.info(
       {
         legacyPairs: await countOf(database, LEGACY_ROWS_SQL),
-        seenWithNoProgress: unexplained,
+        worstLearnerSeenWithNoProgress: unexplained,
       },
       "Every legacy level and due time is accounted for in user_study_progress",
     );
@@ -531,8 +592,7 @@ async function main() {
   const refusal = lostProgressRefusal({
     direction: "copy",
     legacyColumnsPresent: columns.state === "present",
-    seenRows: state.seenRows,
-    itemsWithProgress: state.itemsWithProgress,
+    worst: state.worst,
     accepted,
   });
   if (refusal) throw new Error(refusal);
@@ -541,7 +601,9 @@ async function main() {
     logger.info(
       {
         progressRows: state.progressRows,
-        seenWithNoProgress: state.seenRows - state.itemsWithProgress,
+        worstLearnerSeenWithNoProgress: state.worst
+          ? unexplainedSeen(state.worst)
+          : 0,
       },
       "user_vocab_items has no legacy level columns, so this database already keeps progress in user_study_progress. Nothing to do.",
     );

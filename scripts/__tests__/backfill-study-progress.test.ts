@@ -9,6 +9,7 @@ import {
   LEGACY_COLUMNS,
   halfSchemaRefusal,
   lostProgressRefusal,
+  unexplainedSeen,
   UNEXPLAINED_SEEN_LIMIT,
   RESTORE_COLUMNS_SQL,
   RESTORE_ROWS_SQL,
@@ -204,55 +205,72 @@ describe("RESTORE_ROWS_SQL", () => {
  * earlier version of this suite passed `legacyColumnsPresent: true` for the copy
  * direction, which the caller hardcoded false, so four cells tested the function
  * and nothing tested the guard.
+ *
+ * Two states are deliberately absent because the caller cannot produce them.
+ * `itemsWithProgress > seenItems` cannot happen: `worstLearner` counts outward
+ * from seen rows and only ever joins progress onto them, so the difference is
+ * non-negative by construction, and a test for it would be pinning arithmetic
+ * nobody can reach. And a partial legacy schema never arrives here at all —
+ * both entry points refuse on it before the guard is consulted.
+ *
+ * The grouping itself — maximum per learner, never a sum — is SQL in
+ * `worstLearner` and is proven on a lane, not here. This function is handed one
+ * learner and cannot tell how it was chosen.
  */
 describe("lostProgressRefusal", () => {
-  const healthy = {
+  const learner = (seenItems: number, itemsWithProgress: number) => ({
+    userId: "learner-1",
+    seenItems,
+    itemsWithProgress,
+  });
+
+  const base = {
     direction: "copy",
     legacyColumnsPresent: false,
-    seenRows: 61,
-    itemsWithProgress: 55,
+    worst: learner(54, 54),
     accepted: false,
   } as const;
   const check = (
     overrides: Partial<Parameters<typeof lostProgressRefusal>[0]>,
-  ) => lostProgressRefusal({ ...healthy, ...overrides });
+  ) => lostProgressRefusal({ ...base, ...overrides });
 
   it("should allow a database that was migrated correctly", () => {
     expect(check({})).toBeNull();
   });
 
+  it("should allow a database nobody has studied", () => {
+    expect(check({ worst: null })).toBeNull();
+  });
+
   it("should refuse when the columns are gone and nothing was copied", () => {
-    expect(check({ itemsWithProgress: 0 })).toContain("REFUSING TO CONTINUE");
+    expect(check({ worst: learner(61, 0) })).toContain("REFUSING TO CONTINUE");
   });
 
   it("should still refuse after one card is answered post-catastrophe", () => {
-    // The hole the first version had, demonstrated live: it keyed on "the table
-    // is empty", so a single answer through the API after the loss switched it
-    // off and the script reported "nothing to do" over 103 destroyed pairs. In
-    // a rolling deploy that window is seconds.
-    expect(check({ itemsWithProgress: 1 })).toContain("REFUSING TO CONTINUE");
+    // The hole the first guard had, demonstrated live: it keyed on "the table is
+    // empty", so a single answer through the API after the loss switched it off
+    // and the script reported "nothing to do" over 103 destroyed pairs. In a
+    // rolling deploy that window is seconds.
+    expect(check({ worst: learner(61, 1) })).toContain("REFUSING TO CONTINUE");
   });
 
   it("should not refuse a healthy database over one introduction card", () => {
     // The other hole, also demonstrated live. An intro sets `seen` and writes no
-    // progress row, so the first version fired on a database that had never had
+    // progress row, so the first guard fired on a database that had never had
     // legacy columns and never lost anything -- and told the operator to restore
     // a snapshot of a migration that never happened.
-    expect(check({ seenRows: 1, itemsWithProgress: 0 })).toBeNull();
+    expect(check({ worst: learner(1, 0) })).toBeNull();
   });
 
-  it("should allow a learner who abandoned a few sessions on an intro", () => {
+  it("should allow a learner who abandoned sessions right up to the limit", () => {
     expect(
-      check({ seenRows: 40, itemsWithProgress: 40 - UNEXPLAINED_SEEN_LIMIT }),
+      check({ worst: learner(40, 40 - UNEXPLAINED_SEEN_LIMIT) }),
     ).toBeNull();
   });
 
   it("should refuse one item past the limit", () => {
     expect(
-      check({
-        seenRows: 40,
-        itemsWithProgress: 40 - UNEXPLAINED_SEEN_LIMIT - 1,
-      }),
+      check({ worst: learner(40, 40 - UNEXPLAINED_SEEN_LIMIT - 1) }),
     ).toContain("REFUSING TO CONTINUE");
   });
 
@@ -260,7 +278,7 @@ describe("lostProgressRefusal", () => {
     // The normal starting point: every level is in the columns, the new table is
     // empty because the copy has not run. Reachable, and must not refuse.
     expect(
-      check({ legacyColumnsPresent: true, itemsWithProgress: 0 }),
+      check({ legacyColumnsPresent: true, worst: learner(61, 0) }),
     ).toBeNull();
   });
 
@@ -272,7 +290,7 @@ describe("lostProgressRefusal", () => {
       check({
         direction: "restore",
         legacyColumnsPresent: true,
-        itemsWithProgress: 0,
+        worst: learner(61, 0),
       }),
     ).toContain("REFUSING TO CONTINUE");
   });
@@ -282,15 +300,25 @@ describe("lostProgressRefusal", () => {
   });
 
   it("should defer to the operator who says the intros are real", () => {
-    expect(check({ itemsWithProgress: 0, accepted: true })).toBeNull();
+    expect(check({ worst: learner(61, 0), accepted: true })).toBeNull();
   });
 
   describe("the message", () => {
-    const message = check({ itemsWithProgress: 0 })!;
+    const message = check({ worst: learner(61, 0) })!;
 
     it("should report what was observed rather than assert the accident", () => {
       expect(message).toContain("Observed:");
       expect(message).not.toContain("cannot come from a correct sequence");
+    });
+
+    it("should name the learner it is talking about", () => {
+      expect(message).toContain("learner learner-1");
+    });
+
+    it("should say the figure is one learner and not a total", () => {
+      // Otherwise an operator with a thousand learners reads 61 as a fleet-wide
+      // number and goes looking for a fleet-wide problem.
+      expect(message).toContain("worst single learner, not a total");
     });
 
     it("should give both readings", () => {
@@ -312,6 +340,14 @@ describe("lostProgressRefusal", () => {
     it("should say nothing was written", () => {
       expect(message).toContain("Nothing has been written");
     });
+  });
+});
+
+describe("unexplainedSeen", () => {
+  it("should count one learner's seen items with no progress row", () => {
+    expect(
+      unexplainedSeen({ userId: "u", seenItems: 61, itemsWithProgress: 1 }),
+    ).toBe(60);
   });
 });
 
