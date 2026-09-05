@@ -36,6 +36,14 @@ export type AuthOptions = {
 const DAY = 60 * 60 * 24;
 
 /**
+ * The role a new account gets, in one place because two things have to agree
+ * on it: the admin plugin, which stamps it on the row at insert time, and the
+ * synthetic user sign-up invents for an address that already has an account.
+ * If they drift, the difference between the two responses is the oracle again.
+ */
+export const DEFAULT_ROLE = "user";
+
+/**
  * Every option better-auth runs on, as data, so a test can read them without
  * standing up an instance.
  */
@@ -114,6 +122,28 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
           <PasswordResetEmail link={url} username={user.name} />,
           "reset-password",
         ),
+      /**
+       * The fake user sign-up answers with when the address is already taken.
+       *
+       * better-auth builds one of these itself, from the schema's declared
+       * defaults, and the admin plugin's `role` has none — it is stamped on the
+       * row at insert time — so the synthetic user came back with `"role":
+       * null` while a real one came back `"role": "user"`. That single field
+       * was finding 32: two 200s, no session needed, and any address on the
+       * internet could be tested for an account here. `banned` needs no help
+       * (its schema field does carry a default) but is spelled out anyway, so
+       * that a reader can check this against the plugin's four columns without
+       * knowing which of them happen to have defaults.
+       */
+      customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+        ...coreFields,
+        role: DEFAULT_ROLE,
+        banned: false,
+        banReason: null,
+        banExpires: null,
+        ...additionalFields,
+        id,
+      }),
     },
     user: {
       changeEmail: {
@@ -241,7 +271,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
       // — no extra round trip to learn it. New accounts default to "user";
       // "admin" is the only elevated role.
       admin({
-        defaultRole: "user",
+        defaultRole: DEFAULT_ROLE,
         adminRoles: ["admin"],
       }),
     ],
