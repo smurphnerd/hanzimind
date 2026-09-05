@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
 
+import { AUTH_FIELD_LIMITS } from "@/definitions/definitions";
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +30,15 @@ const SignUpFormSchema = z.object({
   username: z
     .string()
     .min(3, "Username must be at least 3 characters")
-    .max(30, "Username must be at most 30 characters")
+    // The same number the server refuses past, so the form always catches it
+    // first and the server's copy is never reached by an honest submission.
+    // The server's is not validation politeness: an unbounded name is what
+    // breaks the response-time bucket that keeps sign-up from saying whether an
+    // address is taken. See `src/server/auth-timing.ts`.
+    .max(
+      AUTH_FIELD_LIMITS.name,
+      `Username must be at most ${AUTH_FIELD_LIMITS.name} characters`,
+    )
     .regex(
       /^[a-zA-Z0-9_-]+$/,
       "Username can only contain letters, numbers, hyphens, and underscores",

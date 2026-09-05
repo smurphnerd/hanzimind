@@ -5,7 +5,11 @@ import {
   type BetterAuthOptions,
   type Logger as BetterAuthLogger,
 } from "better-auth";
-import { APIError, createEmailVerificationToken } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  createEmailVerificationToken,
+} from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 
 import {
@@ -18,6 +22,7 @@ import { nanoid } from "nanoid";
 import type { Logger } from "pino";
 import type { ReactElement } from "react";
 
+import { AUTH_FIELD_LIMITS, type AuthField } from "@/definitions/definitions";
 import { ChangeEmailEmail } from "@/email/ChangeEmailEmail";
 import { DeleteAccountEmail } from "@/email/DeleteAccountEmail";
 import { EmailVerificationEmail } from "@/email/EmailVerificationEmail";
@@ -50,6 +55,38 @@ const VERIFIED_CALLBACK = "/verified";
 
 /** better-auth's own path for sign-up, without the `/api/auth` mount point. */
 const SIGN_UP_PATH = "/sign-up/email";
+
+/**
+ * The first field in the body that is longer than it is allowed to be, or null.
+ *
+ * Runs against every auth route rather than only the levelled ones, because
+ * what these limits protect is not just the request that carries them. A
+ * sign-up for a taken address renders the account's **stored** name into an
+ * email; the only thing keeping that path's cost close to the free path's is
+ * that whatever wrote the name was bounded by the same number.
+ */
+export const overlongAuthField = (body: unknown): AuthField | null => {
+  if (typeof body !== "object" || body === null) return null;
+  const fields = body as Record<string, unknown>;
+  for (const [field, limit] of Object.entries(AUTH_FIELD_LIMITS)) {
+    const value = fields[field];
+    if (typeof value === "string" && value.length > limit) {
+      return field as AuthField;
+    }
+  }
+  return null;
+};
+
+/**
+ * A stored name as an email may render it.
+ *
+ * `AUTH_FIELD_LIMITS.name` bounds what a sign-up may submit, but a row written
+ * before that bound existed — production has some — would put an unbounded
+ * amount of rendering on whichever path reads it, which is the asymmetry all
+ * over again. Clamping at the point of render makes the two paths symmetric by
+ * construction instead of by a promise about the data.
+ */
+const displayName = (name: string) => name.slice(0, AUTH_FIELD_LIMITS.name);
 
 /**
  * Every option better-auth runs on, as data, so a test can read them without
@@ -127,7 +164,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
         send(
           user.email,
           "Reset your password - Hanzimind",
-          <PasswordResetEmail link={url} username={user.name} />,
+          <PasswordResetEmail link={url} username={displayName(user.name)} />,
           "reset-password",
         ),
       /**
@@ -183,7 +220,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
             <ExistingAccountEmail
               signInLink={`${options.baseUrl}/signin`}
               resetLink={`${options.baseUrl}/forgot-password`}
-              username={user.name}
+              username={displayName(user.name)}
             />,
             "existing-account",
           );
@@ -203,7 +240,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
           "Verify your email - Hanzimind",
           <EmailVerificationEmail
             link={`${options.baseUrl}${AUTH_BASE_PATH}/verify-email?token=${token}&callbackURL=${encodeURIComponent(VERIFIED_CALLBACK)}`}
-            username={user.name}
+            username={displayName(user.name)}
           />,
           "verify-email",
         );
@@ -220,7 +257,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
             "Confirm your new email - Hanzimind",
             <ChangeEmailEmail
               link={url}
-              username={user.name}
+              username={displayName(user.name)}
               newEmail={newEmail}
             />,
             "change-email",
@@ -314,7 +351,7 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
             "Confirm account deletion - Hanzimind",
             <DeleteAccountEmail
               link={`${options.baseUrl}/delete-account?token=${encodeURIComponent(token)}`}
-              username={user.name}
+              username={displayName(user.name)}
             />,
             "delete-account",
           ),
@@ -326,9 +363,28 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
         send(
           user.email,
           "Verify your email - Hanzimind",
-          <EmailVerificationEmail link={url} username={user.name} />,
+          <EmailVerificationEmail
+            link={url}
+            username={displayName(user.name)}
+          />,
           "verify-email",
         ),
+    },
+    /**
+     * Refuse an overlong field before the endpoint runs, which on the levelled
+     * routes means before anything looks the address up. The refusal reads the
+     * submitted value only, so it is identical whether or not the address has
+     * an account, and the route levels it like any other answer.
+     */
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        const field = overlongAuthField(ctx.body);
+        if (!field) return;
+        throw new APIError("BAD_REQUEST", {
+          code: "FIELD_TOO_LONG",
+          message: `${field} must be at most ${AUTH_FIELD_LIMITS[field]} characters.`,
+        });
+      }),
     },
     /**
      * Only the response is blinded. An operator answering a support ticket

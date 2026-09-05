@@ -476,3 +476,34 @@ export const SuggestionCountDto = z.object({
   count: z.number().int().nonnegative(),
 });
 export type SuggestionCountDto = z.infer<typeof SuggestionCountDto>;
+
+/**
+ * Longest each caller-supplied auth field may be, shared so the sign-up form
+ * and the server agree on one number.
+ *
+ * These are a security bound before they are a validation nicety. The auth
+ * routes that answer a question about one email address are held to a fixed
+ * response-time bucket (`src/server/auth-timing.ts`), and a bucket only hides
+ * the difference between two paths while both fit inside it. The caller decides
+ * how much work one of them does: a sign-up for a free address renders the
+ * submitted `name` into a verification email, a sign-up for a taken one does
+ * not, and a 4 MB name pushed the free path into its third bucket while the
+ * taken path stayed in its first — disjoint distributions, one request, a
+ * sharper oracle than the one the bucket closed. No quantum is large enough to
+ * survive an unbounded input, so the input is what has to be bounded.
+ *
+ * `name` matches the sign-up form's own rule, so no honest request is ever
+ * refused by it. The two URL fields are generous for a real callback and
+ * useless as a lever. Password length is better-auth's own (10 to 128).
+ */
+export const AUTH_FIELD_LIMITS = {
+  /** Same 30 the sign-up form asks for. */
+  name: 30,
+  /** RFC 5321's maximum path length for an address. */
+  email: 254,
+  newEmail: 254,
+  image: 2048,
+  callbackURL: 512,
+  redirectTo: 512,
+} as const;
+export type AuthField = keyof typeof AUTH_FIELD_LIMITS;
