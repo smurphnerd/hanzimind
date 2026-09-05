@@ -1,4 +1,4 @@
-import { Button, Html, Markdown } from "@react-email/components";
+import { Button, Html, Markdown, Section } from "@react-email/components";
 
 /**
  * Sent when someone tries to create an account with an address that already
@@ -25,8 +25,14 @@ If that was you, you're already signed up. Sign in below. If you can't remember 
 
 If it wasn't you, there's nothing to do. Nobody has been given access to your account and nothing about it has changed.`}
       </Markdown>
-      <Button href={props.signInLink}>Sign in</Button>
-      <Button href={props.resetLink}>Reset your password</Button>
+      {/* One per Section, which renders a table row: two Buttons as siblings
+          are inline anchors and came out as "Sign inReset your password". */}
+      <Section>
+        <Button href={props.signInLink}>Sign in</Button>
+      </Section>
+      <Section>
+        <Button href={props.resetLink}>Reset your password</Button>
+      </Section>
     </Html>
   );
 }
