@@ -244,8 +244,8 @@ describe("buildAuthOptions", () => {
       systemEmailFrom: "from@hanzimind.test",
     }).user.deleteUser.beforeDelete({ id: "u1" } as never);
 
-    // five own-state deletes, then deck_vocab_items, user_decks and decks
-    expect(calls).toHaveLength(8);
+    // six own-state deletes, then deck_vocab_items, user_decks and decks
+    expect(calls).toHaveLength(9);
   });
 
   /**

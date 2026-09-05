@@ -87,6 +87,14 @@ type Step = {
 const STEPS: Step[] = [
   {
     action: "delete",
+    columns: [schema.userStudyProgress.userId],
+    run: (tx, { userId }) =>
+      tx
+        .delete(schema.userStudyProgress)
+        .where(eq(schema.userStudyProgress.userId, userId)),
+  },
+  {
+    action: "delete",
     columns: [schema.userVocabSynonyms.userId],
     run: (tx, { userId }) =>
       tx

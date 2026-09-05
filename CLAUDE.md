@@ -99,7 +99,32 @@ The API uses **oRPC** (not tRPC) for type-safe RPC communication between client 
 - `vocabItems` - Components, characters, compounds, and sentences with stroke data, audio, etymology
 - `decks` - User-created vocabulary decks
 - `deckVocabItems` - Links vocab items to decks
-- `userVocabItems` - Tracks user progress per vocab item
+- `userVocabItems` - One row per learner and item: whether they have seen it, and
+  which memory aid they pinned
+- `userStudyProgress` - One row per learner, item and study type: the level and
+  the next due time
+- `dataMigrations` - Data moves `db:push` cannot make, and the record that they
+  ran. Push reconciles the schema's shape and knows nothing about carrying data
+  between shapes, so a reshape needs a script beside it and something has to
+  remember whether that script ran
+
+**Progress is one row per study type**
+`userStudyProgress(userId, vocabItemId, studyType, level, nextAt)` replaced four
+`<type>Level` / `<type>NextAt` column pairs on `userVocabItems`. Every reader
+used to build a column name from a study type at runtime, which nothing checks.
+
+Storage is **sparse**: a type gets a row on its first answer, and absence means
+level 0 due now. Every reader sees a total map instead — `StudyProgressDto`, with
+all four types always present — filled once by `progressByItem` in `StudyService`,
+so no rule downstream has to know what a missing row meant. Level 0 WITH a due
+time is a different fact (an answer got wrong) and does get a row.
+
+The write lock is on `userVocabItems`, not on the progress row. A type has no
+progress row until its first answer, and `SELECT ... FOR UPDATE` on a row that is
+not there serialises nothing, so two concurrent first answers would both read
+level 0 and one would be lost. `processAnswer` updates the `userVocabItems` row
+first — which takes the same exclusive lock and writes `seen` in the same
+statement — and only then reads and upserts the progress row.
 
 ### Vocabulary Item Types
 
@@ -195,8 +220,9 @@ otherwise puts on the wire. Pinned by `VocabService.test.ts`.
 `weakestServableLevel` must only consider study types `canStudy` permits for that
 item. Taking the minimum over every _deck-enabled_ type instead pins a
 meaning-only component at level 0 forever — it can never be served for reading,
-so `readingLevel` never advances — and the constituent gate then locks every
-character built on it, permanently and unrecoverably. Likewise a dependency with
+so its reading level never advances, and with the sparse storage it has no
+reading row at all — and the constituent gate then locks every character built
+on it, permanently and unrecoverably. Likewise a dependency with
 _no_ servable type must not gate at all. Both are covered in
 `src/server/__tests__/study-rules.test.ts`; do not reintroduce a gate that reads
 levels the item cannot earn. A phonetic component legitimately gates on all three
@@ -244,6 +270,31 @@ effect.
   including disabling glyphs and purging the deck links and progress that pointed
   at them, so it discards every admin decision the file does not happen to repeat.
   It strips the reading from every component the file does not call phonetic.
+- `tsx scripts/backfill-study-progress.ts` (`--dry-run`, `--verify`) — nothing to
+  do with classification: moves a learner's levels and due times out of the four
+  legacy `user_vocab_items` column pairs into `user_study_progress`. Must run
+  BEFORE `pnpm db:push`, because push drops those columns in the same run that
+  creates the table. The copy and its verification share a transaction, so a
+  committed run is a proof rather than a claim; `--dry-run` rehearses the whole
+  thing and rolls back, which is safe to point at production. `--down` reverses
+  it — the columns come back, filled from the rows and checked with the same
+  symmetric query — for when the revert is the code as well as the schema.
+
+  Re-running it is only a true no-op AFTER push has dropped the columns. Before
+  that a second run never overwrites a row, but the stale legacy column and the
+  advanced row disagree, so the verification rolls it back non-zero.
+
+  If push runs BEFORE the copy, the levels are gone and nothing here can recover
+  them, so the script refuses rather than reporting "nothing to do". It knows
+  because the copy writes a `data_migrations` row inside its own transaction and
+  the seed writes the same row for a database that never had the old columns:
+  columns gone with no such row means the schema moved on without the data. That
+  is a recorded fact, and it has to be — after the columns are dropped, a
+  database that was migrated and one that was dropped with its data still in it
+  are indistinguishable by inspection, which is why three attempts to infer it
+  from the shape of the data all failed in different directions. Take a
+  `pg_dump` first regardless.
+
 - `tsx scripts/backfill-etymology-roles.ts` (`--dry-run`) — unrelated to
   classification: fills `etymologyPhonetic` / `etymologySemantic` from
   `dictionary.txt` on rows seeded before those columns existed. Only writes where

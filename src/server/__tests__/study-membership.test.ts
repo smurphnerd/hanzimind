@@ -31,16 +31,14 @@ const userVocabItem: UserVocabItemDto = {
   userId: "learner-1",
   username: "learner",
   seen: true,
-  readingLevel: 1,
-  listeningLevel: 0,
-  understandingLevel: 0,
-  writingLevel: 0,
+  progress: {
+    reading: { level: 1, nextAt: null },
+    listening: { level: 0, nextAt: null },
+    understanding: { level: 0, nextAt: null },
+    writing: { level: 0, nextAt: null },
+  },
   memoryAidId: null,
   memoryAid: null,
-  readingNextAt: null,
-  listeningNextAt: null,
-  understandingNextAt: null,
-  writingNextAt: null,
   constituents: [],
 };
 
