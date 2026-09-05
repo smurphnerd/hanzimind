@@ -66,6 +66,22 @@ fi
 
 auth_secret=$(sed -n 's/^AUTH_SECRET=//p' "$ENV_FILE" 2>/dev/null || true)
 [ -n "$auth_secret" ] || auth_secret=$(openssl rand -hex 32)
+# EMAIL_CONNECTION_URL is 127.0.0.1, never localhost. Compose publishes
+# Mailpit's SMTP port on IPv4 only, and localhost resolves to both ::1 and
+# 127.0.0.1. nodemailer picks one of the two at random for every send, so half
+# its connections open on an address nothing is listening on and fail with
+# `ESOCKET connect ECONNREFUSED ::1:<port>`. Recent nodemailer retries the
+# other address and recent Node hedges its own connect, but `^9.0.1` floats
+# over versions that do neither, and a lane's mail should not rest on either.
+# An address has no coin to flip.
+#
+# The rationale sits here rather than in the file it writes. The heredoc below
+# is unquoted, so a backtick inside it runs as a command at generation: this
+# block, written into the heredoc, printed three shell errors on every lane
+# boot and landed with the two strings it exists to name eaten. And .env.lane
+# is rewritten in full on every run, which is the same reason a hand fix there
+# never lasts. Whoever needs this is editing lane-up.sh, and they are already
+# in it.
 cat >"$ENV_FILE" <<EOF
 NODE_ENV=development
 LOG_LEVEL=info
@@ -73,7 +89,8 @@ GIT_SHA=$(git -C "$REPO" rev-parse HEAD)
 BASE_URL=http://localhost:$DEV_PORT
 DATABASE_URL=postgres://postgres:postgres@localhost:$POSTGRES_PORT/postgres
 S3_OPTIONS='{"credentials":{"accessKeyId":"lane","secretAccessKey":"lane"},"endpoint":"http://localhost:$S3_PORT","region":"local","bucketName":"default-bucket","forcePathStyle":true}'
-EMAIL_CONNECTION_URL=smtp://lane:lane@localhost:$MAILPIT_SMTP_PORT
+# EMAIL_CONNECTION_URL: 127.0.0.1, never localhost. See lane-up.sh.
+EMAIL_CONNECTION_URL=smtp://lane:lane@127.0.0.1:$MAILPIT_SMTP_PORT
 SYSTEM_EMAIL_FROM="HanziMind <no-reply@hanzimind.test>"
 AUTH_SECRET=$auth_secret
 DEEPL_API_KEY=${DEEPL_API_KEY:-lane-no-deepl}
