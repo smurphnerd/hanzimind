@@ -7,6 +7,8 @@ import {
   COPY_SQL,
   CREATE_TABLE_SQL,
   LEGACY_COLUMNS,
+  RESTORE_COLUMNS_SQL,
+  RESTORE_ROWS_SQL,
   VERIFY_SQL,
 } from "../backfill-study-progress";
 
@@ -117,5 +119,73 @@ describe("VERIFY_SQL", () => {
     expect(VERIFY_SQL).toContain(
       "when p.user_id is null then not (legacy.level = 0 and legacy.next_at is null)",
     );
+  });
+});
+
+/**
+ * The reverse. `--down` has to put the eight columns back before `schema.ts`
+ * describes them again, so its DDL is hand-written too — and unlike the forward
+ * DDL there is no `db:push` afterwards to catch a mistake, because push on the
+ * reverted schema simply agrees with whatever is there. These pin the
+ * definitions instead.
+ */
+describe("RESTORE_COLUMNS_SQL", () => {
+  it("should add every legacy column back", () => {
+    const missing = LEGACY_COLUMNS.filter(
+      (column) =>
+        !RESTORE_COLUMNS_SQL.includes(`add column if not exists "${column}"`),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("should restore a level as a non-null integer defaulting to zero", () => {
+    // What the column was at a391426. A nullable one would let `?? 0` back in,
+    // and no default would fail on the existing rows.
+    expect(RESTORE_COLUMNS_SQL).toContain(
+      `add column if not exists "reading_level" integer not null default 0`,
+    );
+  });
+
+  it("should restore a due time as a nullable timestamp", () => {
+    expect(RESTORE_COLUMNS_SQL).toContain(
+      `add column if not exists "reading_next_at" timestamp`,
+    );
+  });
+
+  it("should be safe to re-run", () => {
+    expect(RESTORE_COLUMNS_SQL).not.toContain('add column "');
+  });
+});
+
+describe("RESTORE_ROWS_SQL", () => {
+  it("should clear every legacy column before filling any of them", () => {
+    // Without the reset, a re-run over columns that already exist keeps stale
+    // values on exactly the pairs the forward copy declined to write, and
+    // nothing else would overwrite them.
+    const [reset] = RESTORE_ROWS_SQL;
+    const unreset = LEGACY_COLUMNS.filter(
+      (column) =>
+        !reset.includes(`${column} = 0`) && !reset.includes(`${column} = null`),
+    );
+    expect(unreset).toEqual([]);
+  });
+
+  it("should write one statement per study type after the reset", () => {
+    expect(RESTORE_ROWS_SQL).toHaveLength(STUDY_TYPES.length + 1);
+  });
+
+  it("should match each statement to its own study type", () => {
+    for (const [index, type] of STUDY_TYPES.entries()) {
+      const statement = RESTORE_ROWS_SQL[index + 1];
+      expect(statement).toContain(`set ${type}_level = p.level`);
+      expect(statement).toContain(`p.study_type = '${type}'`);
+    }
+  });
+
+  it("should join on the whole primary key", () => {
+    // Dropping vocab_item_id from the join would write one item's level onto
+    // every item the learner studies.
+    expect(RESTORE_ROWS_SQL[1]).toContain("p.user_id = u.user_id");
+    expect(RESTORE_ROWS_SQL[1]).toContain("p.vocab_item_id = u.vocab_item_id");
   });
 });

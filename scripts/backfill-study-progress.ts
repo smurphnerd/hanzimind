@@ -21,14 +21,25 @@
  * committed run means every legacy value is accounted for. The check is the
  * guarantee rather than a claim about it, and `--verify` runs it alone.
  *
+ * GOING BACK. `--down` reverses it: it puts the eight columns back, copies the
+ * rows into them, and checks the result with the same query the forward
+ * direction uses, which is symmetric. Then revert the code and run `pnpm
+ * db:push`, which drops `user_study_progress` because the reverted schema has no
+ * such table. The DDL has to be spelled out here for the same reason as the
+ * forward one: at the moment it runs, `schema.ts` does not describe those
+ * columns. `--down` is NOT a substitute for a `pg_dump` before step 2 — it can
+ * only restore what the rows still hold.
+ *
  * MODES.
  *   --dry-run  Rehearses all of it — create, copy, check — prints the counts,
  *              then rolls back. Postgres makes DDL transactional, so even the
  *              CREATE TABLE is undone and nothing survives the run. This is the
  *              mode to point at a database you are not allowed to change.
+ *              Combines with --down.
  *   --verify   Compares only. Writes nothing and creates nothing, so it needs
  *              the new table to exist and the legacy columns to still be there.
  *              Use it to re-check a database someone else has migrated.
+ *   --down     Restores the columns from the rows. See above.
  *   (default)  Copies and commits.
  *
  * IDEMPOTENT. Rows go in with ON CONFLICT DO NOTHING, so a second run cannot
@@ -81,6 +92,52 @@ create table if not exists "user_study_progress" (
   constraint "user_study_progress_vocab_item_id_vocab_items_id_fk"
     foreign key ("vocab_item_id") references "vocab_items"("id")
 )`;
+
+/**
+ * The eight columns as they stood before this migration, for `--down`.
+ *
+ * Same defaults and nullability as the Drizzle table had at `a391426`: a level
+ * is a non-null integer defaulting to 0, a due time is a nullable timestamp.
+ * `if not exists` so a half-finished rollback can be re-run.
+ */
+export const RESTORE_COLUMNS_SQL = `
+alter table "user_vocab_items"
+${LEGACY_COLUMNS.map((column) =>
+  column.endsWith("_level")
+    ? `  add column if not exists "${column}" integer not null default 0`
+    : `  add column if not exists "${column}" timestamp`,
+).join(",\n")}`;
+
+/**
+ * The rows folded back into the columns: a reset, then one UPDATE per type.
+ *
+ * The reset is not redundant. `add column if not exists` leaves an existing
+ * column's contents alone, so a half-finished rollback re-run would otherwise
+ * keep stale values on the pairs the new table has no row for — and those are
+ * exactly the pairs the forward direction declined to write, so nothing would
+ * overwrite them. Resetting first makes the restored shape a function of the
+ * rows alone.
+ *
+ * One statement per type rather than one `case` over four, because each writes
+ * a different pair of columns and four statements each saying one thing read
+ * better than one saying four.
+ */
+export const RESTORE_ROWS_SQL = [
+  `update user_vocab_items set
+${STUDY_TYPES.map((type) => `  ${type}_level = 0, ${type}_next_at = null`).join(
+  ",\n",
+)}`,
+  ...STUDY_TYPES.map(
+    (type) => `
+update user_vocab_items u
+   set ${type}_level = p.level,
+       ${type}_next_at = p.next_at
+  from user_study_progress p
+ where p.user_id = u.user_id
+   and p.vocab_item_id = u.vocab_item_id
+   and p.study_type = '${type}'`,
+  ),
+];
 
 /**
  * The legacy columns unpivoted into the shape the new table holds.
@@ -160,14 +217,91 @@ const countOf = async (database: Executor, query: string) => {
 /** Thrown to roll a rehearsal back. Never an error the operator has to read. */
 class Rehearsed extends Error {}
 
+/**
+ * Put the columns back and fill them from the rows.
+ *
+ * Checked with `VERIFY_SQL`, the same query the forward direction commits on.
+ * It is symmetric: it fails both on a row the columns do not carry and on a
+ * column value no row justifies, so it proves the restored shape and the rows
+ * describe the same progress whichever way the data travelled.
+ */
+async function goingBack(args: {
+  logger: ReturnType<typeof bootstrap>["logger"];
+  database: ReturnType<typeof bootstrap>["database"];
+  dryRun: boolean;
+}) {
+  const { logger, database, dryRun } = args;
+
+  const table = await database.execute(
+    sql.raw("select to_regclass('user_study_progress') as name"),
+  );
+  if ((table.rows[0] as { name: string | null }).name === null) {
+    throw new Error(
+      "user_study_progress does not exist, so there is nothing to restore from. If the legacy columns are still there, this database was never migrated.",
+    );
+  }
+
+  try {
+    await database.transaction(async (tx) => {
+      await tx.execute(sql.raw(RESTORE_COLUMNS_SQL));
+      for (const statement of RESTORE_ROWS_SQL) {
+        await tx.execute(sql.raw(statement));
+      }
+
+      // A progress row whose parent is gone has nowhere to be restored to, and
+      // VERIFY_SQL walks from the parent so it would never see it.
+      const orphans = await countOf(
+        tx,
+        `select 1 from user_study_progress p
+          where not exists (select 1 from user_vocab_items u
+                             where u.user_id = p.user_id
+                               and u.vocab_item_id = p.vocab_item_id)`,
+      );
+      const mismatches = await tx.execute(sql.raw(VERIFY_SQL));
+      if (orphans > 0 || mismatches.rows.length > 0) {
+        logger.error(
+          { orphans, sample: mismatches.rows },
+          "The restore does not reproduce every progress row. Rolling back.",
+        );
+        throw new Error("Verification failed, nothing was written");
+      }
+
+      logger.info(
+        {
+          progressRows: await countOf(tx, "select 1 from user_study_progress"),
+          rowsRestoredInto: await countOf(tx, "select 1 from user_vocab_items"),
+          verified: "the columns and the rows describe the same progress",
+        },
+        dryRun ? "Dry run complete, rolling back" : "Restore complete",
+      );
+
+      if (dryRun) throw new Rehearsed();
+    });
+  } catch (error) {
+    if (!(error instanceof Rehearsed)) throw error;
+  }
+
+  logger.info(
+    dryRun
+      ? "Nothing was written. Re-run without --dry-run to restore the columns."
+      : "The columns are back. Revert the code, then pnpm db:push to drop user_study_progress.",
+  );
+}
+
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const verifyOnly = process.argv.includes("--verify");
+  const down = process.argv.includes("--down");
   if (dryRun && verifyOnly) {
     throw new Error("Pass --dry-run or --verify, not both");
   }
+  if (down && verifyOnly) {
+    throw new Error("Pass --down or --verify, not both");
+  }
 
   const { logger, database } = bootstrap();
+
+  if (down) return goingBack({ logger, database, dryRun });
 
   const present = await legacyColumnsPresent(database);
   if (present.length === 0) {

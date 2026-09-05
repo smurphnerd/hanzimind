@@ -273,7 +273,9 @@ effect.
   creates the table. The copy and its verification share a transaction, so a
   committed run is a proof rather than a claim; `--dry-run` rehearses the whole
   thing and rolls back, which is safe to point at production. Once push has
-  dropped the columns it is a no-op.
+  dropped the columns it is a no-op. `--down` reverses it — the columns come
+  back, filled from the rows and checked with the same symmetric query — for
+  when the revert is the code as well as the schema.
 - `tsx scripts/backfill-etymology-roles.ts` (`--dry-run`) — unrelated to
   classification: fills `etymologyPhonetic` / `etymologySemantic` from
   `dictionary.txt` on rows seeded before those columns existed. Only writes where
