@@ -37,7 +37,7 @@ const SignUpFormSchema = z.object({
   email: z.email(),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(10, "Password must be at least 10 characters")
     .max(128, "Password must be at most 128 characters"),
 });
 type SignUpFormSchema = z.infer<typeof SignUpFormSchema>;
@@ -49,6 +49,24 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     : "/verified";
   const [sentTo, setSentTo] = useState<string | null>(null);
 
+  // The sign-up endpoint answers 200 even when the send fails, so the learner
+  // cannot be told at that moment. This is the way back: ask for another one,
+  // and this call does report a failure.
+  const resend = useMutation({
+    mutationFn: async (email: string) => {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL,
+      });
+      if (result.error) {
+        throw new Error(result.error.message ?? "Could not send the email");
+      }
+    },
+    onSuccess: () => toast.success("Sent. Check your inbox again."),
+    onError: () =>
+      toast.error("Couldn't send it. Please try again in a minute."),
+  });
+
   const form = useForm({
     resolver: zodResolver(SignUpFormSchema, {
       error: (iss) => {
@@ -56,7 +74,7 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return iss.message ?? "Password must be at least 8 characters";
+          return iss.message ?? "Password must be at least 10 characters";
         }
         if (iss.path?.[0] === "username") {
           return iss.message ?? "Username must be at least 3 characters";
@@ -120,7 +138,17 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
               activate your account. If it already has an account, sign in
               instead.
             </p>
+            <p className="text-sm text-muted-foreground">
+              Nothing after a minute? Send it again.
+            </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                isPending={resend.isPending}
+                onClick={() => resend.mutate(sentTo)}
+              >
+                Resend email
+              </Button>
               <Button variant="outline" onClick={() => setSentTo(null)}>
                 Use a different email
               </Button>

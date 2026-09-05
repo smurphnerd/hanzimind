@@ -26,7 +26,10 @@ import { z } from "@/lib/zod-jitless";
 
 const SignInFormSchema = z.object({
   email: z.email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  // No minimum here. A minimum belongs on sign-up and on reset; on sign-in it
+  // would lock out every account created under an older rule, with the form
+  // refusing to submit and the server never getting to say why.
+  password: z.string().min(1, "Enter your password"),
 });
 type SigninFormSchema = z.infer<typeof SignInFormSchema>;
 
@@ -41,7 +44,7 @@ export default function SignInClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return "Password must be at least 8 characters";
+          return "Enter your password";
         }
         return iss.code;
       },
@@ -130,6 +133,16 @@ export default function SignInClientPage(props: { baseUrl: string }) {
                       <Input {...field} type="password" />
                     </FormControl>
                     <FormMessage />
+                    {/* justify-self, not self-end: FormItem lays its children
+                        out in a grid, where self-end is the block axis and
+                        would leave this under the input rather than to its
+                        right. */}
+                    <Link
+                      href="/forgot-password"
+                      className="justify-self-end text-sm font-semibold text-primary"
+                    >
+                      Forgot password?
+                    </Link>
                   </FormItem>
                 )}
               />

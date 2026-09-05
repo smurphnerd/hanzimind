@@ -74,13 +74,15 @@ if (process.env.NODE_ENV !== "test") {
     database: asFunction((deps: Cradle) =>
       getDatabase(deps.logger, env.DATABASE_URL),
     ).singleton(),
+    // Must be a singleton: a fresh better-auth instance per resolution rebuilds
+    // its adapter and plugin chain on every request that reads a session.
     auth: asFunction((deps: Cradle) =>
       getAuth(deps, {
         authSecret: env.AUTH_SECRET,
         baseUrl: env.BASE_URL,
         systemEmailFrom: env.SYSTEM_EMAIL_FROM,
       }),
-    ),
+    ).singleton(),
     storage: asFunction(() => new S3StorageAdapter(env.S3_OPTIONS)).singleton(),
     email:
       env.EMAIL_CONNECTION_URL === "ses"
