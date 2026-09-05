@@ -11,7 +11,7 @@ import type { Drizzle } from "../database";
  * important one:
  *
  *   1. those columns are absent, and
- *   2. there is no learner history at all — `user_vocab_items` is empty.
+ *   2. nobody has studied anything — no `user_vocab_items` row has `seen` set.
  *
  * The first alone is not enough, and measuring it proved that. A database whose
  * columns were just dropped WITH the data in them also has no legacy columns, so
@@ -19,12 +19,19 @@ import type { Drizzle } from "../database";
  * loss. That is the indistinguishability the marker exists to escape, reappearing
  * one level up.
  *
- * Emptiness is the fact that separates them. A database that never had the old
- * shape has no progress to have lost; one that lost its progress still has the
- * learners and the rows that used to carry it. So the seed claims a marker only
- * for a database with nothing in it yet, and a re-seed of an established
- * database — which every lane boot does — leaves the marker exactly as it found
- * it.
+ * WHY `seen` AND NOT AN EMPTY TABLE. The gate first asked for an empty
+ * `user_vocab_items`, which was sound but too narrow: `study/addDeck` writes a
+ * row per deck item, so saving a single deck closed the window, and a healthy
+ * never-migrated database whose first seed happened to land after that was told
+ * to restore a snapshot of a migration it never ran.
+ *
+ * `seen` is the wider fact and just as safe. A non-default legacy pair could
+ * only be written by `processAnswer`, which sets `seen` in the same statement,
+ * so no seen row implies every legacy pair was still at its default and there
+ * was nothing to lose. The window also cannot close before it opens: studying
+ * requires a dictionary, the dictionary arrives with the first seed, so at the
+ * first seed of any database `seen` is necessarily zero. A re-seed of a studied
+ * database leaves the marker exactly as it found it.
  */
 const MOVES = [
   {
@@ -47,6 +54,33 @@ const MOVES = [
 ] as const;
 
 /**
+ * Whether the seed may claim a marker for one move. Pure, so the gate has a
+ * truth table a test can hold to.
+ *
+ * Each condition rules out a different way of being wrong:
+ *
+ *   markerTableExists  false means the schema has not been pushed for this yet,
+ *                      and writing would kill the seed rather than record
+ *                      anything.
+ *   studiedItems > 0   somebody has answered a card, so this database has a past
+ *                      the seed cannot vouch for. This is the one that stops a
+ *                      re-seed certifying a database whose columns were just
+ *                      dropped with the data still in them.
+ *   legacyColumnsRemaining > 0
+ *                      the old shape is still here, so the move is still owed
+ *                      and claiming it done would be a lie.
+ */
+export function shouldClaimMarker(state: {
+  markerTableExists: boolean;
+  studiedItems: number;
+  legacyColumnsRemaining: number;
+}): boolean {
+  if (!state.markerTableExists) return false;
+  if (state.studiedItems > 0) return false;
+  return state.legacyColumnsRemaining === 0;
+}
+
+/**
  * Record the data moves a fresh database is born past.
  *
  * `backfill-study-progress.ts` writes the same rows when it migrates an existing
@@ -58,14 +92,29 @@ const MOVES = [
 export async function seedDataMigrations(database: Drizzle): Promise<string[]> {
   const claimed: string[] = [];
 
-  const history = await database.execute(
-    sql.raw("select count(*)::int as count from user_vocab_items"),
+  // The seed must never be the thing that fails a deploy. A database pushed from
+  // a schema without this table is a schema/data ordering the operator can
+  // recover from; a seed that dies on a Postgres parser error partway through is
+  // not, and it took the dictionary down with it.
+  const markerTable = await database.execute(
+    sql.raw("select to_regclass('data_migrations') as name"),
   );
-  // Anything here means learners have used this database, so it is not a fresh
-  // one and the seed has no business certifying anything about its past.
-  if ((history.rows[0] as { count: number }).count > 0) return claimed;
+  const markerTableExists =
+    (markerTable.rows[0] as { name: string | null }).name !== null;
+  if (!markerTableExists) return claimed;
+
+  const studied = await database.execute(
+    sql.raw("select count(*)::int as count from user_vocab_items where seen"),
+  );
+  const studiedItems = (studied.rows[0] as { count: number }).count;
 
   for (const move of MOVES) {
+    // `studied` above reads `user_vocab_items` by name while each move declares
+    // its own table, which is a deliberate inconsistency while there is exactly
+    // one move and its columns are columns OF that table. A second move against
+    // a different table would make the two disagree — the gate would ask about
+    // the wrong history — so at that point the studied-check has to move inside
+    // this loop and be asked per move.
     const { table, columns } = move.supersededColumns;
     const present = await database.execute(
       sql.raw(`select count(*)::int as count
@@ -74,8 +123,16 @@ export async function seedDataMigrations(database: Drizzle): Promise<string[]> {
                   and table_name = '${table}'
                   and column_name in (${columns.map((c) => `'${c}'`).join(", ")})`),
     );
-    const remaining = (present.rows[0] as { count: number }).count;
-    if (remaining > 0) continue;
+    const legacyColumnsRemaining = (present.rows[0] as { count: number }).count;
+    if (
+      !shouldClaimMarker({
+        markerTableExists,
+        studiedItems,
+        legacyColumnsRemaining,
+      })
+    ) {
+      continue;
+    }
 
     const written = await database.execute(
       sql.raw(`insert into data_migrations (name, note, created_at, updated_at)

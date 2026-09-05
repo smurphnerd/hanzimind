@@ -376,6 +376,33 @@ const countOf = async (database: Executor, query: string) => {
 class Rehearsed extends Error {}
 
 /**
+ * The only way this script writes anything.
+ *
+ * Everything runs inside one transaction, and `--dry-run` rolls it back, so a
+ * rehearsal cannot leave a trace whatever the branch does. That is a structural
+ * guarantee rather than a habit, and it exists because the habit failed: the
+ * `--accept-missing-marker` branch wrote the marker straight onto the pool,
+ * outside any transaction, so `--dry-run` sailed past it and silenced the guard
+ * permanently — through the one mode documented as safe to point at a database
+ * you are not allowed to change, and reached by following the refusal's own
+ * advice. Any new write goes in here or it is invisible to `--dry-run` again.
+ */
+async function write(
+  database: ReturnType<typeof bootstrap>["database"],
+  dryRun: boolean,
+  body: (tx: Executor) => Promise<void>,
+): Promise<void> {
+  try {
+    await database.transaction(async (tx) => {
+      await body(tx);
+      if (dryRun) throw new Rehearsed();
+    });
+  } catch (error) {
+    if (!(error instanceof Rehearsed)) throw error;
+  }
+}
+
+/**
  * Put the columns back and fill them from the rows.
  *
  * Checked with `VERIFY_SQL`, the same query the forward direction commits on.
@@ -415,50 +442,50 @@ async function goingBack(args: {
   if (refusal && !dryRun) throw new Error(refusal);
   if (refusal) logger.warn("A real run would refuse here:\n" + refusal);
 
-  try {
-    await database.transaction(async (tx) => {
-      await tx.execute(sql.raw(RESTORE_COLUMNS_SQL));
-      for (const statement of RESTORE_ROWS_SQL) {
-        await tx.execute(sql.raw(statement));
-      }
-      // The copy is being undone, so the record of it goes too: the database is
-      // back to "the columns hold the levels and no copy has run".
-      await tx.execute(
-        sql.raw(`delete from data_migrations where name = '${MARKER_NAME}'`),
-      );
+  await write(database, dryRun, async (tx) => {
+    await tx.execute(sql.raw(RESTORE_COLUMNS_SQL));
+    for (const statement of RESTORE_ROWS_SQL) {
+      await tx.execute(sql.raw(statement));
+    }
+    // The copy is being undone, so the record of it goes too: the database is
+    // back to "the columns hold the levels and no copy has run".
+    //
+    // Created first because it may not be there at all. `--down
+    // --accept-missing-marker` is aimed squarely at a hand-migrated database,
+    // which is exactly the population that has no marker table, and deleting
+    // from a missing one threw a raw driver error at them.
+    await tx.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
+    await tx.execute(
+      sql.raw(`delete from data_migrations where name = '${MARKER_NAME}'`),
+    );
 
-      // A progress row whose parent is gone has nowhere to be restored to, and
-      // VERIFY_SQL walks from the parent so it would never see it.
-      const orphans = await countOf(
-        tx,
-        `select 1 from user_study_progress p
+    // A progress row whose parent is gone has nowhere to be restored to, and
+    // VERIFY_SQL walks from the parent so it would never see it.
+    const orphans = await countOf(
+      tx,
+      `select 1 from user_study_progress p
           where not exists (select 1 from user_vocab_items u
                              where u.user_id = p.user_id
                                and u.vocab_item_id = p.vocab_item_id)`,
+    );
+    const mismatches = await tx.execute(sql.raw(VERIFY_SQL));
+    if (orphans > 0 || mismatches.rows.length > 0) {
+      logger.error(
+        { orphans, sample: mismatches.rows },
+        "The restore does not reproduce every progress row. Rolling back.",
       );
-      const mismatches = await tx.execute(sql.raw(VERIFY_SQL));
-      if (orphans > 0 || mismatches.rows.length > 0) {
-        logger.error(
-          { orphans, sample: mismatches.rows },
-          "The restore does not reproduce every progress row. Rolling back.",
-        );
-        throw new Error("Verification failed, nothing was written");
-      }
+      throw new Error("Verification failed, nothing was written");
+    }
 
-      logger.info(
-        {
-          progressRows: await countOf(tx, "select 1 from user_study_progress"),
-          rowsRestoredInto: await countOf(tx, "select 1 from user_vocab_items"),
-          verified: "the columns and the rows describe the same progress",
-        },
-        dryRun ? "Dry run complete, rolling back" : "Restore complete",
-      );
-
-      if (dryRun) throw new Rehearsed();
-    });
-  } catch (error) {
-    if (!(error instanceof Rehearsed)) throw error;
-  }
+    logger.info(
+      {
+        progressRows: await countOf(tx, "select 1 from user_study_progress"),
+        rowsRestoredInto: await countOf(tx, "select 1 from user_vocab_items"),
+        verified: "the columns and the rows describe the same progress",
+      },
+      dryRun ? "Dry run complete, rolling back" : "Restore complete",
+    );
+  });
 
   logger.info(
     dryRun
@@ -509,7 +536,7 @@ async function main() {
           copyRecorded: state.markerPresent,
         },
         columns.state === "absent"
-          ? "The legacy columns are gone, so there is nothing left to compare against. The counts above are what remains; seenWithNoProgress far above zero would mean the levels never reached user_study_progress."
+          ? "The legacy columns are gone, so there is nothing left to compare against. Whether the copy ran is the copyRecorded field above, which is a recorded fact; the row counts here describe the database but cannot answer it."
           : "user_vocab_items has only some of the legacy columns, so a comparison would be meaningless. The counts above are what remains.",
       );
       return;
@@ -556,78 +583,76 @@ async function main() {
     // has checked their database once should not have to keep passing the flag,
     // and a database that stays unmarked keeps refusing every future run.
     if (accepted && !state.markerPresent) {
-      await database.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
-      await database.execute(
-        sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
-                 values ('${MARKER_NAME}',
-                         'recorded by --accept-missing-marker: an operator confirmed user_study_progress holds the history',
-                         now(), now())
-                 on conflict (name) do nothing`),
-      );
+      await write(database, dryRun, async (tx) => {
+        await tx.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
+        await tx.execute(
+          sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
+                   values ('${MARKER_NAME}',
+                           'recorded by --accept-missing-marker: an operator confirmed user_study_progress holds the history',
+                           now(), now())
+                   on conflict (name) do nothing`),
+        );
+      });
       logger.warn(
-        "Recorded the marker on your word, without checking. Nothing was copied.",
+        dryRun
+          ? "A real run would record the marker here on your word, without checking. Nothing was written."
+          : "Recorded the marker on your word, without checking. Nothing was copied.",
       );
     }
 
     logger.info(
       {
         progressRows: state.progressRows,
-        copyRecorded: state.markerPresent || accepted,
+        copyRecorded: state.markerPresent || (accepted && !dryRun),
       },
       "user_vocab_items has no legacy level columns, so this database already keeps progress in user_study_progress. Nothing to do.",
     );
     return;
   }
 
-  try {
-    await database.transaction(async (tx) => {
-      await tx.execute(sql.raw(CREATE_TABLE_SQL));
-      await tx.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
+  await write(database, dryRun, async (tx) => {
+    await tx.execute(sql.raw(CREATE_TABLE_SQL));
+    await tx.execute(sql.raw(CREATE_MARKERS_TABLE_SQL));
 
-      const before = await countOf(tx, "select 1 from user_study_progress");
-      await tx.execute(sql.raw(COPY_SQL));
-      const after = await countOf(tx, "select 1 from user_study_progress");
+    const before = await countOf(tx, "select 1 from user_study_progress");
+    await tx.execute(sql.raw(COPY_SQL));
+    const after = await countOf(tx, "select 1 from user_study_progress");
 
-      const mismatches = await tx.execute(sql.raw(VERIFY_SQL));
-      if (mismatches.rows.length > 0) {
-        logger.error(
-          { sample: mismatches.rows },
-          "The copy does not account for every legacy value. Rolling back.",
-        );
-        throw new Error("Verification failed, nothing was written");
-      }
+    const mismatches = await tx.execute(sql.raw(VERIFY_SQL));
+    if (mismatches.rows.length > 0) {
+      logger.error(
+        { sample: mismatches.rows },
+        "The copy does not account for every legacy value. Rolling back.",
+      );
+      throw new Error("Verification failed, nothing was written");
+    }
 
-      // Inside the transaction, so a copy that rolls back leaves no record of
-      // having happened. This row is the whole reason the next run can tell a
-      // migrated database from a dropped one.
-      await tx.execute(
-        sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
+    // Inside the transaction, so a copy that rolls back leaves no record of
+    // having happened. This row is the whole reason the next run can tell a
+    // migrated database from a dropped one.
+    await tx.execute(
+      sql.raw(`insert into data_migrations (name, note, created_at, updated_at)
                  values ('${MARKER_NAME}',
                          'copied ' || ${after - before} || ' progress rows from the legacy user_vocab_items columns',
                          now(), now())
                  on conflict (name) do nothing`),
-      );
+    );
 
-      logger.info(
-        {
-          legacyPairs: await countOf(tx, LEGACY_ROWS_SQL),
-          carryingProgress: await countOf(
-            tx,
-            `select 1 from (${LEGACY_ROWS_SQL}) as legacy where not ${IS_DEFAULT}`,
-          ),
-          rowsBefore: before,
-          rowsWritten: after - before,
-          rowsAfter: after,
-          verified: "every legacy level and due time is accounted for",
-        },
-        dryRun ? "Dry run complete, rolling back" : "Copy complete",
-      );
-
-      if (dryRun) throw new Rehearsed();
-    });
-  } catch (error) {
-    if (!(error instanceof Rehearsed)) throw error;
-  }
+    logger.info(
+      {
+        legacyPairs: await countOf(tx, LEGACY_ROWS_SQL),
+        carryingProgress: await countOf(
+          tx,
+          `select 1 from (${LEGACY_ROWS_SQL}) as legacy where not ${IS_DEFAULT}`,
+        ),
+        rowsBefore: before,
+        rowsWritten: after - before,
+        rowsAfter: after,
+        verified: "every legacy level and due time is accounted for",
+      },
+      dryRun ? "Dry run complete, rolling back" : "Copy complete",
+    );
+  });
 
   logger.info(
     dryRun
