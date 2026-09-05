@@ -28,6 +28,46 @@
  * true costs are already close, and a quantum only has to absorb what is left.
  * A floor over paths whose real costs diverge would be a promise the first slow
  * SMTP round trip breaks.
+ *
+ * ## The quantum is only as good as the bound on what fits inside it
+ *
+ * A bucket hides the difference between two paths **while both fit the same
+ * multiple of it**, and the caller decides how much work one of them does. A
+ * sign-up for a free address renders the submitted `name` into a verification
+ * email; a sign-up for a taken one renders the *stored* name into a different
+ * one. So the request controls the cost of one path and not the other, and a
+ * 4 MB `name` on a production build put the free path in its third bucket while
+ * the taken path stayed in its first:
+ *
+ * ```
+ * free  ms: 2271 2273 2274 2275 2276 2276 2276 2276
+ * taken ms:  773  774  774  775  776  777  780  796
+ * ```
+ *
+ * Disjoint, one request per address, bodies still byte-identical — a sharper
+ * oracle than the overlapping 131-against-108 ms distributions the bucket had
+ * just closed, because it needs no statistics. It was worse under `next start`
+ * than under `next dev`, splitting at 1.5 MB rather than 2 MB, so it is not a
+ * development artefact. The same lever reached `/request-password-reset`
+ * through `redirectTo` and `/send-verification-email` through `callbackURL`.
+ *
+ * A bigger quantum is not the answer: any fixed quantum is escapable by a large
+ * enough input, and one sized for 4 MB would make every honest sign-up
+ * intolerable. So the input is bounded instead, in two layers that fail
+ * differently:
+ *
+ * - **`MAX_LEVELLED_BODY_BYTES`**, below, caps the whole request on a levelled
+ *   route before better-auth is called at all. It is the bound that survives a
+ *   field nobody thought to name, and it is checked before any parsing, lookup
+ *   or hashing.
+ * - **`AUTH_FIELD_LIMITS`** in `src/definitions/definitions.ts` caps each named
+ *   field. That is what keeps the two paths *symmetric* rather than merely
+ *   small: a stored name is bounded by the same number as a submitted one, so
+ *   the email the taken path renders can never be larger than the one the free
+ *   path renders.
+ *
+ * Both refusals are the same 400 whatever the address is, and both are issued
+ * before anything looks the address up, so neither is an oracle in itself.
  */
 
 /** Where `src/app/api/auth/[...all]/route.ts` mounts better-auth. */
@@ -103,3 +143,27 @@ export const levelResponseTime = async (
   const wait = padToQuantumMs(elapsedMs);
   if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
 };
+
+/**
+ * The largest request body a levelled route will look at.
+ *
+ * Generous for the four small fields these routes actually take — the longest
+ * legitimate sign-up body is a few hundred bytes — and small enough that the
+ * most an attacker can buy with it is a few milliseconds of string handling,
+ * two orders of magnitude inside the bucket. The per-field limits are tighter
+ * still; this exists for the field they do not name.
+ *
+ * 8 KiB rather than a round 4 or 16 because it comfortably clears a long
+ * `callbackURL` plus a long `redirectTo` plus headers-in-body oddities, without
+ * approaching the ~1.5 MB where the bucket started to split.
+ */
+export const MAX_LEVELLED_BODY_BYTES = 8 * 1024;
+
+/**
+ * Whether a levelled route should refuse this body unread.
+ *
+ * Measured on the decoded body rather than on `Content-Length`, which is absent
+ * on a chunked request and is the attacker's own number in any case.
+ */
+export const isOversizedBody = (body: string): boolean =>
+  Buffer.byteLength(body, "utf8") > MAX_LEVELLED_BODY_BYTES;

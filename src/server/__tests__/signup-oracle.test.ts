@@ -2,14 +2,17 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it, vi } from "vitest";
 
+import { AUTH_FIELD_LIMITS } from "@/definitions/definitions";
 import {
   AUTH_BASE_PATH,
   LEVELLED_AUTH_ROUTES,
+  MAX_LEVELLED_BODY_BYTES,
   RESPONSE_QUANTUM_MS,
   isLevelledAuthRoute,
+  isOversizedBody,
   padToQuantumMs,
 } from "@/server/auth-timing";
-import { buildAuthOptions } from "@/server/auth";
+import { buildAuthOptions, overlongAuthField } from "@/server/auth";
 import type { Cradle } from "@/server/initialization";
 
 const fakeLogger = () => {
@@ -245,6 +248,128 @@ describe("sign-up is not an account-existence oracle", () => {
       expect.anything(),
       "Sign-up: the address was free, created an account",
     );
+  });
+
+  /**
+   * The bucket only hides the two paths from each other while both fit inside
+   * it, and the caller decides how much work one of them does: a free address
+   * has the submitted `name` rendered into a verification email and a taken one
+   * does not. A 4 MB name put the free path three buckets out and the taken
+   * path one — a one-request oracle, sharper than the statistical one the
+   * bucket had just closed.
+   */
+  it("refuses an overlong name before it can be rendered into an email", async () => {
+    const { auth, sendEmail } = instance();
+    await expect(
+      auth.api.signUpEmail({
+        body: {
+          name: "A".repeat(AUTH_FIELD_LIMITS.name + 1),
+          email: "free@hanzimind.test",
+          password: "a-long-enough-password",
+        },
+        asResponse: true,
+      }),
+    ).rejects.toThrow(/name must be at most/i);
+    expect(sendEmail, "it did the work anyway").not.toHaveBeenCalled();
+  });
+
+  it("accepts a name of exactly the length the sign-up form allows", async () => {
+    const { auth } = instance();
+    const response = await auth.api.signUpEmail({
+      body: {
+        name: "A".repeat(AUTH_FIELD_LIMITS.name),
+        email: "free@hanzimind.test",
+        password: "a-long-enough-password",
+      },
+      asResponse: true,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  /**
+   * The refusal has to arrive the same way for both kinds, or it is the oracle
+   * it was added to close.
+   */
+  it("refuses an overlong field identically whether or not the address exists", async () => {
+    const { auth, signUp } = instance();
+    await signUp("taken@hanzimind.test");
+    const refuse = (email: string) =>
+      auth.api
+        .signUpEmail({
+          body: {
+            name: "A".repeat(AUTH_FIELD_LIMITS.name + 1),
+            email,
+            password: "a-long-enough-password",
+          },
+          asResponse: true,
+        })
+        .then(
+          (response) => response.text(),
+          (error: Error) => error.message,
+        );
+
+    expect(await refuse("taken@hanzimind.test")).toBe(
+      await refuse("free@hanzimind.test"),
+    );
+  });
+});
+
+describe("bounding what a levelled route will process", () => {
+  it("names a field that is one character too long", () => {
+    expect(
+      overlongAuthField({ name: "A".repeat(AUTH_FIELD_LIMITS.name + 1) }),
+    ).toBe("name");
+    expect(
+      overlongAuthField({
+        redirectTo: "A".repeat(AUTH_FIELD_LIMITS.redirectTo + 1),
+      }),
+    ).toBe("redirectTo");
+    expect(
+      overlongAuthField({
+        callbackURL: "A".repeat(AUTH_FIELD_LIMITS.callbackURL + 1),
+      }),
+    ).toBe("callbackURL");
+  });
+
+  it("passes a field of exactly its limit", () => {
+    expect(
+      overlongAuthField({
+        name: "A".repeat(AUTH_FIELD_LIMITS.name),
+        email: "a".repeat(AUTH_FIELD_LIMITS.email),
+      }),
+    ).toBeNull();
+  });
+
+  it("ignores a body it cannot read, rather than throwing on it", () => {
+    expect(overlongAuthField(null)).toBeNull();
+    expect(overlongAuthField("a string")).toBeNull();
+    expect(overlongAuthField({ name: 42 })).toBeNull();
+  });
+
+  /**
+   * The per-field limits are the tight bound; this is the one that survives a
+   * field nobody thought to name, so it must not depend on the field list.
+   */
+  it("caps the whole body of a levelled route regardless of which field is large", () => {
+    const under = JSON.stringify({ anything: "A".repeat(1000) });
+    const over = JSON.stringify({
+      neverHeardOf: "A".repeat(MAX_LEVELLED_BODY_BYTES),
+    });
+    expect(isOversizedBody(under)).toBe(false);
+    expect(isOversizedBody(over)).toBe(true);
+  });
+
+  it("measures the body in bytes, not characters", () => {
+    // A four-byte emoji is two UTF-16 units, so a character count would let
+    // through twice what the byte budget allows.
+    const justOverInBytes = "🀄".repeat(MAX_LEVELLED_BODY_BYTES / 4 + 1);
+    expect(justOverInBytes.length).toBeLessThan(MAX_LEVELLED_BODY_BYTES);
+    expect(isOversizedBody(justOverInBytes)).toBe(true);
+  });
+
+  it("leaves room for every field limit at once, so no honest request is refused by the wrong rule", () => {
+    const largest = Object.values(AUTH_FIELD_LIMITS).reduce((a, b) => a + b, 0);
+    expect(MAX_LEVELLED_BODY_BYTES).toBeGreaterThan(largest);
   });
 });
 
