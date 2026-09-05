@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldClaimMarker } from "../seed-data-migrations";
+import type { Drizzle } from "../../database";
+import { seedDataMigrations, shouldClaimMarker } from "../seed-data-migrations";
 
 /**
  * The seed's half of the marker, and the more dangerous half: the copy only ever
@@ -73,5 +74,117 @@ describe("shouldClaimMarker", () => {
         legacyColumnsRemaining: 8,
       }),
     ).toBe(false);
+  });
+});
+
+/**
+ * The gate as it actually runs, over a stubbed executor.
+ *
+ * `shouldClaimMarker` is pure and settles the rule; none of that reaches the
+ * database. What is only visible here is the wiring: which questions get asked,
+ * in what order, and whether an insert is issued at all. The two defects this
+ * function shipped both lived in exactly that gap — it queried a table before
+ * checking the table existed, and it wrote where it should have skipped.
+ */
+describe("seedDataMigrations", () => {
+  type Reply = { rows: Record<string, unknown>[] };
+
+  /**
+   * Answers by looking at the SQL, so the test does not depend on the number or
+   * order of the reads the way a queue of canned replies would.
+   */
+  function stub(options: {
+    markerTable?: boolean;
+    learnerRows?: number;
+    studied?: number;
+    legacyColumns?: number;
+    insertWrites?: boolean;
+  }) {
+    const sent: string[] = [];
+    const database = {
+      execute: async (query: { toString?: () => string } | unknown) => {
+        // `sql.raw` keeps the text on the chunk it was built from.
+        const text = JSON.stringify(query);
+        sent.push(text);
+        const reply = (rows: Record<string, unknown>[]): Reply => ({ rows });
+        if (text.includes("to_regclass")) {
+          return reply([
+            { name: options.markerTable === false ? null : "data_migrations" },
+          ]);
+        }
+        if (text.includes("from user_vocab_items")) {
+          return reply([
+            {
+              rows: options.learnerRows ?? 0,
+              studied: options.studied ?? 0,
+            },
+          ]);
+        }
+        if (text.includes("information_schema.columns")) {
+          return reply([{ count: options.legacyColumns ?? 0 }]);
+        }
+        if (text.includes("insert into data_migrations")) {
+          return reply(
+            options.insertWrites === false
+              ? []
+              : [{ name: "study-progress-rows" }],
+          );
+        }
+        throw new Error(`unexpected query: ${text}`);
+      },
+    } as unknown as Drizzle;
+    return { database, sent };
+  }
+
+  const inserted = (sent: string[]) =>
+    sent.some((text) => text.includes("insert into data_migrations"));
+
+  it("should claim the marker on a database born on the new shape", async () => {
+    const { database, sent } = stub({});
+    expect(await seedDataMigrations(database)).toEqual(["study-progress-rows"]);
+    expect(inserted(sent)).toBe(true);
+  });
+
+  it("should write nothing when the marker table is not there yet", async () => {
+    // And crucially, ask nothing else either: querying on is what killed the
+    // whole seed with a Postgres parser error and took the dictionary with it.
+    const { database, sent } = stub({ markerTable: false });
+    expect(await seedDataMigrations(database)).toEqual([]);
+    expect(sent).toHaveLength(1);
+    expect(inserted(sent)).toBe(false);
+  });
+
+  it("should write nothing once anyone has studied", async () => {
+    const { database, sent } = stub({ learnerRows: 398, studied: 1 });
+    expect(await seedDataMigrations(database)).toEqual([]);
+    expect(inserted(sent)).toBe(false);
+  });
+
+  it("should still claim with a deck saved and nothing studied", async () => {
+    const { database, sent } = stub({ learnerRows: 398, studied: 0 });
+    expect(await seedDataMigrations(database)).toEqual(["study-progress-rows"]);
+    expect(inserted(sent)).toBe(true);
+  });
+
+  it("should write nothing while the legacy columns are still there", async () => {
+    const { database, sent } = stub({ legacyColumns: 8 });
+    expect(await seedDataMigrations(database)).toEqual([]);
+    expect(inserted(sent)).toBe(false);
+  });
+
+  it("should not claim a marker another run had already written", async () => {
+    // ON CONFLICT DO NOTHING returns no row, and the return value is what the
+    // seed logs, so reporting a claim here would misdescribe what happened.
+    const { database } = stub({ insertWrites: false });
+    expect(await seedDataMigrations(database)).toEqual([]);
+  });
+
+  it("should leave the conflict clause on the insert", async () => {
+    const { database, sent } = stub({});
+    await seedDataMigrations(database);
+    const insert = sent.find((text) =>
+      text.includes("insert into data_migrations"),
+    );
+    expect(insert).toContain("on conflict (name) do nothing");
   });
 });
