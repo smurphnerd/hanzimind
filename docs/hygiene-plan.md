@@ -1243,7 +1243,7 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 
 **Files.**
 
-- [ ] Edit `src/app/api/auth/[...all]/route.ts` or the sign-up handler that shapes the response.
+- [ ] Edit `src/server/auth.tsx`, `src/app/signup/page.client.tsx`, and create `src/server/auth-timing.ts` and `src/email/ExistingAccountEmail.tsx`.
 - [ ] Edit `src/server/__tests__/signup-oracle.test.ts`.
 
 **Build.**
@@ -1254,7 +1254,7 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 
 **You see.**
 
-- [ ] Two sign-up requests, one with a free address and one with a taken one, return responses that are byte-identical apart from anything genuinely random.
+- [ ] Two sign-up requests, one with a free address and one with a taken one, return responses that are byte-identical apart from the generated id and the timestamps, which differ and are not random.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -1271,12 +1271,12 @@ Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because 
 - [ ] Lane 7. Check the server log for either case. Save `oracle-logs.png`. Pass when the log still records which happened, since only the response is blinded.
 - [ ] Lane 8. Sign in normally afterwards. Save `oracle-signin.png`. Pass when authentication is unaffected.
 - [ ] Lane 9. Request a password reset for a free and a taken address. Save `oracle-reset.png`. Pass when that path does not leak the same fact.
-- [ ] Lane 10. Run the e2e suite. Save `oracle-e2e.png`. Pass when the suite passes; check the count against the suite rather than against this line.
+- [ ] Lane 10. Run the e2e suite. Save `oracle-e2e.png`. Pass when the suite passes; it is 6 spec files and 15 tests, and the count is checked against the suite rather than against this line.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] Metric. p50 milliseconds of a sign-up request for each address kind.
-- [ ] Probe. `perf-probe.mjs --rpc auth/sign-up --n 50` for both, interleaved.
+- [ ] Probe. `oracle-probe.mjs --port <p> --endpoint sign-up --n 50`, which exits non-zero if status, headers, body or median separate the two kinds. Not `perf-probe.mjs`: it posts to `/api/rpc/auth/sign-up`, which does not exist because sign-up is a better-auth route under `/api/auth`, and it reuses one body so every call after the first is the taken case.
 - [ ] Baseline. Record the trunk values first.
 - [ ] Rule. Head fails when the two medians differ by more than 10 percent of each other.
 
