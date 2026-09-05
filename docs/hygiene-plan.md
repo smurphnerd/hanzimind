@@ -1009,6 +1009,8 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 ## Adopt migration files instead of push (P4-MIGRATE)
 
+Withdrawn by the operator on 2026-09-05, who chose to stay on `db:push` because migration files are a headache to operate. PR 30 was built, fully verified and closed unmerged, and none of it failed. Verification proved by full schema dump that a push-built and a migrate-built database are catalog-identical, closed a lane-adoption hazard this section never contemplated, and caught two ways the parity check could pass while proving nothing. The destination changed rather than the quality of the work. The boxes below are left intact so the design can be reopened if operating without a record of what was applied when ever becomes the larger headache. Three parts of it were never about migrations and are salvaged by P4-LANEFIX.
+
 **Depends on.** P3-STUDY-SVC, P3-DECKS.
 
 **Files.**
@@ -1066,12 +1068,11 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 ## Add indexes, delete rules and drop the dead column (P4-INDEX)
 
-**Depends on.** P4-MIGRATE.
+**Depends on.** None, since P4-MIGRATE is withdrawn. These schema changes land through `db:push` like every other schema change in this project.
 
 **Files.**
 
 - [ ] Edit `src/server/database/schema.ts`.
-- [ ] Create `drizzle/0001_indexes.sql`.
 - [ ] Edit `src/server/services/DeckService.ts`, `src/server/endpoints/decksRouter.ts`, `src/server/services/StudyService.ts`.
 
 **Build.**
@@ -1079,7 +1080,7 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Add indexes on `memoryAids.vocabItemId`, `suggestions(createdById, createdAt)`, `suggestions.status`, `userDecks.deckId`, `userVocabItems.memoryAidId`, `deckVocabItems.vocabItemId`, `vocabItems(disabled, vocabType)`, and a trigram or lower-cased index for the ILIKE search columns.
 - [ ] Add `onDelete: "cascade"` to `userVocabItems`, `deckVocabItems`, `userDecks`, `memoryAids` user references. Leave `decks.createdById` without a cascade so a published deck cannot vanish under the learners studying it, and match P4-AUTH's hook, which deletes an authored deck no other learner has saved and refuses the account deletion only when one has.
 - [ ] Drop `userDecks.includeConstituents` and its readers, and `deckVocabItems.isConstituent` with them. Both are written and never read, the second by `DeckService.createDeck` and `seed-hsk1-deck.ts` and hardcoded true at three call sites in `StudyService`. This is finding 34, whole. It was filed against P4-MIGRATE, which cannot take it, because that PR's baseline migration has to reproduce today's schema exactly so an existing database can be told it already ran it.
-- [ ] Generate the migration and check it in.
+- [ ] Apply the change with `pnpm db:push`, then confirm a second `db:push` reports no further drift.
 
 **You see.**
 
@@ -1087,11 +1088,11 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `migrate.test.ts` gains a case that the migration SQL contains each index name. Run `pnpm test migrate`.
+- [ ] A test asserts each index exists in the built schema by name. Run `pnpm test:ci`.
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
 
-- [ ] Lane 1. Run `db:migrate` on a trunk-shaped database with data. Save `index-migrate-data.png`. Pass when it applies and row counts are unchanged.
+- [ ] Lane 1. Run `db:push` on a trunk-shaped database with data. Save `index-migrate-data.png`. Pass when it applies and row counts are unchanged.
 - [ ] Lane 2. `EXPLAIN ANALYZE` the browse query. Save `index-browse-plan.png`. Pass when `user_decks` uses an index scan.
 - [ ] Lane 3. `EXPLAIN ANALYZE` the dictionary page's memory-aid lookup. Save `index-aids-plan.png`. Pass when it uses the new index.
 - [ ] Lane 4. Delete a test learner via `psql`. Save `index-cascade.png`. Pass when their progress, saved decks and memory aids are gone and their created decks remain.
