@@ -36,11 +36,18 @@
  *              CREATE TABLE is undone and nothing survives the run. This is the
  *              mode to point at a database you are not allowed to change.
  *              Combines with --down.
- *   --verify   Compares only. Writes nothing and creates nothing, so it needs
- *              the new table to exist and the legacy columns to still be there.
- *              Use it to re-check a database someone else has migrated.
+ *   --verify   Compares only, and always runs. It writes nothing and changes
+ *              nothing, so there is no state it should decline to describe --
+ *              a diagnostic that refuses on the database you are worried about
+ *              is no diagnostic. With the legacy columns gone there is nothing
+ *              left to compare against, so it reports the counts instead.
  *   --down     Restores the columns from the rows. See above.
  *   (default)  Copies and commits.
+ *
+ *   --accept-unexplained-seen   Overrides the refusal below, for an operator who
+ *              knows their learners really do have that many introduction-only
+ *              items. The refusal cannot prove which state it is looking at, so
+ *              it must not be a dead end.
  *
  * RE-RUNNING IT. Only genuinely inert AFTER `pnpm db:push` has dropped the legacy
  * columns: there is then nothing to read, and the script says so and exits 0,
@@ -54,9 +61,15 @@
  *
  * THE ONE THING IT CANNOT UNDO. If `pnpm db:push` runs BEFORE the copy, the eight
  * columns and every level in them are gone, and no mode here can bring them back
- * — `--down` restores what the rows hold, and there would be no rows. The script
- * detects that state rather than reporting success over it: see
- * `lostProgressRefusal`. Take a `pg_dump` before step 2.
+ * — `--down` restores what the rows hold, and there would be no rows. Take a
+ * `pg_dump` before step 2.
+ *
+ * `lostProgressRefusal` notices when a database stops accounting for the history
+ * it should have, and stops rather than reporting success over it. It measures
+ * how many seen items have no progress row at all, NOT whether the new table is
+ * empty: the empty test was silent one graded answer after the loss, and fired
+ * on a healthy database one introduction card in. It cannot prove what happened,
+ * so it says what it saw, gives both readings, and takes an override.
  *
  * WHAT IS NOT COPIED. A pair at level 0 with a null due time is exactly what a
  * missing row means, so it is left out rather than written as several hundred
@@ -207,52 +220,93 @@ type Executor = {
 };
 
 /**
- * The refusal to print when the database says progress has already been lost,
- * or null when nothing is wrong. Pure, so the truth table is a unit test.
+ * How many seen items a learner may have with no progress row before the state
+ * stops looking like ordinary use.
  *
- * The state it catches: somebody has studied, and `user_study_progress` is
- * empty. Reaching that means the levels went somewhere unrecoverable.
+ * An item gets `seen` and no progress row exactly one way: it was shown as an
+ * introduction and never answered. That is a session boundary, and it is rare by
+ * construction — an introduction writes no `next_at`, so the item is immediately
+ * due at level 0, and selection puts due reviews ahead of introductions, which
+ * means the very next card is almost always the graded one for the same item.
+ * A learner accumulates roughly one of these per abandoned session.
  *
- *   copy, columns gone     the drop ran before the copy. Every level is gone.
- *   restore, any columns   there is nothing to restore FROM, and the reset the
- *                          restore starts with would zero whatever the columns
- *                          still hold — turning a rollback into the same loss.
+ * So a handful is ordinary and sixty is not. 20 sits well above what abandoned
+ * sessions produce and two thirds below the real learner's 61, which is the
+ * margin that matters: the number has to separate "one intro card" from "every
+ * level is gone" on the one production database this will ever run against.
  *
- * `copy` with the columns still present is the normal starting point and is not
- * refused: the table is empty because the copy has not run yet.
+ * It is a judgement, not a measurement, which is why crossing it refuses with an
+ * override rather than deciding on the operator's behalf.
+ */
+export const UNEXPLAINED_SEEN_LIMIT = 20;
+
+/**
+ * The refusal to print when the database no longer accounts for the progress it
+ * should have, or null when it does. Pure, so the truth table is a unit test.
  *
- * `seenRows` is the signal for "somebody has studied" because `seen` is the one
- * fact about a learner's history that this migration never moves. Its blind spot
- * is a learner who has only ever been shown introductions and never answered a
- * graded card: they have `seen` rows and legitimately no progress rows. The
- * message says so, so an operator can tell the two apart.
+ * WHAT THIS MEASURES, and why the earlier version was wrong. It first asked "is
+ * `user_study_progress` empty while something is marked seen", which is neither
+ * necessary nor sufficient. One card answered through the API after the loss
+ * makes the table non-empty and the check silent, and one introduction card on a
+ * healthy database makes it fire. Both were demonstrated live.
+ *
+ * The statistic that does separate them is how many seen items have NO progress
+ * of any kind. On a healthy database that is the count of abandoned sessions; on
+ * a database whose levels were dropped it is very nearly every seen item, and an
+ * answer trickling in afterwards moves it by one rather than switching it off.
+ *
+ * WHAT IT CANNOT DO. It cannot prove the accident happened, only that the
+ * database does not look like one that was migrated correctly. So the message
+ * gives both readings, makes the destructive advice conditional on the first,
+ * and takes an override for an operator who knows it is the second.
  */
 export function lostProgressRefusal(state: {
   direction: "copy" | "restore";
   legacyColumnsPresent: boolean;
-  progressRows: number;
   seenRows: number;
+  itemsWithProgress: number;
+  accepted: boolean;
 }): string | null {
-  if (state.progressRows > 0) return null;
-  if (state.seenRows === 0) return null;
+  if (state.accepted) return null;
+
+  // Nothing can have been lost while the columns that hold it are still there
+  // and all the copy would do is read them.
   if (state.direction === "copy" && state.legacyColumnsPresent) return null;
 
-  const cause =
+  const unexplained = state.seenRows - state.itemsWithProgress;
+  if (unexplained <= UNEXPLAINED_SEEN_LIMIT) return null;
+
+  const consequence =
     state.direction === "copy"
-      ? "the legacy columns are gone, so `pnpm db:push` ran before the copy did"
-      : state.legacyColumnsPresent
-        ? "there is nothing to restore from, and the restore would zero the columns that still hold it"
-        : "the legacy columns are gone and there is nothing to restore from";
+      ? "the copy would have nothing to read, and this script would report success over a database that had already lost its levels"
+      : "the restore starts by zeroing all eight columns, so it would write that shortfall over whatever the columns still hold";
 
   return [
-    `REFUSING TO CONTINUE. ${state.seenRows} user_vocab_items rows are marked seen, but user_study_progress is empty and ${cause}.`,
-    "That combination cannot come from a correct sequence, and this script cannot repair it: the levels are not anywhere it can read.",
-    "Recovery is a restore from the snapshot taken before the migration. Nothing has been written by this run.",
-    "One benign reading: a learner who has only ever been shown introductions and has never answered a graded card has seen rows and no progress rows. If that is genuinely this database, there is nothing here to migrate.",
+    "REFUSING TO CONTINUE.",
+    "",
+    `Observed: ${state.seenRows} items are marked seen, but only ${state.itemsWithProgress} of them have any row in user_study_progress. ${unexplained} seen items have no progress of any kind, and the limit before this stops is ${UNEXPLAINED_SEEN_LIMIT}.`,
+    "",
+    "Two things look like that, and this script cannot tell them apart:",
+    "",
+    "  1. `pnpm db:push` ran before the copy. That drops the eight legacy columns and every level in them, and no mode here can bring them back. If this is what happened, the levels are gone from everywhere this script can read, and the recovery is a restore from the snapshot taken before the migration.",
+    "",
+    "  2. Those items were genuinely only ever shown as introductions and never answered. Ordinary in ones and twos; this many is not, which is why it stopped.",
+    "",
+    `Either way, continuing is wrong: under (1) ${consequence}.`,
+    "",
+    "Nothing has been written by this run. If you know (2) is the true reading, re-run with --accept-unexplained-seen.",
   ].join("\n");
 }
 
-async function legacyColumnsPresent(database: Executor): Promise<string[]> {
+/**
+ * Which of the eight legacy columns `user_vocab_items` still has.
+ *
+ * `partial` is its own answer rather than a synonym for absent. Half a schema
+ * means something interrupted a push, and neither direction can act on it: the
+ * copy would read columns that are not all there, and the restore would report
+ * "the legacy columns are gone" about a table that still has four of them.
+ */
+async function legacySchema(database: Executor) {
   const wanted = LEGACY_COLUMNS.map((column) => `'${column}'`).join(", ");
   const result = await database.execute(
     sql.raw(`select column_name
@@ -261,10 +315,22 @@ async function legacyColumnsPresent(database: Executor): Promise<string[]> {
                 and table_name = 'user_vocab_items'
                 and column_name in (${wanted})`),
   );
-  return result.rows.map((row) => (row as { column_name: string }).column_name);
+  const present = result.rows.map(
+    (row) => (row as { column_name: string }).column_name,
+  );
+  const state =
+    present.length === LEGACY_COLUMNS.length
+      ? "present"
+      : present.length === 0
+        ? "absent"
+        : "partial";
+  return { state, present } as const;
 }
 
-/** Whether anyone has studied, and whether any of it is in the new table. */
+export const halfSchemaRefusal = (present: string[]) =>
+  `user_vocab_items has ${present.length} of the ${LEGACY_COLUMNS.length} legacy columns (${present.join(", ")}). Refusing to act on half a schema.`;
+
+/** What the database says about the learner's history, on both shapes. */
 async function progressState(database: Executor) {
   const table = await database.execute(
     sql.raw("select to_regclass('user_study_progress') as name"),
@@ -274,6 +340,14 @@ async function progressState(database: Executor) {
     tableExists,
     progressRows: tableExists
       ? await countOf(database, "select 1 from user_study_progress")
+      : 0,
+    // Distinct (learner, item) pairs, so this compares like with like against
+    // seenRows. Four rows for one item is one item, not four.
+    itemsWithProgress: tableExists
+      ? await countOf(
+          database,
+          "select distinct user_id, vocab_item_id from user_study_progress",
+        )
       : 0,
     seenRows: await countOf(
       database,
@@ -304,8 +378,9 @@ async function goingBack(args: {
   logger: ReturnType<typeof bootstrap>["logger"];
   database: ReturnType<typeof bootstrap>["database"];
   dryRun: boolean;
+  accepted: boolean;
 }) {
-  const { logger, database, dryRun } = args;
+  const { logger, database, dryRun, accepted } = args;
 
   const state = await progressState(database);
   if (!state.tableExists) {
@@ -317,12 +392,17 @@ async function goingBack(args: {
   // Before the reset, which is the destructive half. A restore from an empty
   // table writes zeros over every column it touches, so on a database that has
   // been studied it destroys exactly what it claims to be recovering.
+  const columns = await legacySchema(database);
+  if (columns.state === "partial") {
+    throw new Error(halfSchemaRefusal(columns.present));
+  }
+
   const refusal = lostProgressRefusal({
     direction: "restore",
-    legacyColumnsPresent:
-      (await legacyColumnsPresent(database)).length === LEGACY_COLUMNS.length,
-    progressRows: state.progressRows,
+    legacyColumnsPresent: columns.state === "present",
     seenRows: state.seenRows,
+    itemsWithProgress: state.itemsWithProgress,
+    accepted,
   });
   if (refusal) throw new Error(refusal);
 
@@ -377,6 +457,7 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const verifyOnly = process.argv.includes("--verify");
   const down = process.argv.includes("--down");
+  const accepted = process.argv.includes("--accept-unexplained-seen");
   if (dryRun && verifyOnly) {
     throw new Error("Pass --dry-run or --verify, not both");
   }
@@ -385,33 +466,43 @@ async function main() {
   }
 
   const { logger, database } = bootstrap();
+  const columns = await legacySchema(database);
 
-  if (down) return goingBack({ logger, database, dryRun });
-
-  const present = await legacyColumnsPresent(database);
-  if (present.length === 0) {
-    const state = await progressState(database);
-    const refusal = lostProgressRefusal({
-      direction: "copy",
-      legacyColumnsPresent: false,
-      progressRows: state.progressRows,
-      seenRows: state.seenRows,
-    });
-    if (refusal) throw new Error(refusal);
-
-    logger.info(
-      { progressRows: state.progressRows },
-      "user_vocab_items has no legacy level columns, so this database already keeps progress in user_study_progress. Nothing to do.",
-    );
-    return;
-  }
-  if (present.length !== LEGACY_COLUMNS.length) {
-    throw new Error(
-      `user_vocab_items has ${present.length} of the ${LEGACY_COLUMNS.length} legacy columns (${present.join(", ")}). Refusing to act on half a schema.`,
-    );
-  }
-
+  // Before every other check. `--verify` writes nothing and changes nothing, so
+  // there is no state it should refuse to describe — a diagnostic that declines
+  // to run on the database you are worried about is no diagnostic at all. It
+  // reports what it can see and leaves the judgement to the reader.
   if (verifyOnly) {
+    const state = await progressState(database);
+    const unexplained = state.seenRows - state.itemsWithProgress;
+
+    if (!state.tableExists) {
+      logger.info(
+        {
+          legacyColumns: columns.present.length,
+          seenRows: state.seenRows,
+        },
+        "user_study_progress does not exist yet, so nothing has been copied and there is nothing to compare. Run the copy first.",
+      );
+      return;
+    }
+
+    if (columns.state !== "present") {
+      logger.info(
+        {
+          legacyColumns: columns.present.length,
+          progressRows: state.progressRows,
+          itemsWithProgress: state.itemsWithProgress,
+          seenRows: state.seenRows,
+          seenWithNoProgress: unexplained,
+        },
+        columns.state === "absent"
+          ? "The legacy columns are gone, so there is nothing left to compare against. The counts above are what remains; seenWithNoProgress far above zero would mean the levels never reached user_study_progress."
+          : "user_vocab_items has only some of the legacy columns, so a comparison would be meaningless. The counts above are what remains.",
+      );
+      return;
+    }
+
     const mismatches = await database.execute(sql.raw(VERIFY_SQL));
     if (mismatches.rows.length > 0) {
       logger.error(
@@ -421,8 +512,38 @@ async function main() {
       throw new Error("Verification failed");
     }
     logger.info(
-      { legacyPairs: await countOf(database, LEGACY_ROWS_SQL) },
+      {
+        legacyPairs: await countOf(database, LEGACY_ROWS_SQL),
+        seenWithNoProgress: unexplained,
+      },
       "Every legacy level and due time is accounted for in user_study_progress",
+    );
+    return;
+  }
+
+  if (columns.state === "partial") {
+    throw new Error(halfSchemaRefusal(columns.present));
+  }
+
+  if (down) return goingBack({ logger, database, dryRun, accepted });
+
+  const state = await progressState(database);
+  const refusal = lostProgressRefusal({
+    direction: "copy",
+    legacyColumnsPresent: columns.state === "present",
+    seenRows: state.seenRows,
+    itemsWithProgress: state.itemsWithProgress,
+    accepted,
+  });
+  if (refusal) throw new Error(refusal);
+
+  if (columns.state === "absent") {
+    logger.info(
+      {
+        progressRows: state.progressRows,
+        seenWithNoProgress: state.seenRows - state.itemsWithProgress,
+      },
+      "user_vocab_items has no legacy level columns, so this database already keeps progress in user_study_progress. Nothing to do.",
     );
     return;
   }

@@ -7,7 +7,9 @@ import {
   COPY_SQL,
   CREATE_TABLE_SQL,
   LEGACY_COLUMNS,
+  halfSchemaRefusal,
   lostProgressRefusal,
+  UNEXPLAINED_SEEN_LIMIT,
   RESTORE_COLUMNS_SQL,
   RESTORE_ROWS_SQL,
   VERIFY_SQL,
@@ -196,120 +198,133 @@ describe("RESTORE_ROWS_SQL", () => {
 /**
  * The guard against the one thing this migration can do that nothing can undo:
  * `pnpm db:push` running before the copy, which drops the eight columns and
- * every level in them. Reporting "nothing to do" and exiting 0 over that is the
- * worst available response, so the state is detected instead.
+ * every level in them.
+ *
+ * Every case below is a state the two call sites can actually produce. An
+ * earlier version of this suite passed `legacyColumnsPresent: true` for the copy
+ * direction, which the caller hardcoded false, so four cells tested the function
+ * and nothing tested the guard.
  */
 describe("lostProgressRefusal", () => {
-  const state = (overrides: Parameters<typeof lostProgressRefusal>[0]) =>
-    lostProgressRefusal(overrides);
+  const healthy = {
+    direction: "copy",
+    legacyColumnsPresent: false,
+    seenRows: 61,
+    itemsWithProgress: 55,
+    accepted: false,
+  } as const;
+  const check = (
+    overrides: Partial<Parameters<typeof lostProgressRefusal>[0]>,
+  ) => lostProgressRefusal({ ...healthy, ...overrides });
 
-  it("should refuse a copy when the columns are gone and nothing was copied", () => {
-    // The catastrophe: push ran first. `seen` survives it, because this
-    // migration never moves that column, which is what makes it the signal.
+  it("should allow a database that was migrated correctly", () => {
+    expect(check({})).toBeNull();
+  });
+
+  it("should refuse when the columns are gone and nothing was copied", () => {
+    expect(check({ itemsWithProgress: 0 })).toContain("REFUSING TO CONTINUE");
+  });
+
+  it("should still refuse after one card is answered post-catastrophe", () => {
+    // The hole the first version had, demonstrated live: it keyed on "the table
+    // is empty", so a single answer through the API after the loss switched it
+    // off and the script reported "nothing to do" over 103 destroyed pairs. In
+    // a rolling deploy that window is seconds.
+    expect(check({ itemsWithProgress: 1 })).toContain("REFUSING TO CONTINUE");
+  });
+
+  it("should not refuse a healthy database over one introduction card", () => {
+    // The other hole, also demonstrated live. An intro sets `seen` and writes no
+    // progress row, so the first version fired on a database that had never had
+    // legacy columns and never lost anything -- and told the operator to restore
+    // a snapshot of a migration that never happened.
+    expect(check({ seenRows: 1, itemsWithProgress: 0 })).toBeNull();
+  });
+
+  it("should allow a learner who abandoned a few sessions on an intro", () => {
     expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: false,
-        progressRows: 0,
-        seenRows: 61,
+      check({ seenRows: 40, itemsWithProgress: 40 - UNEXPLAINED_SEEN_LIMIT }),
+    ).toBeNull();
+  });
+
+  it("should refuse one item past the limit", () => {
+    expect(
+      check({
+        seenRows: 40,
+        itemsWithProgress: 40 - UNEXPLAINED_SEEN_LIMIT - 1,
       }),
     ).toContain("REFUSING TO CONTINUE");
   });
 
-  it("should name a snapshot restore as the recovery", () => {
+  it("should never refuse a copy while the columns are still there", () => {
+    // The normal starting point: every level is in the columns, the new table is
+    // empty because the copy has not run. Reachable, and must not refuse.
     expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: false,
-        progressRows: 0,
-        seenRows: 61,
-      }),
-    ).toContain("restore from the snapshot");
-  });
-
-  it("should allow a copy that simply has not run yet", () => {
-    // Columns present, table empty, learner has studied: the normal starting
-    // point, and the state every correct migration begins in.
-    expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: true,
-        progressRows: 0,
-        seenRows: 61,
-      }),
+      check({ legacyColumnsPresent: true, itemsWithProgress: 0 }),
     ).toBeNull();
   });
 
-  it("should allow a database nobody has studied", () => {
-    // A fresh lane: the deck is saved, no card has been answered, so there is
-    // no progress to have lost. Refusing here would break every lane boot.
+  it("should refuse a restore from a short table even with the columns present", () => {
+    // The restore zeroes all eight columns before filling them, so restoring
+    // from a table that does not account for the history writes that shortfall
+    // over the only copy left.
     expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: false,
-        progressRows: 0,
-        seenRows: 0,
-      }),
-    ).toBeNull();
-  });
-
-  it("should allow a copy re-run after a successful migration", () => {
-    expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: false,
-        progressRows: 103,
-        seenRows: 61,
-      }),
-    ).toBeNull();
-  });
-
-  it("should refuse a restore from an empty table even with the columns present", () => {
-    // The restore's own destructive case. It resets all eight columns before
-    // filling them, so restoring from nothing writes zeros over the only copy
-    // left — a rollback that causes the loss it was run to undo.
-    expect(
-      state({
+      check({
         direction: "restore",
         legacyColumnsPresent: true,
-        progressRows: 0,
-        seenRows: 61,
-      }),
-    ).toContain("REFUSING TO CONTINUE");
-  });
-
-  it("should refuse a restore when both the columns and the rows are gone", () => {
-    expect(
-      state({
-        direction: "restore",
-        legacyColumnsPresent: false,
-        progressRows: 0,
-        seenRows: 61,
+        itemsWithProgress: 0,
       }),
     ).toContain("REFUSING TO CONTINUE");
   });
 
   it("should allow a restore that has something to restore from", () => {
-    expect(
-      state({
-        direction: "restore",
-        legacyColumnsPresent: false,
-        progressRows: 103,
-        seenRows: 61,
-      }),
-    ).toBeNull();
+    expect(check({ direction: "restore" })).toBeNull();
   });
 
-  it("should tell the operator which benign state looks the same", () => {
-    // Intros-only is the one honest way to have seen rows and no progress rows.
-    // The guard cannot distinguish it, so the message has to.
-    expect(
-      state({
-        direction: "copy",
-        legacyColumnsPresent: false,
-        progressRows: 0,
-        seenRows: 61,
-      }),
-    ).toContain("only ever been shown introductions");
+  it("should defer to the operator who says the intros are real", () => {
+    expect(check({ itemsWithProgress: 0, accepted: true })).toBeNull();
+  });
+
+  describe("the message", () => {
+    const message = check({ itemsWithProgress: 0 })!;
+
+    it("should report what was observed rather than assert the accident", () => {
+      expect(message).toContain("Observed:");
+      expect(message).not.toContain("cannot come from a correct sequence");
+    });
+
+    it("should give both readings", () => {
+      expect(message).toContain("Two things look like that");
+      expect(message).toContain("only ever shown as introductions");
+    });
+
+    it("should make the destructive advice conditional on the first reading", () => {
+      // "restore a pre-migration snapshot" is ruinous advice on a database that
+      // was never migrated, so it must sit under reading (1) and not stand alone.
+      const [beforeAdvice] = message.split("restore from the snapshot");
+      expect(beforeAdvice).toContain("If this is what happened");
+    });
+
+    it("should name the override", () => {
+      expect(message).toContain("--accept-unexplained-seen");
+    });
+
+    it("should say nothing was written", () => {
+      expect(message).toContain("Nothing has been written");
+    });
+  });
+});
+
+describe("halfSchemaRefusal", () => {
+  it("should count what is actually there", () => {
+    // goingBack used to compare against the full count and then say "the legacy
+    // columns are gone" about a table that still had four of them.
+    expect(halfSchemaRefusal(LEGACY_COLUMNS.slice(0, 4))).toContain(
+      "has 4 of the 8 legacy columns",
+    );
+  });
+
+  it("should name them", () => {
+    expect(halfSchemaRefusal(["reading_level"])).toContain("reading_level");
   });
 });
