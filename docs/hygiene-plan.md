@@ -1237,6 +1237,62 @@ This machine's Docker VM has 3.8 GiB, and P0-VERIFY measured that it holds about
 - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
 - [ ] The owner squash-merges its own PR into `hygiene` after the operator's click.
 
+## Close the sign-up account-existence oracle (P4-ORACLE)
+
+**Depends on.** P4-AUTH.
+
+**Files.**
+
+- [ ] Edit `src/app/api/auth/[...all]/route.ts` or the sign-up handler that shapes the response.
+- [ ] Edit `src/server/__tests__/signup-oracle.test.ts`.
+
+**Build.**
+
+- [ ] Make the sign-up response for a taken address indistinguishable from one for a free address. Today `user.role` is `"user"` for a free address and `null` for a taken one, with no session needed, so anyone can enumerate which emails have accounts.
+- [ ] Keep the learner's own experience unchanged. Someone signing up with an address they already registered must still be able to find their way in, which means the message they see stays useful even though the response shape stops being diagnostic.
+- [ ] Check the timing as well as the body, since a taken address that answers measurably faster leaks the same fact.
+
+**You see.**
+
+- [ ] Two sign-up requests, one with a free address and one with a taken one, return responses that are byte-identical apart from anything genuinely random.
+
+**Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] `signup-oracle.test.ts` asserts the two responses match. Run `pnpm test signup-oracle`.
+
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` role at the PR head, per the boot recipe.
+
+- [ ] Lane 1. Sign up with a free address. Save `oracle-free.png`. Pass when the account is created and the learner reaches the verification screen.
+- [ ] Lane 2. Sign up with the seeded learner's address. Save `oracle-taken.png`. Pass when the response body is indistinguishable from lane 1's.
+- [ ] Lane 3. Run both against trunk. Save `oracle-trunk-leak.png`. Pass when trunk's two responses differ, proving the defect was real.
+- [ ] Lane 4. Time fifty requests of each kind. Save `oracle-timing.png`. Pass when the medians are within noise of each other.
+- [ ] Lane 5. Sign up with a taken address and follow the on-screen guidance. Save `oracle-recovery.png`. Pass when a real learner can still recover their account.
+- [ ] Lane 6. Sign up with an address that is taken but unverified. Save `oracle-unverified.png`. Pass when it is indistinguishable from the others.
+- [ ] Lane 7. Check the server log for either case. Save `oracle-logs.png`. Pass when the log still records which happened, since only the response is blinded.
+- [ ] Lane 8. Sign in normally afterwards. Save `oracle-signin.png`. Pass when authentication is unaffected.
+- [ ] Lane 9. Request a password reset for a free and a taken address. Save `oracle-reset.png`. Pass when that path does not leak the same fact.
+- [ ] Lane 10. Run the e2e suite. Save `oracle-e2e.png`. Pass when the suite passes; check the count against the suite rather than against this line.
+
+**Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
+
+- [ ] Metric. p50 milliseconds of a sign-up request for each address kind.
+- [ ] Probe. `perf-probe.mjs --rpc auth/sign-up --n 50` for both, interleaved.
+- [ ] Baseline. Record the trunk values first.
+- [ ] Rule. Head fails when the two medians differ by more than 10 percent of each other.
+
+**Review gate.** The operator reviews before merge.
+
+- [ ] Copy lane 2 and lane 3 screenshots into `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-ORACLE-review.png`.
+- [ ] Record a 30 to 60 second video of both sign-ups side by side, or a `script(1)` transcript where no recorder exists. Save it as `/Users/smurphnerd/projects/hanzimind-evidence/review/P4-ORACLE-review.webm`.
+- [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
+
+**Merge.**
+
+- [ ] Root's clean verdict at the exact head SHA.
+- [ ] Automated review triage done, or recorded as unavailable.
+- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
+- [ ] The owner squash-merges its own PR into `hygiene` after the operator's click.
+
 ## Harden security headers (P4-HEADERS)
 
 **Depends on.** P0-E2E.
