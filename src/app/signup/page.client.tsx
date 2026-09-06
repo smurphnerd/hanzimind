@@ -67,9 +67,14 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     : "/verified";
   const [sentTo, setSentTo] = useState<string | null>(null);
 
-  // The sign-up endpoint answers 200 even when the send fails, so the learner
-  // cannot be told at that moment. This is the way back: ask for another one,
-  // and this call does report a failure.
+  // Resend cannot promise delivery either, and the copy must not pretend it
+  // can. `/send-verification-email` answers `{status:true}` whether it sent
+  // anything or not — that is deliberate, since telling the caller whether the
+  // address needed a link is the same oracle this whole endpoint exists to
+  // close — and it answers the same way when the lookup fails outright, so a
+  // database outage produces a cheerful success and no mail. This button was
+  // described as the learner's way back from a failed sign-up; it is not, and
+  // saying "Sent" was the part that made it look like one.
   const resend = useMutation({
     mutationFn: async (email: string) => {
       const result = await authClient.sendVerificationEmail({
@@ -80,7 +85,8 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
         throw new Error(result.error.message ?? "Could not send the email");
       }
     },
-    onSuccess: () => toast.success("Sent. Check your inbox again."),
+    onSuccess: () =>
+      toast.success("If that address needs a link, one is on its way."),
     onError: () =>
       toast.error("Couldn't send it. Please try again in a minute."),
   });

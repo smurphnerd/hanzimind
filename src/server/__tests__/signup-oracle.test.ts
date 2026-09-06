@@ -5,8 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AUTH_FIELD_LIMITS,
   AUTH_PASSWORD_LENGTH,
+  SIGN_UP_BOUNDED_FIELDS,
 } from "@/definitions/definitions";
 import {
+  runSignUpThroughRouter,
   SIGN_UP_ACKNOWLEDGEMENT,
   signUpRejection,
 } from "@/server/sign-up-response";
@@ -552,4 +554,153 @@ describe("what sign-up still refuses synchronously", () => {
       signUpRejection({ ...bad, email: "free@hanzimind.test" }),
     );
   });
+});
+
+/**
+ * The check that would have caught the router bypass.
+ *
+ * The redesign's first version finished with `auth.api.signUpEmail(...)`, and
+ * better-auth's rate limiter lives in the ROUTER's `onRequest` — so sign-up
+ * stopped being limited entirely while `auth-config.test.ts` went on passing,
+ * because it asserts the rule exists and names a real route. Neither is
+ * enforcement. This drives the same function the route drives and asserts the
+ * limiter actually fires.
+ */
+describe("the deferred sign-up goes through the router", () => {
+  const limitedInstance = () => {
+    const sendEmail = vi.fn().mockResolvedValue("id");
+    const logger = fakeLogger();
+    const deps = {
+      database: {},
+      email: { sendEmail },
+      logger,
+    } as unknown as Cradle;
+    const auth = betterAuth({
+      ...buildAuthOptions(deps, {
+        authSecret: "secret",
+        baseUrl: "http://localhost:3000",
+        // The point of this suite: limiting ON, the way production runs.
+        rateLimit: true,
+        systemEmailFrom: "from@hanzimind.test",
+      }),
+      database: memoryAdapter({
+        user: [],
+        session: [],
+        account: [],
+        verification: [],
+        rateLimit: [],
+      }),
+    });
+    return { auth };
+  };
+
+  const signUpRequest = (email: string) => {
+    const body = JSON.stringify({
+      name: "A Learner",
+      email,
+      password: "a-long-enough-password",
+    });
+    return {
+      body,
+      request: new Request("http://localhost:3000/api/auth/sign-up/email", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          "x-forwarded-for": "203.0.113.7",
+        },
+        body,
+      }),
+    };
+  };
+
+  it("is rate limited, which only the router can do", async () => {
+    const { auth } = limitedInstance();
+    const seen: string[] = [];
+    const logger = {
+      info: (_d: object, m: string) => seen.push(m),
+      warn: (_d: object, m: string) => seen.push(m),
+      error: (_d: object, m: string) => seen.push(m),
+    };
+
+    // The configured rule is five a minute for this path.
+    for (let i = 0; i < 8; i += 1) {
+      const { body, request } = signUpRequest(`burst-${i}@hanzimind.test`);
+      await runSignUpThroughRouter(
+        { handler: (deferred) => auth.handler(deferred), logger },
+        request,
+        body,
+      );
+    }
+
+    expect(
+      seen.filter((m) => m.includes("rate limited")).length,
+      "the limiter never fired, so the work is not going through the router",
+    ).toBeGreaterThan(0);
+  }, 30_000);
+
+  it("hands the handler an equivalent request rather than a parsed body", async () => {
+    const handler = vi
+      .fn()
+      .mockResolvedValue(Response.json({}, { status: 200 }));
+    const { body, request } = signUpRequest("shape@hanzimind.test");
+    await runSignUpThroughRouter(
+      { handler, logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
+      request,
+      body,
+    );
+
+    const passed = handler.mock.calls[0][0] as Request;
+    expect(passed).toBeInstanceOf(Request);
+    expect(passed.method).toBe("POST");
+    expect(passed.url).toBe(request.url);
+    // The headers are what carry the IP the limiter keys on and the origin the
+    // origin check reads, so losing them loses both.
+    expect(passed.headers.get("x-forwarded-for")).toBe("203.0.113.7");
+    expect(passed.headers.get("origin")).toBe("http://localhost:3000");
+    expect(await passed.text()).toBe(body);
+  });
+
+  it("records a rate-limited attempt rather than swallowing it", async () => {
+    const warn = vi.fn();
+    const { body, request } = signUpRequest("limited@hanzimind.test");
+    await runSignUpThroughRouter(
+      {
+        handler: () => Promise.resolve(Response.json({}, { status: 429 })),
+        logger: { info: vi.fn(), warn, error: vi.fn() },
+      },
+      request,
+      body,
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "limited@hanzimind.test" }),
+      expect.stringContaining("rate limited"),
+    );
+  });
+});
+
+/**
+ * Every bounded field a sign-up can carry has to be checked BEFORE the
+ * acknowledgement. A limit enforced only in the deferred work is a limit whose
+ * breach answers 200 and creates nothing, which is how an oversized `image`
+ * slipped through.
+ */
+describe("the synchronous rules cover every bounded sign-up field", () => {
+  const valid = {
+    name: "A Learner",
+    email: "learner@hanzimind.test",
+    password: "a-long-enough-password",
+  };
+
+  it.each([...SIGN_UP_BOUNDED_FIELDS])(
+    "refuses an oversized %s at the door",
+    (field) => {
+      const oversized = "a".repeat(AUTH_FIELD_LIMITS[field] + 1);
+      const body =
+        field === "email"
+          ? { ...valid, email: `${oversized}@hanzimind.test` }
+          : { ...valid, [field]: oversized };
+      expect(signUpRejection(body)).not.toBeNull();
+    },
+  );
 });

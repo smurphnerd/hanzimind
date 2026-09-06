@@ -54,3 +54,105 @@ export const signUpRejection = (body: unknown): string | null => {
   if (parsed.success) return null;
   return parsed.error.issues[0]?.message ?? "That sign-up could not be read.";
 };
+
+type DeferredLogger = {
+  info: (data: object, message: string) => void;
+  warn: (data: object, message: string) => void;
+  error: (data: object, message: string) => void;
+};
+
+/**
+ * Do the sign-up, through better-auth's ROUTER, after the caller has been
+ * acknowledged.
+ *
+ * The router is not an implementation detail to be routed around, and this
+ * function exists to make that hard to undo. The first version of the redesign
+ * called `auth.api.signUpEmail(...)` instead, and everything the router does
+ * silently went with it:
+ *
+ * - **The rate limiter.** It lives in the router's `onRequest`, so sign-up
+ *   stopped being limited at all. Twelve sequential and thirty-two concurrent
+ *   sign-ups from one IP all returned 200 with no rows in `rateLimits`, while
+ *   sign-in on the same head limited correctly. `customRules["/sign-up/email"]`
+ *   became dead configuration, and the config test kept passing because it
+ *   asserts the rule EXISTS and names a real route — neither of which is
+ *   enforcement.
+ * - **The origin and CSRF checks.** Both middlewares begin `if (!ctx.request)
+ *   return`, and the API path has no request, so a `callbackURL` pointing at
+ *   another origin was accepted and mailed into a verification link that could
+ *   never work.
+ *
+ * The comment that hid this said "everything that already governs it still
+ *applies". It was true of the handler and false of the API, and it was written in
+ * the same commit that made it false.
+ *
+ * Limiting now bounds the WORK rather than the request count: the caller is
+ * acknowledged before the limiter runs, so a refused request still answers 200
+ * and simply does nothing. That is the right way round — the 200 carries no
+ * information either way, and the accounts, the inserts and the mail are what
+ * needed bounding.
+ */
+export const runSignUpThroughRouter = async (
+  deps: {
+    handler: (request: Request) => Promise<Response>;
+    logger: DeferredLogger;
+  },
+  request: Request,
+  body: string,
+): Promise<void> => {
+  const email = String(
+    (parseSignUpBody(body, request.headers.get("content-type")) ?? {}).email ??
+      "",
+  );
+  try {
+    const settled = await deps.handler(
+      new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body,
+      }),
+    );
+    if (settled.status === 429) {
+      deps.logger.warn(
+        { email },
+        "Sign-up: rate limited, so the deferred work did nothing",
+      );
+      return;
+    }
+    if (settled.status !== 200) {
+      // The caller was told nothing and cannot be told now. This line is the
+      // only record that the account did not appear.
+      deps.logger.error(
+        { status: settled.status, email },
+        "Sign-up: the deferred work failed after the caller was acknowledged",
+      );
+      return;
+    }
+    deps.logger.info({ email }, "Sign-up: the deferred work completed");
+  } catch (error) {
+    deps.logger.error(
+      { err: error, email },
+      "Sign-up: the deferred work threw after the caller was acknowledged",
+    );
+  }
+};
+
+/** The body as an object, for either encoding this route accepts. */
+export const parseSignUpBody = (
+  body: string,
+  contentType: string | null,
+): Record<string, unknown> | null => {
+  try {
+    if (contentType?.includes("application/x-www-form-urlencoded")) {
+      return Object.fromEntries(new URLSearchParams(body));
+    }
+    const parsed: unknown = JSON.parse(body);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};

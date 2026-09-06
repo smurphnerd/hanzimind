@@ -581,6 +581,26 @@ export const SignUpWireInput = z.object({
     .string()
     .min(AUTH_PASSWORD_LENGTH.min)
     .max(AUTH_PASSWORD_LENGTH.max),
+  // `image` is here because it was not, and the gap was reachable: the bounds
+  // cover five fields and these rules covered four, so an oversized `image`
+  // passed the door, failed in the deferred work, and answered 200 with no
+  // account. `SIGN_UP_BOUNDED_FIELDS` pins the two lists together.
+  image: z.string().max(AUTH_FIELD_LIMITS.image).optional(),
   callbackURL: z.string().max(AUTH_FIELD_LIMITS.callbackURL).optional(),
 });
 export type SignUpWireInput = z.infer<typeof SignUpWireInput>;
+
+/**
+ * The bounded fields a sign-up body can actually carry.
+ *
+ * `newEmail` belongs to change-email and `redirectTo` to password reset, so
+ * neither reaches this route. Everything else in `AUTH_FIELD_LIMITS` does, and
+ * every one of them has to be checked before the acknowledgement or its limit
+ * is enforced only in work whose failure nobody can be told about.
+ */
+export const SIGN_UP_BOUNDED_FIELDS = [
+  "name",
+  "email",
+  "image",
+  "callbackURL",
+] as const satisfies readonly AuthField[];

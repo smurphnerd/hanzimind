@@ -110,12 +110,21 @@ export const LEVELLED_AUTH_ROUTES = [
  * The bucket every levelled route answers in.
  *
  * It has to clear the slowest of them with room to spare, or the overrun is
- * itself the signal. The slowest measured is `/send-verification-email` at 533
- * ms p95, which already carries better-auth's own 500 ms floor; the rest sit
- * under 150 ms locally and will grow by whatever a real SMTP round trip costs
- * in production, where these lanes talk to Mailpit on loopback. 750 ms clears
- * the measured worst case by about 200 ms and leaves the others most of a
- * second of headroom.
+ * itself the signal.
+ *
+ * **It does not, off loopback, and this bucket should not be described as a
+ * defence.** The 750 ms was sized against Mailpit on the same host, where the
+ * slowest route measured 533 ms p95. The gap between the two paths on these
+ * routes is one mail send wide, so the bucket holds only while a send costs
+ * less than about 735 ms. Behind a realistic relay a taken address measured
+ * 1506 ms against 756 — a full bucket apart, disjoint, 35 of 35, from one
+ * request. That is finding 81, and it is not fixed here.
+ *
+ * So what this constant buys is a floor under loopback and development, and
+ * nothing an operator should rely on in production. Fixing it properly means
+ * taking the send off the request path for these two the way sign-up already
+ * has, not enlarging the number — any fixed quantum is escapable by a slow
+ * enough relay, which is the same lesson the input bounds taught.
  *
  * Nothing here is a hot path: an account is created once, a password is
  * forgotten rarely, and a verification email is resent rarely. Each of the

@@ -10,6 +10,8 @@ import {
   SIGN_UP_PATH,
 } from "@/server/auth-timing";
 import {
+  parseSignUpBody,
+  runSignUpThroughRouter,
   SIGN_UP_ACKNOWLEDGEMENT,
   signUpRejection,
 } from "@/server/sign-up-response";
@@ -26,9 +28,9 @@ const authHandler = toNextJsHandler(async (request) => {
 
   const response = await answer(request, pathname);
   response.headers.set("Cache-Control", "no-store,private,must-revalidate");
-  // Only the two routes that still answer FROM the database need levelling; see
-  // `auth-timing.ts`. Sign-up is not one of them any more, because it answers
-  // before it reads anything.
+  // Only the two routes that still answer FROM the database are levelled; see
+  // `auth-timing.ts`. Sign-up is not one of them, because it answers before it
+  // reads anything.
   await levelResponseTime(pathname, performance.now() - startedAt);
   return response;
 });
@@ -66,92 +68,61 @@ const answer = async (request: Request, pathname: string) => {
 };
 
 /**
- * Answer the sign-up, then do it.
+ * Answer the sign-up, then do it — through the router, never around it.
  *
- * The response is a constant emitted before anything looks the address up, so
- * there is nothing in it that could differ between a free address and a taken
- * one — see `sign-up-response.ts` for why that replaced six rounds of trying to
- * make two differently-assembled responses look alike.
+ * The response is a constant emitted before anything is looked up, so there is
+ * nothing in it that could differ between a free address and a taken one; see
+ * `sign-up-response.ts` for why that replaced six rounds of trying to make two
+ * differently-assembled responses look alike.
+ *
+ * `runSignUpThroughRouter` is handed `auth.handler` rather than
+ * `auth.api.signUpEmail` because the rate limiter, the origin check and the
+ * CSRF check all live in the router and all vanish on the API path. That is not
+ * a theoretical concern: the first version of this called the API and dropped
+ * every one of them.
  *
  * `after()` rather than a bare floating promise. better-auth's own
- * `advanced.backgroundTasks.handler` is not the seam for this: it does not
- * defer anything itself, it hands the promise to whatever you give it and does
- * not await, and it is consulted only where better-auth sends mail — the lookup
- * and the insert would have stayed inline. A detached promise is also the one
- * failure that would be worse than the leak, because a serverless invocation
- * can freeze the moment it responds and the account would never be created.
- * `after()` is the platform's own contract for work that must outlive the
- * response.
- *
- * The account work runs through the ordinary endpoint, so everything that
- * already governs it still applies: the field limits, the existing-address
- * email that is the learner's way back, and the log line that records which
- * case occurred. Only the caller's view of it has changed.
+ * `advanced.backgroundTasks.handler` is not the seam either: it defers nothing
+ * itself, and it is consulted only where better-auth sends mail, so the lookup
+ * and the insert would have stayed inline. A detached promise is the one
+ * failure worse than the leak, because a serverless invocation can freeze the
+ * moment it responds and the account would never exist.
  */
 const acknowledgeSignUp = (body: string, request: Request) => {
   const { auth, logger } = container.cradle;
-  const parsed = parseAuthBody(body, request.headers.get("content-type"));
+  const parsed = parseSignUpBody(body, request.headers.get("content-type"));
   const rejection = signUpRejection(parsed);
   if (rejection) {
     return Response.json(
       { code: "INVALID_SIGN_UP", message: rejection },
-      {
-        status: 400,
-      },
+      { status: 400 },
     );
   }
 
-  after(async () => {
-    try {
-      const settled = await auth.api.signUpEmail({
-        body: parsed as { name: string; email: string; password: string },
-        asResponse: true,
-      });
-      if (settled.status !== 200) {
-        // The caller was told nothing and cannot be told now. This line is the
-        // only record that the account did not appear, which is why it carries
-        // the address.
-        logger.error(
-          {
-            status: settled.status,
-            email: (parsed as { email: string }).email,
-          },
-          "Sign-up: the deferred account work failed after the caller was acknowledged",
-        );
-      }
-    } catch (error) {
-      logger.error(
-        { err: error, email: (parsed as { email: string }).email },
-        "Sign-up: the deferred account work threw after the caller was acknowledged",
-      );
-    }
-  });
+  /**
+   * Logged BEFORE the work is scheduled, and that ordering is the point.
+   *
+   * The caller has been told the request succeeded, so if the process dies in
+   * the window between this response and the deferred work finishing there is
+   * no row, no mail and — without this line — no record that anything was ever
+   * attempted. Before the redesign the same kill produced a failed request the
+   * caller could see. An accepted line with no matching outcome line beneath it
+   * is how an operator finds the ones lost in that window.
+   */
+  logger.info(
+    { email: (parsed as { email: string }).email },
+    "Sign-up: accepted, doing the work after the response",
+  );
+
+  after(() =>
+    runSignUpThroughRouter(
+      { handler: (deferred) => auth.handler(deferred), logger },
+      request,
+      body,
+    ),
+  );
 
   return Response.json(SIGN_UP_ACKNOWLEDGEMENT, { status: 200 });
-};
-
-/**
- * The body as an object, for either encoding better-auth accepts on this route.
- * Form encoding is handled because leaving it out would let one changed header
- * take a different path through this file.
- */
-const parseAuthBody = (
-  body: string,
-  contentType: string | null,
-): Record<string, unknown> | null => {
-  try {
-    if (contentType?.includes("application/x-www-form-urlencoded")) {
-      return Object.fromEntries(new URLSearchParams(body));
-    }
-    const parsed: unknown = JSON.parse(body);
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
 };
 
 export const GET = authHandler.GET;
