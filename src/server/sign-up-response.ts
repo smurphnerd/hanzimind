@@ -49,6 +49,25 @@ export const SIGN_UP_ACKNOWLEDGEMENT = {
  * learner with a working client never reaches this and a learner without one
  * still gets a usable error rather than silence.
  */
+/**
+ * The media types better-auth's sign-up route accepts, mirrored at the door.
+ *
+ * A request with no `Content-Type` used to reach better-auth and be answered
+ * 415. Now that the door answers first it cleared the door, got acknowledged
+ * with a 200, and was refused by the router afterwards where nobody could be
+ * told — the same shape as the oversized `image`, introduced by the commit that
+ * closed it. Anything the deferred work will refuse has to be refused here
+ * instead, because "refused later" now means "silently never happened".
+ */
+const ACCEPTED_MEDIA_TYPES = [
+  "application/json",
+  "application/x-www-form-urlencoded",
+];
+
+export const unsupportedSignUpMediaType = (
+  contentType: string | null,
+): boolean => !ACCEPTED_MEDIA_TYPES.some((type) => contentType?.includes(type));
+
 export const signUpRejection = (body: unknown): string | null => {
   const parsed = SignUpWireInput.safeParse(body);
   if (parsed.success) return null;
@@ -155,4 +174,56 @@ export const parseSignUpBody = (
   } catch {
     return null;
   }
+};
+
+type AcknowledgeDeps = {
+  logger: DeferredLogger;
+  /** How the deferred work is scheduled; `after()` in the route. */
+  schedule: (run: () => void) => void;
+  /** The deferred work itself. */
+  run: () => Promise<void>;
+};
+
+/**
+ * The whole door: refuse what the deferred work would refuse, record that the
+ * request was accepted, schedule the work, and answer the constant.
+ *
+ * It lives here rather than in the route so the ORDER can be asserted. The
+ * acceptance is logged BEFORE the work is scheduled, and that is not
+ * decoration: the caller has already been told it succeeded, so a process death
+ * in the window between the response and the work finishing leaves no row and
+ * no mail. Without a line written first it also leaves no record that anything
+ * was attempted — which is worse than the failed request the caller used to
+ * see. An accepted line with no outcome line beneath it is how those are found.
+ */
+export const acknowledgeSignUp = (
+  deps: AcknowledgeDeps,
+  body: string,
+  contentType: string | null,
+): Response => {
+  if (unsupportedSignUpMediaType(contentType)) {
+    return Response.json(
+      {
+        code: "UNSUPPORTED_MEDIA_TYPE",
+        message: "Send the sign-up as JSON or form data.",
+      },
+      { status: 415 },
+    );
+  }
+  const parsed = parseSignUpBody(body, contentType);
+  const rejection = signUpRejection(parsed);
+  if (rejection) {
+    return Response.json(
+      { code: "INVALID_SIGN_UP", message: rejection },
+      { status: 400 },
+    );
+  }
+
+  deps.logger.info(
+    { email: (parsed as { email: string }).email },
+    "Sign-up: accepted, doing the work after the response",
+  );
+  deps.schedule(() => void deps.run());
+
+  return Response.json(SIGN_UP_ACKNOWLEDGEMENT, { status: 200 });
 };

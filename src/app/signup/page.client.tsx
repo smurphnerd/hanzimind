@@ -153,29 +153,40 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
               Almost there!
             </h1>
-            {/* Sign-up answers the same way whether or not the address is
-                taken — same body, same headers, same duration — so this screen
-                cannot say which happened, and must not try. What it can now
-                say is that an email went out either way: a verification link
-                for a new address or one that never finished signing up, and a
-                note with a way back in for one that already has an account.
-                See `onExistingUserSignUp` in `src/server/auth.tsx`. */}
+            {/* Every sentence here has to be one the server can actually
+                back. Sign-up answers the same constant whether or not the
+                address is taken, and the account is created after the response,
+                so this screen knows only that the request was accepted — not
+                that an account exists, and not that mail was sent. The previous
+                copy told the learner to send it again or reset their password;
+                both answer success without delivering anything when the
+                deferred work has failed, so the instruction was advice that
+                could not work at the moment it was most likely to be followed.
+                The buttons remain, because offering an action is not the same
+                as promising an outcome. */}
             <p className="text-sm text-muted-foreground">
-              An email is on its way to{" "}
+              We&apos;ve taken your details for{" "}
               <span className="font-semibold text-foreground">{sentTo}</span>.
-              If it&apos;s new here, that email has the link that activates your
-              account. If it already has one, the email has your way back into
-              it.
+              If that address can be used, an email with an activation link is
+              on its way to it.
             </p>
             <p className="text-sm text-muted-foreground">
-              Nothing after a minute? Send it again — or{" "}
+              Nothing after a few minutes? The address may already have an
+              account — try{" "}
+              <Link
+                href="/signin"
+                className="font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                signing in
+              </Link>
+              , or{" "}
               <Link
                 href="/forgot-password"
                 className="font-medium text-primary transition-colors hover:text-primary/80"
               >
-                reset your password
+                reset the password
               </Link>{" "}
-              if the account is already yours.
+              if it is yours and you have forgotten it.
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <Button

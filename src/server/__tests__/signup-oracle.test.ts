@@ -8,9 +8,11 @@ import {
   SIGN_UP_BOUNDED_FIELDS,
 } from "@/definitions/definitions";
 import {
+  acknowledgeSignUp,
   runSignUpThroughRouter,
   SIGN_UP_ACKNOWLEDGEMENT,
   signUpRejection,
+  unsupportedSignUpMediaType,
 } from "@/server/sign-up-response";
 import {
   AUTH_BASE_PATH,
@@ -703,4 +705,189 @@ describe("the synchronous rules cover every bounded sign-up field", () => {
       expect(signUpRejection(body)).not.toBeNull();
     },
   );
+});
+
+/**
+ * The bypass broke three things and only one of them had a test. These are the
+ * other two, plus the media type the fix for the bypass introduced.
+ *
+ * All three previously rested on a comment and a single lane run, which is the
+ * shape this branch has twice been burned by.
+ */
+describe("what else the router does on the deferred path", () => {
+  const routedInstance = () => {
+    const sendEmail = vi.fn().mockResolvedValue("id");
+    const deps = {
+      database: {},
+      email: { sendEmail },
+      logger: fakeLogger(),
+    } as unknown as Cradle;
+    const auth = betterAuth({
+      ...buildAuthOptions(deps, {
+        authSecret: "secret",
+        baseUrl: "http://localhost:3000",
+        rateLimit: false,
+        systemEmailFrom: "from@hanzimind.test",
+      }),
+      database: memoryAdapter({
+        user: [],
+        session: [],
+        account: [],
+        verification: [],
+        rateLimit: [],
+      }),
+      /**
+       * Forced on, because better-auth turns origin checking OFF whenever it
+       * detects a test environment: `skipOriginCheck` defaults to
+       * `isTest() ? true : false`, and an explicit value is the only override.
+       * Without this line the test passes against code that has no origin check
+       * at all — which is exactly the kind of silently-vacuous assertion this
+       * suite exists to avoid.
+       */
+      advanced: { disableOriginCheck: false },
+    });
+    return { auth, sendEmail };
+  };
+
+  const signUpFrom = (origin: string) => {
+    const body = JSON.stringify({
+      name: "A Learner",
+      email: `origin-${Math.random().toString(36).slice(2, 8)}@hanzimind.test`,
+      password: "a-long-enough-password",
+    });
+    return {
+      body,
+      request: new Request("http://localhost:3000/api/auth/sign-up/email", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin },
+        body,
+      }),
+    };
+  };
+
+  /**
+   * `formCsrfMiddleware` begins `if (!ctx.request) return` and validates the
+   * ORIGIN HEADER against the trusted origins. The API path carries no request,
+   * so it skipped the check entirely and a cross-origin POST created an
+   * account. Only the router sees the header.
+   *
+   * Note what this is NOT. Sign-up never validated the `callbackURL` body field
+   * at request time — only `/request-password-reset` does that, via
+   * `originCheck(ctx.body.redirectTo)` — so a foreign callbackURL is still
+   * mailed and still refused when clicked. An earlier lane check of mine
+   * reported no such mail; that was a false negative in how the mailbox was
+   * searched, not a property of the code.
+   */
+  it("refuses a cross-origin sign-up, which only the router can see", async () => {
+    const { auth, sendEmail } = routedInstance();
+    const { body, request } = signUpFrom("https://evil.example.com");
+    await runSignUpThroughRouter(
+      {
+        handler: (deferred) => auth.handler(deferred),
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      },
+      request,
+      body,
+    );
+    expect(
+      sendEmail,
+      "a cross-origin sign-up created an account",
+    ).not.toHaveBeenCalled();
+  });
+
+  it("accepts a same-origin sign-up, so the check is not refusing everything", async () => {
+    const { auth, sendEmail } = routedInstance();
+    const { body, request } = signUpFrom("http://localhost:3000");
+    await runSignUpThroughRouter(
+      {
+        handler: (deferred) => auth.handler(deferred),
+        logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      },
+      request,
+      body,
+    );
+    expect(sendEmail).toHaveBeenCalled();
+  });
+});
+
+describe("the door", () => {
+  const jsonBody = JSON.stringify({
+    name: "A Learner",
+    email: "learner@hanzimind.test",
+    password: "a-long-enough-password",
+  });
+
+  const spyDeps = () => {
+    const order: string[] = [];
+    return {
+      order,
+      deps: {
+        logger: {
+          info: (_d: object, m: string) => order.push(`log:${m}`),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
+        schedule: () => order.push("schedule"),
+        run: () => {
+          order.push("run");
+          return Promise.resolve();
+        },
+      },
+    };
+  };
+
+  /**
+   * The caller is already holding a 200 by the time the work starts, so a kill
+   * in that window leaves no row and no mail. If the acceptance were logged
+   * after the scheduling, it would leave no record either.
+   */
+  it("records the acceptance before it schedules the work", () => {
+    const { order, deps } = spyDeps();
+    const response = acknowledgeSignUp(deps, jsonBody, "application/json");
+
+    expect(response.status).toBe(200);
+    const logged = order.findIndex((step) => step.startsWith("log:"));
+    const scheduled = order.indexOf("schedule");
+    expect(logged, "nothing was logged").toBeGreaterThanOrEqual(0);
+    expect(scheduled, "nothing was scheduled").toBeGreaterThanOrEqual(0);
+    expect(logged).toBeLessThan(scheduled);
+    expect(order[logged]).toContain("accepted");
+  });
+
+  it("schedules nothing and logs nothing when it refuses", () => {
+    const { order, deps } = spyDeps();
+    const response = acknowledgeSignUp(
+      deps,
+      JSON.stringify({ name: "A", email: "a@b.test", password: "short" }),
+      "application/json",
+    );
+    expect(response.status).toBe(400);
+    expect(order).toEqual([]);
+  });
+
+  /**
+   * Before the door existed this reached better-auth and was answered 415. Once
+   * the door answered first it cleared the door, was acknowledged 200, and the
+   * router refused it where nobody could be told — a 200 with no account, the
+   * same shape as the oversized `image`, introduced by the commit that closed
+   * that one.
+   */
+  it("refuses a body with no content type rather than acknowledging it", () => {
+    const { order, deps } = spyDeps();
+    const response = acknowledgeSignUp(deps, jsonBody, null);
+    expect(response.status).toBe(415);
+    expect(order).toEqual([]);
+  });
+
+  it("accepts both media types better-auth accepts", () => {
+    for (const type of [
+      "application/json",
+      "application/json; charset=utf-8",
+      "application/x-www-form-urlencoded",
+    ]) {
+      expect(unsupportedSignUpMediaType(type)).toBe(false);
+    }
+    expect(unsupportedSignUpMediaType(null)).toBe(true);
+    expect(unsupportedSignUpMediaType("text/plain")).toBe(true);
+  });
 });
