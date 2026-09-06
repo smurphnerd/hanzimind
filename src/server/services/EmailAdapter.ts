@@ -1,6 +1,6 @@
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 import { render } from "@react-email/components";
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import React, { type ReactElement } from "react";
 
 import type { Cradle } from "@/server/initialization";
@@ -25,7 +25,7 @@ export class SmtpEmailAdapter implements EmailAdapter {
    * the container — which happens on any request that touches the cradle —
    * still costs nothing until an email is actually sent.
    */
-  private transporter?: nodemailer.Transporter;
+  private transporter?: Transporter;
 
   public constructor(
     private deps: Cradle,
@@ -34,7 +34,7 @@ export class SmtpEmailAdapter implements EmailAdapter {
     },
   ) {}
 
-  private getTransporter(): nodemailer.Transporter {
+  private getTransporter(): Transporter {
     if (!this.transporter) {
       this.transporter = nodemailer.createTransport(
         this.options.smtpConnectionUrl,
