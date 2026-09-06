@@ -65,8 +65,8 @@ importers:
         specifier: ^5.83.0
         version: 5.90.12(react@19.2.3)
       awilix:
-        specifier: ^12.1.1
-        version: 12.1.1
+        specifier: ^13.0.5
+        version: 13.0.5
       better-auth:
         specifier: ~1.6.30
         version: 1.6.30(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.8)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.16.0)(kysely@0.29.5)(pg@8.16.3))(next@16.3.4(@babel/core@7.28.5)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.4.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(sass@1.96.0))(pg@8.16.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(vite@7.3.6(@types/node@26.4.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.96.0)(terser@5.51.2)(tsx@4.21.0)(yaml@2.8.2)))
@@ -3684,9 +3684,9 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  awilix@12.1.1:
-    resolution: {integrity: sha512-A93ak7Ypot8YlkfulCBL4GCkZozuwdfwOJs+4l8+svJYCfXKuokLxWe/usTiatN1dlPOdT5HO0MBpNNTzZSWug==}
-    engines: {node: '>=16.3.0'}
+  awilix@13.0.5:
+    resolution: {integrity: sha512-ORtca6suBdYA1FyTzqHEZDvEuUwo3lPDDBRm7GrzHgi6STESzJKdBtpqfTzObdMj1NGQUWX6k26E3EbQaGJX5Q==}
+    engines: {node: '>=20.0.0'}
 
   axe-core@4.11.0:
     resolution: {integrity: sha512-ilYanEU8vxxBexpJd8cWM4ElSQq4QctCLKih0TSfjIfCQTeyH/6zVrmIJfLPrKTKJRbiG+cfnZbQIjAlJmF1jQ==}
@@ -9783,7 +9783,7 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  awilix@12.1.1:
+  awilix@13.0.5:
     dependencies:
       fast-glob: 3.3.3
 
