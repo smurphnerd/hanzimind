@@ -185,24 +185,16 @@ async function main() {
     })
     .onConflictDoNothing();
 
-  const deckRows = [
-    ...words
-      .map((w) => resolve(w.word))
-      .filter((id): id is string => !!id)
-      .map((vocabItemId) => ({
-        deckId: DECK_ID,
-        vocabItemId,
-        isConstituent: false,
-      })),
-    ...[...constituents]
-      .map((c) => resolve(c))
-      .filter((id): id is string => !!id)
-      .map((vocabItemId) => ({
-        deckId: DECK_ID,
-        vocabItemId,
-        isConstituent: true,
-      })),
-  ];
+  const wordIds = words
+    .map((w) => resolve(w.word))
+    .filter((id): id is string => !!id);
+  const constituentIds = [...constituents]
+    .map((c) => resolve(c))
+    .filter((id): id is string => !!id);
+  const deckRows = [...wordIds, ...constituentIds].map((vocabItemId) => ({
+    deckId: DECK_ID,
+    vocabItemId,
+  }));
 
   // Rebuild membership so re-runs reflect the current list exactly.
   await database
@@ -214,7 +206,7 @@ async function main() {
     .onConflictDoNothing();
 
   console.log(
-    `Deck "${DECK_NAME}": ${deckRows.filter((r) => !r.isConstituent).length} words + ${deckRows.filter((r) => r.isConstituent).length} components = ${deckRows.length} items`,
+    `Deck "${DECK_NAME}": ${wordIds.length} words + ${constituentIds.length} components = ${deckRows.length} items`,
   );
 
   console.log(

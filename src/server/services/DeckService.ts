@@ -193,12 +193,10 @@ export class DeckService {
           );
 
         if (rows.length > 0) {
-          const requested = new Set(vocabList);
           await tx.insert(schema.deckVocabItems).values(
             rows.map((row) => ({
               deckId: deck.id,
               vocabItemId: row.id,
-              isConstituent: !requested.has(row.vocabItem),
             })),
           );
         }
@@ -254,9 +252,9 @@ export class DeckService {
   /**
    * A deck and everything a learner would actually study from it.
    *
-   * Constituents are never filtered out: StudyService stores every user deck
-   * with `includeConstituents: true`, so hiding them here would show a preview
-   * smaller than the deck the learner ends up with.
+   * Constituents are never filtered out: a saved deck always studies them, so
+   * hiding them here would show a preview smaller than the deck the learner
+   * ends up with.
    */
   async getDeckById(args: { deckId: string }): Promise<DeckDetailedDto> {
     const { deckId } = args;
@@ -365,7 +363,6 @@ export class DeckService {
     decks: Array<
       DeckDto & {
         lastStudied: Date;
-        includeConstituents: boolean;
         readingEnabled: boolean;
         listeningEnabled: boolean;
         understandingEnabled: boolean;
@@ -388,7 +385,6 @@ export class DeckService {
       .select({
         ...this.deckHeaderColumns(),
         lastStudied: schema.userDecks.updatedAt,
-        includeConstituents: schema.userDecks.includeConstituents,
         readingEnabled: schema.userDecks.readingEnabled,
         listeningEnabled: schema.userDecks.listeningEnabled,
         understandingEnabled: schema.userDecks.understandingEnabled,

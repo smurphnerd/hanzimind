@@ -256,7 +256,6 @@ export const deckVocabItems = pgTable(
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
-    isConstituent: boolean().notNull().default(false),
     ...timestampFields,
   },
   (table) => [primaryKey({ columns: [table.deckId, table.vocabItemId] })],
@@ -272,7 +271,6 @@ export const userDecks = pgTable(
     deckId: text()
       .notNull()
       .references(() => decks.id),
-    includeConstituents: boolean().notNull().default(false),
     readingEnabled: boolean().notNull().default(true),
     listeningEnabled: boolean().notNull().default(true),
     understandingEnabled: boolean().notNull().default(true),

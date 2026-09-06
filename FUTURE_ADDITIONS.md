@@ -30,7 +30,7 @@ This document tracks potential features and improvements for future implementati
 **Notes:**
 
 - Consider whether progress should include only due cards or all cards in deck
-- Decide if constituents should be counted separately when `includeConstituents` is enabled
+- Decide if constituents should be counted separately from the words built on them
 - May want to cache this count to avoid expensive queries on each card
 
 ---
