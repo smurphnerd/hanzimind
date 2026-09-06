@@ -23,7 +23,6 @@ const getUserDecksSchema = z.object({
 
 const userDeckResponseSchema = DeckDto.extend({
   lastStudied: z.date(),
-  includeConstituents: z.boolean(),
   readingEnabled: z.boolean(),
   listeningEnabled: z.boolean(),
   understandingEnabled: z.boolean(),

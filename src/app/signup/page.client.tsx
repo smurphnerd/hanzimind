@@ -9,6 +9,10 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
 
+import {
+  AUTH_FIELD_LIMITS,
+  AUTH_PASSWORD_LENGTH,
+} from "@/definitions/definitions";
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,7 +33,15 @@ const SignUpFormSchema = z.object({
   username: z
     .string()
     .min(3, "Username must be at least 3 characters")
-    .max(30, "Username must be at most 30 characters")
+    // The same number the server refuses past, so the form always catches it
+    // first and the server's copy is never reached by an honest submission.
+    // The server's is not validation politeness: an unbounded name is what
+    // breaks the response-time bucket that keeps sign-up from saying whether an
+    // address is taken. See `src/server/auth-timing.ts`.
+    .max(
+      AUTH_FIELD_LIMITS.name,
+      `Username must be at most ${AUTH_FIELD_LIMITS.name} characters`,
+    )
     .regex(
       /^[a-zA-Z0-9_-]+$/,
       "Username can only contain letters, numbers, hyphens, and underscores",
@@ -37,8 +49,14 @@ const SignUpFormSchema = z.object({
   email: z.email(),
   password: z
     .string()
-    .min(10, "Password must be at least 10 characters")
-    .max(128, "Password must be at most 128 characters"),
+    .min(
+      AUTH_PASSWORD_LENGTH.min,
+      `Password must be at least ${AUTH_PASSWORD_LENGTH.min} characters`,
+    )
+    .max(
+      AUTH_PASSWORD_LENGTH.max,
+      `Password must be at most ${AUTH_PASSWORD_LENGTH.max} characters`,
+    ),
 });
 type SignUpFormSchema = z.infer<typeof SignUpFormSchema>;
 
@@ -49,9 +67,14 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     : "/verified";
   const [sentTo, setSentTo] = useState<string | null>(null);
 
-  // The sign-up endpoint answers 200 even when the send fails, so the learner
-  // cannot be told at that moment. This is the way back: ask for another one,
-  // and this call does report a failure.
+  // Resend cannot promise delivery either, and the copy must not pretend it
+  // can. `/send-verification-email` answers `{status:true}` whether it sent
+  // anything or not — that is deliberate, since telling the caller whether the
+  // address needed a link is the same oracle this whole endpoint exists to
+  // close — and it answers the same way when the lookup fails outright, so a
+  // database outage produces a cheerful success and no mail. This button was
+  // described as the learner's way back from a failed sign-up; it is not, and
+  // saying "Sent" was the part that made it look like one.
   const resend = useMutation({
     mutationFn: async (email: string) => {
       const result = await authClient.sendVerificationEmail({
@@ -62,7 +85,8 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
         throw new Error(result.error.message ?? "Could not send the email");
       }
     },
-    onSuccess: () => toast.success("Sent. Check your inbox again."),
+    onSuccess: () =>
+      toast.success("If that address needs a link, one is on its way."),
     onError: () =>
       toast.error("Couldn't send it. Please try again in a minute."),
   });
@@ -74,7 +98,10 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return iss.message ?? "Password must be at least 10 characters";
+          return (
+            iss.message ??
+            `Password must be at least ${AUTH_PASSWORD_LENGTH.min} characters`
+          );
         }
         if (iss.path?.[0] === "username") {
           return iss.message ?? "Username must be at least 3 characters";
@@ -126,20 +153,40 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
               Almost there!
             </h1>
-            {/* Sign-up answers the same way whether or not the address is
-                taken, because better-auth will not confirm an account exists
-                and sign-in is careful not to either: an unknown address and a
-                wrong password get byte-identical 401s. So this cannot promise a
-                link was sent. Saying it was, when the address already belongs
-                to someone, is what finding 19 was. */}
+            {/* Every sentence here has to be one the server can actually
+                back. Sign-up answers the same constant whether or not the
+                address is taken, and the account is created after the response,
+                so this screen knows only that the request was accepted — not
+                that an account exists, and not that mail was sent. The previous
+                copy told the learner to send it again or reset their password;
+                both answer success without delivering anything when the
+                deferred work has failed, so the instruction was advice that
+                could not work at the moment it was most likely to be followed.
+                The buttons remain, because offering an action is not the same
+                as promising an outcome. */}
             <p className="text-sm text-muted-foreground">
-              If <span className="font-semibold text-foreground">{sentTo}</span>{" "}
-              is new here, a verification link is on its way. Click it to
-              activate your account. If it already has an account, sign in
-              instead.
+              We&apos;ve taken your details for{" "}
+              <span className="font-semibold text-foreground">{sentTo}</span>.
+              If that address can be used, an email with an activation link is
+              on its way to it.
             </p>
             <p className="text-sm text-muted-foreground">
-              Nothing after a minute? Send it again.
+              Nothing after a few minutes? The address may already have an
+              account — try{" "}
+              <Link
+                href="/signin"
+                className="font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                signing in
+              </Link>
+              , or{" "}
+              <Link
+                href="/forgot-password"
+                className="font-medium text-primary transition-colors hover:text-primary/80"
+              >
+                reset the password
+              </Link>{" "}
+              if it is yours and you have forgotten it.
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <Button

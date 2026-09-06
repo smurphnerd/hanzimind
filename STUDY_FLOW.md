@@ -503,7 +503,6 @@ Each user-vocab relationship (`userVocabItems` table) tracks:
 
 Each user-deck relationship (`userDecks` table) controls:
 
-- `includeConstituents`: boolean - Include component characters
 - `readingEnabled`: boolean
 - `listeningEnabled`: boolean
 - `understandingEnabled`: boolean

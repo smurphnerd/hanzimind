@@ -47,15 +47,34 @@ export function schemaReferences(): Reference[] {
 }
 
 /**
- * The references a deletion has to answer for: everything pointing at a table
- * whose rows go, minus the ones Postgres cascades on its own.
+ * Everything pointing at a table whose rows go, cascading or not.
  */
-export function blockingReferences(): Reference[] {
+export function clearedReferences(): Reference[] {
   const cleared = clearedTables();
   return schemaReferences()
     .filter((reference) => cleared.includes(reference.to))
-    .filter((reference) => !reference.cascades)
     .sort((a, b) => a.from.localeCompare(b.from));
+}
+
+/**
+ * The references a deletion has to answer for itself: everything pointing at a
+ * table whose rows go, minus the ones Postgres cascades on its own.
+ */
+export function blockingReferences(): Reference[] {
+  return clearedReferences().filter((reference) => !reference.cascades);
+}
+
+/**
+ * References into a cleared table that NOTHING answers for — no cascade, and no
+ * step. This is the list that has to stay empty; a new column pointing at
+ * `users`, or at anything the deletion empties, shows up here rather than in
+ * production on a learner who cannot delete their account.
+ */
+export function unhandledReferences(): Reference[] {
+  const covered = coverage();
+  return clearedReferences().filter(
+    (reference) => !reference.cascades && !covered[reference.from],
+  );
 }
 
 /** The drizzle config uses snake_case casing, which `getTableConfig` does not apply. */
@@ -76,6 +95,16 @@ type Subject = { userId: string; memoryAidIds: string[]; deckIds: string[] };
  * are the real Drizzle columns the query below uses, so a step cannot claim to
  * cover a reference it does not touch: the claim and the work name the same
  * object.
+ *
+ * Several steps now sit over a foreign key that also cascades, and both are
+ * deliberate. The step is what makes the deletion atomic: it runs in the same
+ * transaction as `assertAccountDeletable`, so a refusal rolls the learner's data
+ * back with it. The cascade covers the window the step cannot — better-auth
+ * removes the `users` row in a LATER transaction, and a row this account writes
+ * in between (a study answer landing while the deletion commits) would otherwise
+ * make that delete fail with the credentials already gone. Neither is redundant
+ * and the order they run in does not matter, because by the time the cascade
+ * fires the step has already emptied the table.
  */
 type Step = {
   /** `delete` empties rows; `release` nulls a column and keeps the row. */
@@ -225,9 +254,13 @@ export function clearedTables(): string[] {
 }
 
 /**
- * What the deletion does about each blocking reference, derived from the steps
- * that do the work. A step names the columns its own query uses, so a treatment
- * cannot drift from the code the way a prose map could.
+ * What the deletion does about each reference it clears itself, derived from the
+ * steps that do the work. A step names the columns its own query uses, so a
+ * treatment cannot drift from the code the way a prose map could.
+ *
+ * Wider than `blockingReferences` on purpose: a reference that cascades is still
+ * cleared by its step, and dropping the entry would claim work the code does.
+ * `unhandledReferences` is the direction that has to stay empty.
  */
 export function coverage(): Record<string, Step["action"]> {
   return Object.fromEntries(

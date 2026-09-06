@@ -505,3 +505,102 @@ export const SuggestionCountDto = z.object({
   count: z.number().int().nonnegative(),
 });
 export type SuggestionCountDto = z.infer<typeof SuggestionCountDto>;
+
+/**
+ * Longest each caller-supplied auth field may be, shared so the sign-up form
+ * and the server agree on one number.
+ *
+ * These are a security bound before they are a validation nicety. The auth
+ * routes that answer a question about one email address are held to a fixed
+ * response-time bucket (`src/server/auth-timing.ts`), and a bucket only hides
+ * the difference between two paths while both fit inside it. The caller decides
+ * how much work one of them does: a sign-up for a free address renders the
+ * submitted `name` into a verification email, a sign-up for a taken one does
+ * not, and a 4 MB name pushed the free path into its third bucket while the
+ * taken path stayed in its first — disjoint distributions, one request, a
+ * sharper oracle than the one the bucket closed. No quantum is large enough to
+ * survive an unbounded input, so the input is what has to be bounded.
+ *
+ * `name` matches the sign-up form's own rule, so no honest request is ever
+ * refused by it. The two URL fields are generous for a real callback and
+ * useless as a lever. Password length is better-auth's own (10 to 128).
+ */
+export const AUTH_FIELD_LIMITS = {
+  /** Same 30 the sign-up form asks for. */
+  name: 30,
+  /** RFC 5321's maximum path length for an address. */
+  email: 254,
+  newEmail: 254,
+  image: 2048,
+  callbackURL: 512,
+  redirectTo: 512,
+} as const;
+export type AuthField = keyof typeof AUTH_FIELD_LIMITS;
+
+/**
+ * Password bounds, shared so the sign-up form, the sign-up route's synchronous
+ * check and better-auth's own `minPasswordLength` cannot drift apart. The
+ * numbers are better-auth's defaults for min and max respectively.
+ */
+export const AUTH_PASSWORD_LENGTH = { min: 10, max: 128 } as const;
+
+/**
+ * Characters a `text` column cannot hold, or holds only by mangling.
+ *
+ * A NUL is rejected outright by Postgres (SQLSTATE 22021) and the other C0
+ * controls have no business in a display name. This matters more than tidiness:
+ * sign-up now answers before it writes anything, so an insert that fails is an
+ * account that silently never appears. Refusing these at the door turns a
+ * silent failure into an error the learner can act on, and it costs nothing in
+ * secrecy because the check reads only what was submitted.
+ *
+ * Tab, newline and carriage return are deliberately absent — they are rejected
+ * for a name by the form's own charset rule rather than by this.
+ */
+export const UNSTORABLE_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
+
+/**
+ * What `POST /api/auth/sign-up/email` will accept, checked synchronously before
+ * the request is acknowledged.
+ *
+ * Everything here is a property of the SUBMITTED value alone, so none of it can
+ * say whether the address already has an account, which is why it is safe to
+ * answer inline while the account work is deferred. Anything that needs to look
+ * the address up happens after the response and cannot be reported.
+ */
+export const SignUpWireInput = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(AUTH_FIELD_LIMITS.name)
+    .refine((value) => !UNSTORABLE_CHARACTERS.test(value), {
+      message: "Name contains a character we cannot store",
+    }),
+  email: z.email().max(AUTH_FIELD_LIMITS.email),
+  password: z
+    .string()
+    .min(AUTH_PASSWORD_LENGTH.min)
+    .max(AUTH_PASSWORD_LENGTH.max),
+  // `image` is here because it was not, and the gap was reachable: the bounds
+  // cover five fields and these rules covered four, so an oversized `image`
+  // passed the door, failed in the deferred work, and answered 200 with no
+  // account. `SIGN_UP_BOUNDED_FIELDS` pins the two lists together.
+  image: z.string().max(AUTH_FIELD_LIMITS.image).optional(),
+  callbackURL: z.string().max(AUTH_FIELD_LIMITS.callbackURL).optional(),
+});
+export type SignUpWireInput = z.infer<typeof SignUpWireInput>;
+
+/**
+ * The bounded fields a sign-up body can actually carry.
+ *
+ * `newEmail` belongs to change-email and `redirectTo` to password reset, so
+ * neither reaches this route. Everything else in `AUTH_FIELD_LIMITS` does, and
+ * every one of them has to be checked before the acknowledgement or its limit
+ * is enforced only in work whose failure nobody can be told about.
+ */
+export const SIGN_UP_BOUNDED_FIELDS = [
+  "name",
+  "email",
+  "image",
+  "callbackURL",
+] as const satisfies readonly AuthField[];
