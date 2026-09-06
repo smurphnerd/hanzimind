@@ -130,7 +130,7 @@ const vocabItemInserts = (inserts: Insert[]) =>
   inserts.filter((insert) => insert.table === schema.vocabItems);
 
 describe("createDeck", () => {
-  it("links every glyph the closure resolved, and marks the ones nobody asked for", async () => {
+  it("links every glyph the closure resolved, not only the ones asked for", async () => {
     const { deckService, committed } = serviceWith(
       {
         getStoredVocabItems: vi.fn(async () => [
@@ -152,9 +152,9 @@ describe("createDeck", () => {
     expect(result.id).toBe("deck-1");
     const membership = committed.find((i) => i.table === schema.deckVocabItems);
     expect(membership?.values).toEqual([
-      { deckId: "deck-1", vocabItemId: "v1", isConstituent: false },
-      { deckId: "deck-1", vocabItemId: "v2", isConstituent: true },
-      { deckId: "deck-1", vocabItemId: "v3", isConstituent: true },
+      { deckId: "deck-1", vocabItemId: "v1" },
+      { deckId: "deck-1", vocabItemId: "v2" },
+      { deckId: "deck-1", vocabItemId: "v3" },
     ]);
   });
 
@@ -183,7 +183,7 @@ describe("createDeck", () => {
     expect(prepareVocabItems).toHaveBeenCalledWith([]);
     expect(
       committed.find((i) => i.table === schema.deckVocabItems)?.values,
-    ).toEqual([{ deckId: "deck-1", vocabItemId: "v1", isConstituent: false }]);
+    ).toEqual([{ deckId: "deck-1", vocabItemId: "v1" }]);
   });
 
   it("creates a glyph that is genuinely absent, and does not skip it", async () => {

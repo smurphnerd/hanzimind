@@ -5,9 +5,11 @@ import type { SQL } from "drizzle-orm";
 import {
   assertAccountDeletable,
   blockingReferences,
+  clearedReferences,
   clearedTables,
   coverage,
   schemaReferences,
+  unhandledReferences,
   type Executor,
 } from "../account-deletion";
 
@@ -33,44 +35,63 @@ describe("clearedTables", () => {
 describe("blockingReferences", () => {
   it("finds every reference a deletion has to answer for, from the schema", () => {
     expect(blockingReferences().map((reference) => reference.from)).toEqual([
-      "deck_vocab_items.deck_id",
       "decks.created_by_id",
-      "memory_aids.created_by_id",
-      "suggestions.created_by_id",
       "suggestions.memory_aid_id",
       "suggestions.resolved_by_id",
-      "user_decks.deck_id",
-      "user_decks.user_id",
-      "user_study_progress.user_id",
       "user_vocab_items.memory_aid_id",
-      "user_vocab_items.user_id",
-      "user_vocab_synonyms.user_id",
       "vocab_items.default_memory_aid_id",
     ]);
   });
 
+  // Everything a learner owns goes with them, and everything they authored does
+  // not. `decks.created_by_id` is the whole of the second list, which is why the
+  // deletion has a refusal in it at all.
   it("leaves out what Postgres cascades on its own", () => {
     const cascading = schemaReferences()
       .filter((reference) => reference.cascades)
       .map((reference) => reference.from);
     expect([...cascading].sort()).toEqual([
       "accounts.user_id",
+      "deck_vocab_items.deck_id",
+      "memory_aids.created_by_id",
       "sessions.user_id",
+      "suggestions.created_by_id",
+      "user_decks.deck_id",
+      "user_decks.user_id",
+      "user_study_progress.user_id",
+      "user_vocab_items.user_id",
+      "user_vocab_synonyms.user_id",
     ]);
-    for (const from of cascading) {
-      expect(coverage()[from]).toBeUndefined();
-    }
+  });
+});
+
+describe("unhandledReferences", () => {
+  // The guard the other assertions exist to serve: a new column pointing at
+  // users, or at any table the deletion empties, that neither Postgres nor a
+  // step deals with. It fails here rather than in production on a learner who
+  // cannot delete their account.
+  it("is empty, because every reference either cascades or has a step", () => {
+    expect(unhandledReferences()).toEqual([]);
   });
 });
 
 describe("coverage", () => {
-  // The guard: a new column pointing at users, or at any table the deletion
-  // empties, fails here rather than in production on a learner who cannot
-  // delete their account. Each entry comes from the Drizzle column the step's
-  // own query uses, so it cannot describe work the code does not do.
-  it("names every blocking reference, and nothing that is not one", () => {
+  // Each entry comes from the Drizzle column the step's own query uses, so it
+  // cannot describe work the code does not do. This is the other half: a step
+  // may not name a column that is not a reference into a table the deletion
+  // empties, which is how a step left behind by a dropped column is caught.
+  it("names nothing that is not a reference the deletion clears", () => {
+    const cleared = clearedReferences().map((reference) => reference.from);
+    for (const from of Object.keys(coverage())) {
+      expect(cleared).toContain(from);
+    }
+  });
+
+  it("names every reference Postgres would refuse the delete over", () => {
     const blocking = blockingReferences().map((reference) => reference.from);
-    expect(Object.keys(coverage()).sort()).toEqual([...blocking].sort());
+    for (const from of blocking) {
+      expect(coverage()[from]).toBeDefined();
+    }
   });
 
   it("says of each whether the row goes or only the reference does", () => {

@@ -151,9 +151,6 @@ export class StudyService {
         .values({
           userId,
           deckId,
-          // Constituents are always part of a deck now — you learn the parts
-          // before the words built from them (see CONSTITUENT_GATE_LEVEL).
-          includeConstituents: true,
           readingEnabled,
           listeningEnabled,
           understandingEnabled,
@@ -164,7 +161,6 @@ export class StudyService {
         .onConflictDoUpdate({
           target: [schema.userDecks.userId, schema.userDecks.deckId],
           set: {
-            includeConstituents: true,
             readingEnabled,
             listeningEnabled,
             understandingEnabled,
