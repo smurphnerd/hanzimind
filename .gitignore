@@ -51,3 +51,10 @@ next-env.d.ts
 
 # Copyrighted book sources and derived verbatim extracts (do not commit)
 books/
+
+# Mirrors of .claude/ written by other agent tooling. Never the source of
+# truth: the copy committed in ef3c2be was already stale against
+# .claude/skills/verify-hanzimind, so two versions of the lane scripts would
+# have shipped, one of them wrong.
+.agents/
+AGENTS.md
