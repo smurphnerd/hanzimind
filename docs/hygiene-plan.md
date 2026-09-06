@@ -2129,6 +2129,14 @@ P4-AUTH. Delete account cascades. Lane 3 and P4-INDEX lane 4 prove the cascade s
 
 P5-PERF. Dynamic imports can flash an empty panel. Lane 2 checks the graph renders after the chunk loads. Any flash is a finding for P5-STATES's skeletons.
 
+P4-UPGRADE. Three majors were deliberately left behind, and each is a standing risk rather than a closed one.
+
+TypeScript stays at 5.9, and the reason is measurable rather than the "compiler port with its own migration guide" Appendix B records. `tsc --noEmit` is already clean under 7.0.2; the blocker is `typescript-eslint`, whose peer range is `typescript: ">=4.8.4 <6.1.0"`. TypeScript 7 therefore takes `pnpm lint` down entirely, which is a worse trade than being a major behind on the compiler. Revisit when typescript-eslint admits 7.x. It is the one row `pnpm outdated` is expected to keep showing.
+
+ESLint stays at 9. ESLint 10 is blocked by the plugin ecosystem, not by this repo's config. `eslint-config-next@16.3.4` depends on `eslint-plugin-react ^7.37.0`, whose latest release calls the `context.getFilename()` that v10 removed, so `eslint .` dies on the first file with `TypeError: contextOrFilename.getFilename is not a function`. `eslint-config-next@16.4.0-canary` still pins the same range and still declares `eslint: >=9.0.0`. Revisit when Next ships a config whose plugins declare v10; `typescript-eslint` already does, from 8.69.0.
+
+better-auth stays at 1.6.30, which is a minor behind rather than a major. It is excluded on purpose while P4-ORACLE's sign-up redesign is unmerged: an upgrade underneath an unreviewed security fix makes both unreviewable. Take it after that branch lands, with the sign-up oracle tests as the gate.
+
 P6-LEGAL. The drafted text is not legal advice. The operator reads both pages in full at the review gate.
 
 Every P5 PR. Visual changes are the operator's taste. The review gate exists for that.
