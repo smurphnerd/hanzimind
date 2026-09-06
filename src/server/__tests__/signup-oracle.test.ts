@@ -2,11 +2,14 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it, vi } from "vitest";
 
-import { AUTH_FIELD_LIMITS } from "@/definitions/definitions";
 import {
-  convergeLostSignUpRace,
-  FAILED_TO_CREATE_USER,
-} from "@/server/auth-race";
+  AUTH_FIELD_LIMITS,
+  AUTH_PASSWORD_LENGTH,
+} from "@/definitions/definitions";
+import {
+  SIGN_UP_ACKNOWLEDGEMENT,
+  signUpRejection,
+} from "@/server/sign-up-response";
 import {
   AUTH_BASE_PATH,
   LEVELLED_AUTH_ROUTES,
@@ -384,9 +387,19 @@ describe("response-time levelling", () => {
     }
   });
 
-  it("covers sign-up and password reset, the two that measurably leaked", () => {
-    expect(LEVELLED_AUTH_ROUTES).toContain("/sign-up/email");
-    expect(LEVELLED_AUTH_ROUTES).toContain("/request-password-reset");
+  /**
+   * Sign-up's absence here is the redesign, not an omission. It answers a
+   * constant before it looks anything up, so there is no address-dependent work
+   * in front of its response for a bucket to hide — and keeping the floor would
+   * have hidden whether that is actually true. What remains levelled is the two
+   * routes that still answer FROM the database.
+   */
+  it("levels the two routes that still answer from the database, and not sign-up", () => {
+    expect(LEVELLED_AUTH_ROUTES).toEqual([
+      "/request-password-reset",
+      "/send-verification-email",
+    ]);
+    expect(isLevelledAuthRoute(`${AUTH_BASE_PATH}/sign-up/email`)).toBe(false);
   });
 
   // Measured at 0.0% apart on a lane, on a route a learner uses far more than
@@ -437,274 +450,106 @@ describe("response-time levelling", () => {
  * on the unique email index and one came back 422. A TAKEN address never
  * inserts and so can never 422 — one burst, no statistics, exact.
  */
-describe("a sign-up that loses the insert race", () => {
-  const okResponse = () =>
-    Response.json({ token: null, user: { role: "user" } }, { status: 200 });
-  const raceLost = () =>
-    Response.json(
-      { message: "Failed to create user", code: FAILED_TO_CREATE_USER },
-      { status: 422 },
-    );
-  const body = JSON.stringify({
-    name: "A Learner",
-    email: "taken@hanzimind.test",
-    password: "a-long-enough-password",
-  });
-  const silent = { info: vi.fn(), error: vi.fn() };
-
-  const converge = (
-    over: Partial<Parameters<typeof convergeLostSignUpRace>[0]>,
-  ) =>
-    convergeLostSignUpRace({
-      response: raceLost(),
-      isSignUp: true,
-      body,
-      contentType: "application/json",
-      replay: () => Promise.resolve(okResponse()),
-      logger: silent,
-      ...over,
+/**
+ * What replaced six rounds of equalisation.
+ *
+ * The endpoint still builds a full user object internally; the caller no longer
+ * sees it. These pin the boundary rather than the internals, because the
+ * boundary is the whole claim: the body channels are closed by there being
+ * nothing in the body to differ.
+ */
+describe("the sign-up acknowledgement", () => {
+  /**
+   * Pinned to the literal rather than scanned for suspicious substrings. The
+   * scan was the first thing written here and it failed on its own message,
+   * because "an email is on its way" contains the word `email` — a substring
+   * search cannot tell a field name from English. Pinning the whole value makes
+   * any future field an explicit edit with a failing test behind it.
+   */
+  it("is a literal, so no row, request or clock can reach it", () => {
+    expect(SIGN_UP_ACKNOWLEDGEMENT).toEqual({
+      status: true,
+      message: "If that address can be used, an email is on its way to it.",
     });
-
-  it("answers with what the replay returns, which is what the taken path returns", async () => {
-    const settled = await converge({});
-    expect(settled.status).toBe(200);
-  });
-
-  it("replays the address that was asked about, not a fresh one", async () => {
-    const replay = vi.fn().mockResolvedValue(okResponse());
-    await converge({ replay });
-    expect(replay).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "taken@hanzimind.test" }),
+    expect(JSON.stringify(SIGN_UP_ACKNOWLEDGEMENT)).not.toMatch(
+      /\d{4}-\d{2}-\d{2}T/,
     );
   });
 
   /**
-   * A convergence that only understood JSON would leave the whole channel open
-   * to anyone who changed one header, and better-auth accepts both encodings on
-   * this route.
+   * The property the whole redesign rests on: two calls cannot differ, because
+   * there is no input to the value at all.
    */
-  it("understands a form-encoded body, which is the header-flip bypass", async () => {
-    const replay = vi.fn().mockResolvedValue(okResponse());
-    await converge({
-      body: new URLSearchParams({
-        name: "A Learner",
-        email: "taken@hanzimind.test",
-        password: "a-long-enough-password",
-      }).toString(),
-      contentType: "application/x-www-form-urlencoded",
-      replay,
-    });
-    expect(replay).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "taken@hanzimind.test" }),
-    );
-  });
-
-  it("leaves a 422 on any other route alone", async () => {
-    const replay = vi.fn();
-    const settled = await converge({ isSignUp: false, replay });
-    expect(settled.status).toBe(422);
-    expect(replay).not.toHaveBeenCalled();
-  });
-
-  it("leaves a successful sign-up alone", async () => {
-    const replay = vi.fn();
-    const settled = await converge({ response: okResponse(), replay });
-    expect(settled.status).toBe(200);
-    expect(replay).not.toHaveBeenCalled();
-  });
-
-  it("leaves a 422 that is not a failed insert alone", async () => {
-    const replay = vi.fn();
-    const settled = await converge({
-      response: Response.json({ code: "USER_ALREADY_EXISTS" }, { status: 422 }),
-      replay,
-    });
-    expect(settled.status).toBe(422);
-    expect(replay).not.toHaveBeenCalled();
-  });
-
-  /**
-   * A replay that fails too means the insert did not fail on a duplicate. That
-   * is a real database failure, not an attacker, and answering 200 would cost a
-   * learner their account with no sign anything went wrong.
-   */
-  it("keeps the 422 when the replay does not settle either", async () => {
-    const logger = { info: vi.fn(), error: vi.fn() };
-    const settled = await converge({
-      replay: () => Promise.resolve(raceLost()),
-      logger,
-    });
-    expect(settled.status).toBe(422);
-    expect(logger.error).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("genuinely unusable"),
-    );
-  });
-
-  it("does not throw on a body it cannot parse", async () => {
-    const replay = vi.fn();
-    const settled = await converge({ body: "not json at all", replay });
-    expect(settled.status).toBe(422);
-    expect(replay).not.toHaveBeenCalled();
-  });
-
-  it("records the race in the log, where an enumerator cannot read it", async () => {
-    const logger = { info: vi.fn(), error: vi.fn() };
-    await converge({ logger });
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("lost a race"),
-    );
+  it("takes no argument, so two callers cannot be given different answers", () => {
+    // Not a tautology about one object: the point is that the module exports a
+    // VALUE and not a function of the request, so there is no input for a free
+    // address and a taken one to differ on.
+    expect(typeof SIGN_UP_ACKNOWLEDGEMENT).toBe("object");
+    expect(SIGN_UP_ACKNOWLEDGEMENT).not.toBeInstanceOf(Function);
   });
 });
 
 /**
- * The same thing end to end, against a real better-auth whose storage enforces
- * the unique email the way Postgres does, with the lookup made to miss so the
- * collision happens on demand rather than when the scheduler feels like it.
+ * Deferring the account work means a failure after the response cannot be
+ * reported, so anything the learner could have fixed has to be caught before
+ * the acknowledgement or it becomes a silent dead end.
  */
-describe("the race, reproduced against a real sign-up", () => {
-  const collidingInstance = () => {
-    const sendEmail = vi.fn().mockResolvedValue("id");
-    const logger = fakeLogger();
-    const deps = {
-      database: {},
-      email: { sendEmail },
-      logger,
-    } as unknown as Cradle;
-    const store = {
-      user: [] as Record<string, unknown>[],
-      session: [],
-      account: [],
-      verification: [],
-      rateLimit: [],
-    };
-    const inner = memoryAdapter(store);
-    /**
-     * Two things Postgres does and the memory adapter does not: reject a
-     * duplicate email, and — for one call only — let a lookup miss a row that
-     * another request is about to insert. Together they are the race, made
-     * deterministic instead of hoped for.
-     *
-     * `transaction` has to be wrapped as well as `findOne` and `create`, and
-     * that is not a detail. Sign-up runs inside `runWithTransaction`, which
-     * hands every call to the adapter that `adapter.transaction` yields; a
-     * wrapper that stops at the top level is invisible from inside, and the
-     * first version of this test silently reproduced nothing at all.
-     */
-    let lookupsToBlind = 0;
-    type Adapter = ReturnType<typeof inner>;
-    const wrap = (adapter: Adapter): Adapter =>
-      ({
-        ...adapter,
-        findOne: async (data: { model: string }) => {
-          if (data.model === "user" && lookupsToBlind > 0) {
-            lookupsToBlind -= 1;
-            return null;
-          }
-          return adapter.findOne(data as never);
-        },
-        create: async (data: { model: string; data: { email?: string } }) => {
-          if (
-            data.model === "user" &&
-            store.user.some((row) => row.email === data.data.email)
-          ) {
-            throw new Error(
-              'duplicate key value violates unique constraint "users_email_unique"',
-            );
-          }
-          return adapter.create(data as never);
-        },
-        transaction: (fn: (trx: Adapter) => unknown) =>
-          adapter.transaction(((trx: Adapter) =>
-            fn(wrap(trx))) as never) as never,
-      }) as Adapter;
-    const database = (options: Parameters<typeof inner>[0]) =>
-      wrap(inner(options));
-    // Armed by the test rather than on by default, because the winner's own
-    // lookup would otherwise spend it and no collision would ever happen.
-    const blindNextUserLookup = () => {
-      lookupsToBlind = 1;
-    };
-    const auth = betterAuth({
-      ...buildAuthOptions(deps, {
-        authSecret: "secret",
-        baseUrl: "http://localhost:3000",
-        rateLimit: false,
-        systemEmailFrom: "from@hanzimind.test",
-      }),
-      database: database as never,
-    });
-    return { auth, store, blindNextUserLookup };
+describe("what sign-up still refuses synchronously", () => {
+  const valid = {
+    name: "A Learner",
+    email: "learner@hanzimind.test",
+    password: "a-long-enough-password",
   };
 
-  const shapeOfResponse = async (response: Response, email: string) =>
-    `${response.status} ${(await response.text())
-      .split(email)
-      .join("<address>")
-      .replace(/"id":"[^"]*"/g, '"id":"<id>"')
-      .replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, "<timestamp>")}`;
+  it("accepts what the sign-up form accepts", () => {
+    expect(signUpRejection(valid)).toBeNull();
+    expect(signUpRejection({ ...valid, callbackURL: "/verified" })).toBeNull();
+  });
 
-  /** Returns what better-auth said, and what the caller answers after it. */
-  const signUpConverging = async (
-    auth: ReturnType<typeof collidingInstance>["auth"],
-    email: string,
-  ) => {
-    const body = JSON.stringify({
-      name: "A Learner",
-      email,
-      password: "a-long-enough-password",
-    });
-    const call = () =>
-      auth.api.signUpEmail({
-        body: JSON.parse(body) as never,
-        asResponse: true,
-      });
-    const raw = await call();
-    return {
-      rawStatus: raw.status,
-      answered: await convergeLostSignUpRace({
-        response: raw,
-        isSignUp: true,
-        body,
-        contentType: "application/json",
-        replay: () => call(),
-        logger: { info: vi.fn(), error: vi.fn() },
+  it("refuses a password the form would have caught, rather than going quiet", () => {
+    expect(
+      signUpRejection({
+        ...valid,
+        password: "a".repeat(AUTH_PASSWORD_LENGTH.min - 1),
       }),
-    };
-  };
+    ).not.toBeNull();
+  });
 
-  it("the loser's answer is the answer a taken address gets", async () => {
-    const { auth, store, blindNextUserLookup } = collidingInstance();
-    const email = "raced@hanzimind.test";
+  /**
+   * `users.name` is `text NOT NULL` and Postgres rejects a NUL outright, so
+   * before this the insert failed and — now that the response comes first —
+   * the account would simply never appear. A caller-supplied character that
+   * cannot be stored has to be an error at the door.
+   */
+  it("refuses a name carrying a character Postgres cannot store", () => {
+    expect(
+      signUpRejection({ ...valid, name: "A\u0000Learner" }),
+    ).not.toBeNull();
+    expect(
+      signUpRejection({ ...valid, name: "A\u001fLearner" }),
+    ).not.toBeNull();
+  });
 
-    // The winner creates the row.
-    await auth.api.signUpEmail({
-      body: {
-        name: "A Learner",
-        email,
-        password: "a-long-enough-password",
-      },
-      asResponse: true,
-    });
-    expect(store.user).toHaveLength(1);
+  it("refuses an overlong name and an unparseable body", () => {
+    expect(
+      signUpRejection({
+        ...valid,
+        name: "A".repeat(AUTH_FIELD_LIMITS.name + 1),
+      }),
+    ).not.toBeNull();
+    expect(signUpRejection(null)).not.toBeNull();
+    expect(signUpRejection("not an object")).not.toBeNull();
+  });
 
-    // The loser's lookup is blinded once, so it tries to insert and collides.
-    blindNextUserLookup();
-    const loser = await signUpConverging(auth, email);
-    // A third request, with nothing blinded, is an ordinary taken sign-up.
-    const taken = await signUpConverging(auth, email);
-
-    // Assert the precondition, because a test that quietly fails to reproduce
-    // the collision passes whatever the fix does. The first version of this one
-    // did exactly that: the blinded lookup never fired, because sign-up runs in
-    // a transaction and the wrapper did not follow it in.
-    expect(loser.rawStatus, "the collision did not happen").toBe(422);
-    expect(taken.rawStatus).toBe(200);
-
-    expect(await shapeOfResponse(loser.answered, email)).toBe(
-      await shapeOfResponse(taken.answered, email),
+  /**
+   * Every rule above reads only what was submitted, so the same refusal reaches
+   * a caller whether or not the address has an account. That is what makes it
+   * safe to answer this inline while everything else waits.
+   */
+  it("gives the identical refusal for an address that exists and one that does not", () => {
+    const bad = { ...valid, password: "short" };
+    expect(signUpRejection({ ...bad, email: "taken@hanzimind.test" })).toBe(
+      signUpRejection({ ...bad, email: "free@hanzimind.test" }),
     );
-    expect(store.user, "the race created a second account").toHaveLength(1);
   });
 });

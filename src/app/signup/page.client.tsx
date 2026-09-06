@@ -9,7 +9,10 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
 
-import { AUTH_FIELD_LIMITS } from "@/definitions/definitions";
+import {
+  AUTH_FIELD_LIMITS,
+  AUTH_PASSWORD_LENGTH,
+} from "@/definitions/definitions";
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,8 +49,14 @@ const SignUpFormSchema = z.object({
   email: z.email(),
   password: z
     .string()
-    .min(10, "Password must be at least 10 characters")
-    .max(128, "Password must be at most 128 characters"),
+    .min(
+      AUTH_PASSWORD_LENGTH.min,
+      `Password must be at least ${AUTH_PASSWORD_LENGTH.min} characters`,
+    )
+    .max(
+      AUTH_PASSWORD_LENGTH.max,
+      `Password must be at most ${AUTH_PASSWORD_LENGTH.max} characters`,
+    ),
 });
 type SignUpFormSchema = z.infer<typeof SignUpFormSchema>;
 
@@ -83,7 +92,10 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return iss.message ?? "Password must be at least 10 characters";
+          return (
+            iss.message ??
+            `Password must be at least ${AUTH_PASSWORD_LENGTH.min} characters`
+          );
         }
         if (iss.path?.[0] === "username") {
           return iss.message ?? "Username must be at least 3 characters";

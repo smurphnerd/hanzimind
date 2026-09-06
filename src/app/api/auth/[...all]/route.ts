@@ -1,6 +1,6 @@
 import { toNextJsHandler } from "better-auth/next-js";
+import { after } from "next/server";
 
-import { convergeLostSignUpRace } from "@/server/auth-race";
 import {
   AUTH_BASE_PATH,
   isLevelledAuthRoute,
@@ -9,6 +9,10 @@ import {
   MAX_LEVELLED_BODY_BYTES,
   SIGN_UP_PATH,
 } from "@/server/auth-timing";
+import {
+  SIGN_UP_ACKNOWLEDGEMENT,
+  signUpRejection,
+} from "@/server/sign-up-response";
 import { container } from "@/server/initialization";
 
 const TOO_LARGE = {
@@ -22,36 +26,20 @@ const authHandler = toNextJsHandler(async (request) => {
 
   const response = await answer(request, pathname);
   response.headers.set("Cache-Control", "no-store,private,must-revalidate");
-  // Held out here rather than inside a handler because the whole request is
-  // what an attacker times, not the branch we happened to instrument. See
-  // `auth-timing.ts` for which routes this covers and why the rest are left
-  // alone.
+  // Only the two routes that still answer FROM the database need levelling; see
+  // `auth-timing.ts`. Sign-up is not one of them any more, because it answers
+  // before it reads anything.
   await levelResponseTime(pathname, performance.now() - startedAt);
   return response;
 });
 
-/**
- * Two of the three things that keep sign-up from saying whether an address is
- * taken, both of which have to happen out here rather than inside better-auth.
- *
- * The body is measured before better-auth is called at all, so an oversized
- * request is refused before anything parses it, looks an address up or hashes a
- * password — the bucket a levelled route answers in only hides its two paths
- * while both fit inside it, and the caller decides how much work one of them
- * does. The refusal is the same 400 for every address and is levelled like any
- * other answer, so neither its content nor its speed says anything.
- *
- * Then a sign-up that lost the insert race is converged onto the answer the
- * taken path gives; `auth-race.ts` explains why that is a replay rather than a
- * rewrite, and why the replay must not go back through the HTTP handler.
- *
- * Only levelled POSTs are intercepted. Every other request reaches better-auth
- * with its body untouched, which matters for a route that reads the stream
- * itself.
- */
 const answer = async (request: Request, pathname: string) => {
   const { auth, logger } = container.cradle;
-  if (request.method !== "POST" || !isLevelledAuthRoute(pathname)) {
+  const isSignUp = pathname === `${AUTH_BASE_PATH}${SIGN_UP_PATH}`;
+  if (
+    request.method !== "POST" ||
+    !(isSignUp || isLevelledAuthRoute(pathname))
+  ) {
     return auth.handler(request);
   }
 
@@ -63,42 +51,107 @@ const answer = async (request: Request, pathname: string) => {
     );
     return Response.json(TOO_LARGE, { status: 400 });
   }
+
+  if (isSignUp) return acknowledgeSignUp(body, request);
+
   // Reading the body consumed it, so better-auth is handed an equivalent
   // request rather than the original one.
-  const response = await auth.handler(
+  return auth.handler(
     new Request(request.url, {
       method: request.method,
       headers: request.headers,
       body,
     }),
   );
+};
 
-  return convergeLostSignUpRace({
-    response,
-    isSignUp: pathname === `${AUTH_BASE_PATH}${SIGN_UP_PATH}`,
-    body,
-    contentType: request.headers.get("content-type"),
-    // Through the endpoint rather than the handler, so the replay spends no
-    // rate-limit budget the taken path would not have spent.
-    replay: (replayed) =>
-      auth.api.signUpEmail({
-        // The endpoint's body type is an intersection with an open record and
-        // does not narrow from `Record<string, unknown>`. The value is the same
-        // bytes better-auth validated moments ago on the first attempt.
-        body: replayed as unknown as {
-          name: string;
-          email: string;
-          password: string;
-        },
+/**
+ * Answer the sign-up, then do it.
+ *
+ * The response is a constant emitted before anything looks the address up, so
+ * there is nothing in it that could differ between a free address and a taken
+ * one — see `sign-up-response.ts` for why that replaced six rounds of trying to
+ * make two differently-assembled responses look alike.
+ *
+ * `after()` rather than a bare floating promise. better-auth's own
+ * `advanced.backgroundTasks.handler` is not the seam for this: it does not
+ * defer anything itself, it hands the promise to whatever you give it and does
+ * not await, and it is consulted only where better-auth sends mail — the lookup
+ * and the insert would have stayed inline. A detached promise is also the one
+ * failure that would be worse than the leak, because a serverless invocation
+ * can freeze the moment it responds and the account would never be created.
+ * `after()` is the platform's own contract for work that must outlive the
+ * response.
+ *
+ * The account work runs through the ordinary endpoint, so everything that
+ * already governs it still applies: the field limits, the existing-address
+ * email that is the learner's way back, and the log line that records which
+ * case occurred. Only the caller's view of it has changed.
+ */
+const acknowledgeSignUp = (body: string, request: Request) => {
+  const { auth, logger } = container.cradle;
+  const parsed = parseAuthBody(body, request.headers.get("content-type"));
+  const rejection = signUpRejection(parsed);
+  if (rejection) {
+    return Response.json(
+      { code: "INVALID_SIGN_UP", message: rejection },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  after(async () => {
+    try {
+      const settled = await auth.api.signUpEmail({
+        body: parsed as { name: string; email: string; password: string },
         asResponse: true,
-      }),
-    logger: {
-      info: (data, message) =>
-        logger.info({ ...data, path: pathname }, message),
-      error: (data, message) =>
-        logger.error({ ...data, path: pathname }, message),
-    },
+      });
+      if (settled.status !== 200) {
+        // The caller was told nothing and cannot be told now. This line is the
+        // only record that the account did not appear, which is why it carries
+        // the address.
+        logger.error(
+          {
+            status: settled.status,
+            email: (parsed as { email: string }).email,
+          },
+          "Sign-up: the deferred account work failed after the caller was acknowledged",
+        );
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, email: (parsed as { email: string }).email },
+        "Sign-up: the deferred account work threw after the caller was acknowledged",
+      );
+    }
   });
+
+  return Response.json(SIGN_UP_ACKNOWLEDGEMENT, { status: 200 });
+};
+
+/**
+ * The body as an object, for either encoding better-auth accepts on this route.
+ * Form encoding is handled because leaving it out would let one changed header
+ * take a different path through this file.
+ */
+const parseAuthBody = (
+  body: string,
+  contentType: string | null,
+): Record<string, unknown> | null => {
+  try {
+    if (contentType?.includes("application/x-www-form-urlencoded")) {
+      return Object.fromEntries(new URLSearchParams(body));
+    }
+    const parsed: unknown = JSON.parse(body);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 };
 
 export const GET = authHandler.GET;

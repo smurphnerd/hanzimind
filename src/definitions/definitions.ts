@@ -536,3 +536,51 @@ export const AUTH_FIELD_LIMITS = {
   redirectTo: 512,
 } as const;
 export type AuthField = keyof typeof AUTH_FIELD_LIMITS;
+
+/**
+ * Password bounds, shared so the sign-up form, the sign-up route's synchronous
+ * check and better-auth's own `minPasswordLength` cannot drift apart. The
+ * numbers are better-auth's defaults for min and max respectively.
+ */
+export const AUTH_PASSWORD_LENGTH = { min: 10, max: 128 } as const;
+
+/**
+ * Characters a `text` column cannot hold, or holds only by mangling.
+ *
+ * A NUL is rejected outright by Postgres (SQLSTATE 22021) and the other C0
+ * controls have no business in a display name. This matters more than tidiness:
+ * sign-up now answers before it writes anything, so an insert that fails is an
+ * account that silently never appears. Refusing these at the door turns a
+ * silent failure into an error the learner can act on, and it costs nothing in
+ * secrecy because the check reads only what was submitted.
+ *
+ * Tab, newline and carriage return are deliberately absent — they are rejected
+ * for a name by the form's own charset rule rather than by this.
+ */
+export const UNSTORABLE_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/;
+
+/**
+ * What `POST /api/auth/sign-up/email` will accept, checked synchronously before
+ * the request is acknowledged.
+ *
+ * Everything here is a property of the SUBMITTED value alone, so none of it can
+ * say whether the address already has an account, which is why it is safe to
+ * answer inline while the account work is deferred. Anything that needs to look
+ * the address up happens after the response and cannot be reported.
+ */
+export const SignUpWireInput = z.object({
+  name: z
+    .string()
+    .min(1)
+    .max(AUTH_FIELD_LIMITS.name)
+    .refine((value) => !UNSTORABLE_CHARACTERS.test(value), {
+      message: "Name contains a character we cannot store",
+    }),
+  email: z.email().max(AUTH_FIELD_LIMITS.email),
+  password: z
+    .string()
+    .min(AUTH_PASSWORD_LENGTH.min)
+    .max(AUTH_PASSWORD_LENGTH.max),
+  callbackURL: z.string().max(AUTH_FIELD_LIMITS.callbackURL).optional(),
+});
+export type SignUpWireInput = z.infer<typeof SignUpWireInput>;

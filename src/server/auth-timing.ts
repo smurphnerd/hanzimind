@@ -85,6 +85,16 @@ export const SIGN_UP_PATH = "/sign-up/email";
  * The routes that take an email address with no session, and so answer — in a
  * body, a status, or a duration — "does this address have an account".
  *
+ * `/sign-up/email` is no longer among them, and its absence is the point rather
+ * than an oversight. It now answers a constant before it looks anything up
+ * (`sign-up-response.ts`), so there is no address-dependent work in front of
+ * its response for a bucket to hide. Keeping the floor would cost every learner
+ * three quarters of a second and, worse, would hide whether that claim is
+ * actually true — without it the probe can measure the claim directly. What is
+ * left here is closed by equalisation because those two still answer FROM the
+ * database; sign-up is closed by construction. Neither mechanism replaces the
+ * other.
+ *
  * `/sign-in/email` is deliberately absent. better-auth already hashes the
  * supplied password on the no-such-user branch so both answers pay for one
  * scrypt, the two 401s are byte-identical, and the measurement above puts the
@@ -92,7 +102,6 @@ export const SIGN_UP_PATH = "/sign-up/email";
  * quarters of a second on the one auth route a learner uses more than once.
  */
 export const LEVELLED_AUTH_ROUTES = [
-  SIGN_UP_PATH,
   "/request-password-reset",
   "/send-verification-email",
 ] as const;

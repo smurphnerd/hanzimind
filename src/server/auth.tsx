@@ -22,7 +22,11 @@ import { nanoid } from "nanoid";
 import type { Logger } from "pino";
 import type { ReactElement } from "react";
 
-import { AUTH_FIELD_LIMITS, type AuthField } from "@/definitions/definitions";
+import {
+  AUTH_FIELD_LIMITS,
+  AUTH_PASSWORD_LENGTH,
+  type AuthField,
+} from "@/definitions/definitions";
 import { ChangeEmailEmail } from "@/email/ChangeEmailEmail";
 import { DeleteAccountEmail } from "@/email/DeleteAccountEmail";
 import { EmailVerificationEmail } from "@/email/EmailVerificationEmail";
@@ -153,7 +157,8 @@ export const buildAuthOptions = (deps: Cradle, options: AuthOptions) => {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
-      minPasswordLength: 10,
+      minPasswordLength: AUTH_PASSWORD_LENGTH.min,
+      maxPasswordLength: AUTH_PASSWORD_LENGTH.max,
       // A reset is what a learner reaches for when they think the account is
       // compromised, so it has to evict whoever else is holding a cookie.
       revokeSessionsOnPasswordReset: true,
