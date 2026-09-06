@@ -377,9 +377,14 @@ export const suggestions = pgTable(
     id: text()
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
+    // A learner's own reports go with them, which is what `clearAccountData`
+    // has always done to them; the cascade is what covers a report filed in the
+    // window between that transaction committing and better-auth deleting the
+    // `users` row. `resolvedById` below stays a refusal — it names the reviewer
+    // who closed somebody else's report, not its author.
     createdById: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     vocabItemId: text().references(() => vocabItems.id),
     memoryAidId: text().references(() => memoryAids.id),
     kind: text().notNull().$type<SuggestionKind>(),

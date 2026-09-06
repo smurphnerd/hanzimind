@@ -36,7 +36,6 @@ describe("blockingReferences", () => {
   it("finds every reference a deletion has to answer for, from the schema", () => {
     expect(blockingReferences().map((reference) => reference.from)).toEqual([
       "decks.created_by_id",
-      "suggestions.created_by_id",
       "suggestions.memory_aid_id",
       "suggestions.resolved_by_id",
       "user_vocab_items.memory_aid_id",
@@ -56,6 +55,7 @@ describe("blockingReferences", () => {
       "deck_vocab_items.deck_id",
       "memory_aids.created_by_id",
       "sessions.user_id",
+      "suggestions.created_by_id",
       "user_decks.deck_id",
       "user_decks.user_id",
       "user_study_progress.user_id",
