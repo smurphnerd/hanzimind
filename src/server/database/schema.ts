@@ -1,12 +1,13 @@
 import {
-  integer,
-  pgTable,
-  text,
-  primaryKey,
-  boolean,
-  jsonb,
-  timestamp,
   bigint,
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { timestampFields } from "./databaseUtils";
@@ -104,59 +105,72 @@ export const decks = pgTable("decks", {
 });
 
 // Vocabulary items table
-export const vocabItems = pgTable("vocab_items", {
-  id: text()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  vocabItem: text().notNull().unique(),
-  translation: text(),
-  pinyin: text().notNull(),
-  vocabType: text().notNull().$type<VocabType>(),
-  // Whether this component's own reading is worth teaching, because it is the
-  // SOUND part of the characters it appears in (艮 gěn -> 很 跟 根 恨). False for
-  // every other component and for everything that is not a component.
-  //
-  // Deliberately a flag rather than "has a non-empty pinyin". A bound form's
-  // dictionary reading is borrowed from the full character it abbreviates (亻
-  // gets 人's "rén"), and 97 rows in production still carry one from before the
-  // component work, so the presence of a reading says nothing about whether it
-  // should be taught. Set from vocab-classification.tsv; readingOf hides the
-  // reading of anything this is false for, so a stale value is inert.
-  phonetic: boolean().notNull().default(false),
-  // Which script this item is written in: `simplified`/`traditional` mean it has a
-  // distinct counterpart in the other script (国 <-> 國) and so does not belong in
-  // the other script's deck; `both` means the glyph is identical in both (人, 大),
-  // which is over half the dictionary. Defaults to `both` because that is the
-  // neutral answer — a row nobody has classified is hidden from no one — but the
-  // seed and the backfill both set it explicitly from script-classification.tsv.
-  script: text().notNull().$type<Script>().default("both"),
-  audioUrl: text().notNull(),
-  decomposition: text(), // Used for characters
-  etymologyHint: text(), // Used for characters
-  etymologyType: text().$type<EtymologyType>(), // Used for characters
-  // For a pictophonetic character, which of its parts supplied the sound and
-  // which supplied the meaning — 沐 is 氵 (meaning, water) + 木 (sound, mù). The
-  // dictionary names them per character, because the role belongs to the pair,
-  // not to the part: 山 is the meaning in 峰 and the sound in 仙 xiān. Null on
-  // anything that is not a pictophonetic character.
-  etymologyPhonetic: text(),
-  etymologySemantic: text(),
-  radical: text(), // Used for characters
-  strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
-  strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes
-  strokeMatches: jsonb().$type<(number[] | null)[] | null>(), // Used for characters
-  // Too basic to teach (a sub-radical fragment) or unstudiable (no gloss to quiz
-  // against). Disabled items are filtered out of every read path — decompositions,
-  // dictionary, search, and study selection — so they behave as if deleted.
-  // Driven by seed/vocab-classification.tsv; see scripts/backfill-classification.ts.
-  disabled: boolean().notNull().default(false),
-  // The curated memory aid an admin has starred for this glyph. Shown first on
-  // the dictionary and used on a learner's study card until they pin their own.
-  // Nullable, and the reference is a thunk because memoryAids is declared below
-  // and points back here — a deliberate cycle Postgres allows.
-  defaultMemoryAidId: text().references((): AnyPgColumn => memoryAids.id),
-  ...timestampFields,
-});
+export const vocabItems = pgTable(
+  "vocab_items",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    vocabItem: text().notNull().unique(),
+    translation: text(),
+    pinyin: text().notNull(),
+    vocabType: text().notNull().$type<VocabType>(),
+    // Whether this component's own reading is worth teaching, because it is the
+    // SOUND part of the characters it appears in (艮 gěn -> 很 跟 根 恨). False for
+    // every other component and for everything that is not a component.
+    //
+    // Deliberately a flag rather than "has a non-empty pinyin". A bound form's
+    // dictionary reading is borrowed from the full character it abbreviates (亻
+    // gets 人's "rén"), and 97 rows in production still carry one from before the
+    // component work, so the presence of a reading says nothing about whether it
+    // should be taught. Set from vocab-classification.tsv; readingOf hides the
+    // reading of anything this is false for, so a stale value is inert.
+    phonetic: boolean().notNull().default(false),
+    // Which script this item is written in: `simplified`/`traditional` mean it has a
+    // distinct counterpart in the other script (国 <-> 國) and so does not belong in
+    // the other script's deck; `both` means the glyph is identical in both (人, 大),
+    // which is over half the dictionary. Defaults to `both` because that is the
+    // neutral answer — a row nobody has classified is hidden from no one — but the
+    // seed and the backfill both set it explicitly from script-classification.tsv.
+    script: text().notNull().$type<Script>().default("both"),
+    audioUrl: text().notNull(),
+    decomposition: text(), // Used for characters
+    etymologyHint: text(), // Used for characters
+    etymologyType: text().$type<EtymologyType>(), // Used for characters
+    // For a pictophonetic character, which of its parts supplied the sound and
+    // which supplied the meaning — 沐 is 氵 (meaning, water) + 木 (sound, mù). The
+    // dictionary names them per character, because the role belongs to the pair,
+    // not to the part: 山 is the meaning in 峰 and the sound in 仙 xiān. Null on
+    // anything that is not a pictophonetic character.
+    etymologyPhonetic: text(),
+    etymologySemantic: text(),
+    radical: text(), // Used for characters
+    strokes: jsonb().$type<string[] | null>(), // Used for characters - SVG path data for each stroke
+    strokeMedians: jsonb().$type<[number, number][][] | null>(), // Used for characters - Median coordinates for animating strokes
+    strokeMatches: jsonb().$type<(number[] | null)[] | null>(), // Used for characters
+    // Too basic to teach (a sub-radical fragment) or unstudiable (no gloss to quiz
+    // against). Disabled items are filtered out of every read path — decompositions,
+    // dictionary, search, and study selection — so they behave as if deleted.
+    // Driven by seed/vocab-classification.tsv; see scripts/backfill-classification.ts.
+    disabled: boolean().notNull().default(false),
+    // The curated memory aid an admin has starred for this glyph. Shown first on
+    // the dictionary and used on a learner's study card until they pin their own.
+    // Nullable, and the reference is a thunk because memoryAids is declared below
+    // and points back here — a deliberate cycle Postgres allows.
+    defaultMemoryAidId: text().references((): AnyPgColumn => memoryAids.id),
+    ...timestampFields,
+  },
+  (table) => [
+    // Every read path filters `disabled` first and then almost always narrows by
+    // type — the dictionary, deck previews, the decomposition graph query and
+    // study selection all do. Leading with `disabled` keeps the far more
+    // selective column first.
+    index("vocab_items_disabled_vocab_type_idx").on(
+      table.disabled,
+      table.vocabType,
+    ),
+  ],
+);
 
 // User vocabulary items table (tracks user progress with vocab items)
 export const userVocabItems = pgTable(
@@ -174,7 +188,13 @@ export const userVocabItems = pgTable(
     memoryAidId: text().references(() => memoryAids.id),
     ...timestampFields,
   },
-  (table) => [primaryKey({ columns: [table.userId, table.vocabItemId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.vocabItemId] }),
+    // Releasing a deleted account's memory aids updates every row pointing at
+    // them, and the primary key leads with `user_id`, so without this the
+    // update is a sequential scan of every learner's progress.
+    index("user_vocab_items_memory_aid_id_idx").on(table.memoryAidId),
+  ],
 );
 
 /**
@@ -258,7 +278,13 @@ export const deckVocabItems = pgTable(
       .references(() => vocabItems.id),
     ...timestampFields,
   },
-  (table) => [primaryKey({ columns: [table.deckId, table.vocabItemId] })],
+  (table) => [
+    primaryKey({ columns: [table.deckId, table.vocabItemId] }),
+    // The primary key serves "what is in this deck". This serves the other
+    // direction, "which decks hold this item", which is how a deck delete and
+    // the dictionary's membership checks read the table.
+    index("deck_vocab_items_vocab_item_id_idx").on(table.vocabItemId),
+  ],
 );
 
 // User decks table (decks a user is studying)
@@ -277,23 +303,37 @@ export const userDecks = pgTable(
     writingEnabled: boolean().notNull().default(true),
     ...timestampFields,
   },
-  (table) => [primaryKey({ columns: [table.userId, table.deckId] })],
+  (table) => [
+    primaryKey({ columns: [table.userId, table.deckId] }),
+    // Every deck card carries a learner count, which is a correlated
+    // `count(*) ... where deck_id = ?` per row. The primary key leads with
+    // `user_id`, so without this each card costs a scan of the whole table.
+    index("user_decks_deck_id_idx").on(table.deckId),
+  ],
 );
 
-export const memoryAids = pgTable("memory_aids", {
-  id: text()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  memoryAid: text().notNull(),
-  vocabItemId: text()
-    .notNull()
-    .references(() => vocabItems.id),
-  createdById: text()
-    .notNull()
-    .references(() => users.id),
-  public: boolean().notNull().default(false),
-  ...timestampFields,
-});
+export const memoryAids = pgTable(
+  "memory_aids",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    memoryAid: text().notNull(),
+    vocabItemId: text()
+      .notNull()
+      .references(() => vocabItems.id),
+    createdById: text()
+      .notNull()
+      .references(() => users.id),
+    public: boolean().notNull().default(false),
+    ...timestampFields,
+  },
+  (table) => [
+    // Every dictionary entry lists the aids for its glyph, which is this
+    // lookup; nothing else reads the table by anything but its primary key.
+    index("memory_aids_vocab_item_id_idx").on(table.vocabItemId),
+  ],
+);
 
 // Extra meanings a user has chosen to accept for a vocab item ("I meant
 // 'lady' for 女 — count it next time"). Personal, deterministic, and it makes
@@ -324,24 +364,38 @@ export const userVocabSynonyms = pgTable(
 // user's rows inside a time window instead of keeping a separate counter, which
 // needs no extra table, cleans itself up as rows age out, and survives a
 // redeploy the way an in-memory Map would not.
-export const suggestions = pgTable("suggestions", {
-  id: text()
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  createdById: text()
-    .notNull()
-    .references(() => users.id),
-  vocabItemId: text().references(() => vocabItems.id),
-  memoryAidId: text().references(() => memoryAids.id),
-  kind: text().notNull().$type<SuggestionKind>(),
-  body: text().notNull(),
-  status: text().notNull().$type<SuggestionStatus>().default("open"),
-  /** Set by a reviewer when closing the suggestion out. */
-  adminNote: text(),
-  resolvedById: text().references(() => users.id),
-  resolvedAt: timestamp(),
-  ...timestampFields,
-});
+export const suggestions = pgTable(
+  "suggestions",
+  {
+    id: text()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    createdById: text()
+      .notNull()
+      .references(() => users.id),
+    vocabItemId: text().references(() => vocabItems.id),
+    memoryAidId: text().references(() => memoryAids.id),
+    kind: text().notNull().$type<SuggestionKind>(),
+    body: text().notNull(),
+    status: text().notNull().$type<SuggestionStatus>().default("open"),
+    /** Set by a reviewer when closing the suggestion out. */
+    adminNote: text(),
+    resolvedById: text().references(() => users.id),
+    resolvedAt: timestamp(),
+    ...timestampFields,
+  },
+  (table) => [
+    // The rate limit counts this author's rows inside a time window on every
+    // submit, so it is on the write path of the endpoint it protects.
+    index("suggestions_created_by_id_created_at_idx").on(
+      table.createdById,
+      table.createdAt,
+    ),
+    // The admin queue opens on the `open` ones, a shrinking slice of a table
+    // that only grows.
+    index("suggestions_status_idx").on(table.status),
+  ],
+);
 
 export const suggestionRelations = relations(suggestions, ({ one }) => ({
   vocabItem: one(vocabItems, {
