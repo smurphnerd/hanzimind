@@ -98,9 +98,16 @@ export const decks = pgTable("decks", {
     .$defaultFn(() => crypto.randomUUID()),
   deckName: text().notNull(),
   description: text().notNull(),
+  // Deliberately NOT a cascade. A deck this account published may be on other
+  // learners' study lists, and destroying that to satisfy someone else's
+  // deletion is worse than a refusal — so Postgres refuses, and the friendlier
+  // half of the same guard lives in `beforeDelete` in auth.tsx, which deletes an
+  // authored deck nobody else has saved and explains the refusal when one has.
+  // Spelled `restrict` rather than left to the default so the intent is in the
+  // schema and not only in the prose.
   createdById: text()
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "restrict" }),
   ...timestampFields,
 });
 
@@ -178,7 +185,7 @@ export const userVocabItems = pgTable(
   {
     userId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
@@ -190,9 +197,9 @@ export const userVocabItems = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.vocabItemId] }),
-    // Releasing a deleted account's memory aids updates every row pointing at
-    // them, and the primary key leads with `user_id`, so without this the
-    // update is a sequential scan of every learner's progress.
+    // Releasing an account's memory aids updates every row pointing at them,
+    // and the primary key leads with `user_id`, so without this the update is a
+    // sequential scan of every learner's progress.
     index("user_vocab_items_memory_aid_id_idx").on(table.memoryAidId),
   ],
 );
@@ -249,7 +256,7 @@ export const userStudyProgress = pgTable(
   {
     userId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
@@ -272,7 +279,7 @@ export const deckVocabItems = pgTable(
   {
     deckId: text()
       .notNull()
-      .references(() => decks.id),
+      .references(() => decks.id, { onDelete: "cascade" }),
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
@@ -293,10 +300,10 @@ export const userDecks = pgTable(
   {
     userId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     deckId: text()
       .notNull()
-      .references(() => decks.id),
+      .references(() => decks.id, { onDelete: "cascade" }),
     readingEnabled: boolean().notNull().default(true),
     listeningEnabled: boolean().notNull().default(true),
     understandingEnabled: boolean().notNull().default(true),
@@ -324,7 +331,7 @@ export const memoryAids = pgTable(
       .references(() => vocabItems.id),
     createdById: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     public: boolean().notNull().default(false),
     ...timestampFields,
   },
@@ -343,7 +350,7 @@ export const userVocabSynonyms = pgTable(
   {
     userId: text()
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     vocabItemId: text()
       .notNull()
       .references(() => vocabItems.id),
