@@ -20,7 +20,12 @@ export function DeckCreationForm() {
   const createDeckMutation = useMutation(
     orpc.decks.create.mutationOptions({
       onSuccess: (data) => {
-        toast.success("Deck created!");
+        toast.success("Deck created!", {
+          description:
+            data.skipped.length > 0
+              ? `Left out: ${data.skipped.join(", ")}. Those cannot be taught on their own.`
+              : undefined,
+        });
         router.push(`/decks/${data.id}`);
       },
       onError: (error) => {

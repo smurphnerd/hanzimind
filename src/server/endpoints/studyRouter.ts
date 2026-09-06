@@ -1,13 +1,28 @@
 import { z } from "zod";
-import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
+import { InvalidInputError } from "@/server/endpoints/errors";
+import type { StudyService } from "@/server/services/StudyService";
 import {
   DeckProgressDto,
   UserVocabItemDto,
   StudyAnswerDto,
   VocabItemStudyDto,
 } from "@/definitions/definitions";
+
+/** Refuse the write at the boundary, before any service touches the item. */
+async function assertStudyingItemInDeck(
+  studyService: Pick<StudyService, "isStudyingItemInDeck">,
+  userId: string,
+  deckId: string,
+  vocabItemId: string,
+): Promise<void> {
+  if (await studyService.isStudyingItemInDeck(userId, deckId, vocabItemId)) {
+    return;
+  }
+
+  throw new InvalidInputError("That item is not in a deck you are studying.");
+}
 
 const deckSettingsSchema = z.object({
   readingEnabled: z.boolean(),
@@ -29,54 +44,16 @@ export const studyRouter = {
     .handler(async ({ input, context }) => {
       const userId = context.user.id;
 
-      try {
-        await context.cradle.studyService.addDeck({
-          userId,
-          deckId: input.deckId,
-          readingEnabled: input.readingEnabled,
-          listeningEnabled: input.listeningEnabled,
-          understandingEnabled: input.understandingEnabled,
-          writingEnabled: input.writingEnabled,
-        });
+      await context.cradle.studyService.addDeck({
+        userId,
+        deckId: input.deckId,
+        readingEnabled: input.readingEnabled,
+        listeningEnabled: input.listeningEnabled,
+        understandingEnabled: input.understandingEnabled,
+        writingEnabled: input.writingEnabled,
+      });
 
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message: "Failed to add deck to study list",
-          cause: error,
-        });
-      }
-    }),
-
-  updateDeckSettings: authProcedure
-    .input(
-      z
-        .object({
-          deckId: z.string(),
-        })
-        .merge(deckSettingsSchema),
-    )
-    .output(z.object({ success: z.boolean() }))
-    .handler(async ({ input, context }) => {
-      const userId = context.user.id;
-
-      try {
-        await context.cradle.studyService.updateDeckSettings({
-          userId,
-          deckId: input.deckId,
-          readingEnabled: input.readingEnabled,
-          listeningEnabled: input.listeningEnabled,
-          understandingEnabled: input.understandingEnabled,
-          writingEnabled: input.writingEnabled,
-        });
-
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message: "Failed to update deck settings",
-          cause: error,
-        });
-      }
+      return { success: true };
     }),
 
   submitAnswer: authProcedure
@@ -92,56 +69,53 @@ export const studyRouter = {
       const userId = context.user.id;
       const { deckId, answer } = input;
 
-      const correct = await context.cradle.studyService.processAnswer(
-        answer,
-        userId,
-      );
-      const userVocabItem = await context.cradle.studyService.getUserVocabItem(
-        userId,
-        answer.vocabItemId,
-      );
-      const nextVocabItem = await context.cradle.studyService.getNextVocabItem(
+      await assertStudyingItemInDeck(
+        context.cradle.studyService,
         userId,
         deckId,
+        answer.vocabItemId,
       );
 
-      return { correct, userVocabItem, nextVocabItem };
+      return context.cradle.studyService.answerAndAdvance({
+        userId,
+        deckId,
+        answer,
+      });
     }),
 
   addSynonym: authProcedure
     .input(
       z.object({
+        deckId: z.string(),
         vocabItemId: z.string(),
         synonym: z.string().min(1).max(100),
       }),
     )
     .output(z.object({ success: z.boolean() }))
     .handler(async ({ input, context }) => {
-      try {
-        await context.cradle.studyService.addSynonym({
-          userId: context.user.id,
-          vocabItemId: input.vocabItemId,
-          synonym: input.synonym,
-        });
-        return { success: true };
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error ? error.message : "Failed to add synonym",
-          cause: error,
-        });
-      }
+      await assertStudyingItemInDeck(
+        context.cradle.studyService,
+        context.user.id,
+        input.deckId,
+        input.vocabItemId,
+      );
+
+      await context.cradle.studyService.addSynonym({
+        userId: context.user.id,
+        vocabItemId: input.vocabItemId,
+        synonym: input.synonym,
+      });
+      return { success: true };
     }),
 
   deckProgress: authProcedure
-    // One call for the whole study list — the page renders up to 50 decks.
-    .input(z.object({ deckIds: z.array(z.string()).max(100) }))
+    // No input: the caller's saved decks are the answer, and asking for ids
+    // meant the study page had to fetch its deck list and wait for it before it
+    // could ask for progress at all.
+    .input(z.object({}))
     .output(z.array(DeckProgressDto))
-    .handler(async ({ input, context }) => {
-      return context.cradle.studyService.getDeckProgress(
-        context.user.id,
-        input.deckIds,
-      );
+    .handler(async ({ context }) => {
+      return context.cradle.studyService.getDeckProgress(context.user.id);
     }),
 
   nextVocabItem: authProcedure

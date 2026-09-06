@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { vocabTypeMeta, type ItemTypeKey } from "@/lib/vocab-type";
 
@@ -8,6 +9,14 @@ interface ItemTypeBadgeProps {
   className?: string;
 }
 
+/**
+ * Which kind of item this is: component, character, word or sentence.
+ *
+ * `palette` rather than one Badge variant per type, because the four tints are
+ * already a data-driven palette in `vocab-type.ts` — the same one the tiles,
+ * chips and graph legend read — and copying it into `badgeVariants` would give
+ * the app two places to change a type colour.
+ */
 export function ItemTypeBadge({
   type,
   withIcon = true,
@@ -18,16 +27,12 @@ export function ItemTypeBadge({
   const Icon = meta.icon;
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-bold",
-        meta.softClass,
-        meta.colorClass,
-        className,
-      )}
+    <Badge
+      variant="palette"
+      className={cn(meta.softClass, meta.colorClass, className)}
     >
-      {withIcon && <Icon className="size-3.5" />}
+      {withIcon && <Icon />}
       {short ? meta.shortLabel : meta.label}
-    </span>
+    </Badge>
   );
 }

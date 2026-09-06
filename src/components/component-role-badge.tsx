@@ -1,5 +1,6 @@
 import { BookOpen, Volume2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,15 +30,15 @@ export function ComponentRoleBadge({
   const Icon = phonetic ? Volume2 : BookOpen;
 
   return (
-    <span
+    <Badge
+      variant="palette"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs font-bold",
         phonetic ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary",
         className,
       )}
     >
-      <Icon className="size-3.5" />
+      <Icon />
       {phonetic ? "Meaning + sound" : "Meaning only"}
-    </span>
+    </Badge>
   );
 }

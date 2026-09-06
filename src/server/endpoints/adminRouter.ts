@@ -1,4 +1,3 @@
-import { ORPCError } from "@orpc/client";
 import { z } from "zod";
 
 import { adminProcedure } from "@/server/endpoints/procedure";
@@ -68,7 +67,7 @@ export const adminRouter = {
           id: z.string(),
           vocabType: VocabTypeEnum.optional(),
           disabled: z.boolean().optional(),
-          translation: z.string().min(1).max(500).optional(),
+          translation: z.string().trim().min(1).max(500).optional(),
           // Unlike the definition this may be empty: a bound form or an
           // unromanisable glyph legitimately has no reading.
           pinyin: z.string().max(200).optional(),
@@ -91,17 +90,7 @@ export const adminRouter = {
     )
     .output(AdminVocabItemDto)
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.adminService.updateVocabItem(input);
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to update vocab item",
-          cause: error,
-        });
-      }
+      return await context.cradle.adminService.updateVocabItem(input);
     }),
 
   suggestionCounts: adminProcedure
@@ -149,23 +138,13 @@ export const adminRouter = {
     )
     .output(MemoryAidDto)
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.vocabService.createMemoryAid({
-          vocabItemId: input.vocabItemId,
-          userId: context.user.id,
-          memoryAid: input.memoryAid,
-          // Curated by an admin: visible to everyone straight away.
-          public: true,
-        });
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to create memory aid",
-          cause: error,
-        });
-      }
+      return await context.cradle.vocabService.createMemoryAid({
+        vocabItemId: input.vocabItemId,
+        userId: context.user.id,
+        memoryAid: input.memoryAid,
+        // Curated by an admin: visible to everyone straight away.
+        public: true,
+      });
     }),
 
   setDefaultMemoryAid: adminProcedure
@@ -178,20 +157,10 @@ export const adminRouter = {
     )
     .output(z.object({ defaultMemoryAidId: z.string().nullable() }))
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.vocabService.setDefaultMemoryAid({
-          vocabItemId: input.vocabItemId,
-          memoryAidId: input.memoryAidId,
-        });
-      } catch (error) {
-        throw new ORPCError("BAD_REQUEST", {
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to set the default memory aid",
-          cause: error,
-        });
-      }
+      return await context.cradle.vocabService.setDefaultMemoryAid({
+        vocabItemId: input.vocabItemId,
+        memoryAidId: input.memoryAidId,
+      });
     }),
 
   setSuggestionStatus: adminProcedure
@@ -205,21 +174,11 @@ export const adminRouter = {
     )
     .output(AdminSuggestionDto)
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.suggestionService.setStatus({
-          id: input.id,
-          status: input.status,
-          adminNote: input.adminNote,
-          reviewerId: context.user.id,
-        });
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to update the suggestion",
-          cause: error,
-        });
-      }
+      return await context.cradle.suggestionService.setStatus({
+        id: input.id,
+        status: input.status,
+        adminNote: input.adminNote,
+        reviewerId: context.user.id,
+      });
     }),
 };

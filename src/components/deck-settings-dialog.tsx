@@ -30,6 +30,23 @@ export type DeckSettings = {
   writingEnabled: boolean;
 };
 
+/**
+ * The learner's whole study list in one lookup, so a page can seed this dialog
+ * with the settings already in effect. `study.addDeck` upserts all four mode
+ * columns, so a caller that opens on the defaults below and confirms silently
+ * overwrites whatever the learner chose. Hold the control until this query has
+ * either answered or failed, and note the endpoint's maximum perPage: a learner
+ * with more than 100 saved decks is missing from this list.
+ */
+export const SAVED_DECKS_INPUT = { page: 1, perPage: 100 };
+
+export const DEFAULT_DECK_SETTINGS: DeckSettings = {
+  readingEnabled: true,
+  listeningEnabled: true,
+  understandingEnabled: true,
+  writingEnabled: true,
+};
+
 interface StudyMode {
   key: keyof DeckSettings;
   label: string;
@@ -78,7 +95,8 @@ interface DeckSettingsDialogProps {
   onSettingsChange: (settings: DeckSettings) => void;
   onSave: () => void;
   isPending?: boolean;
-  title?: string;
+  /** The DialogTitle text. `heading` rather than `title` — see `page-header.tsx`. */
+  heading?: string;
   description?: string;
   saveButtonText?: string;
 }
@@ -90,7 +108,7 @@ export function DeckSettingsDialog({
   onSettingsChange,
   onSave,
   isPending = false,
-  title = "Configure study settings",
+  heading = "Configure study settings",
   description = "Pick the ways this deck should quiz you.",
   saveButtonText = "Save settings",
 }: DeckSettingsDialogProps) {
@@ -102,7 +120,7 @@ export function DeckSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle>{heading}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 

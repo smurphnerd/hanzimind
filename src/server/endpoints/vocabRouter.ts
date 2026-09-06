@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { ORPCError } from "@orpc/client";
 
 import { authProcedure, commonProcedure } from "@/server/endpoints/procedure";
 import {
   DecompositionGraphDto,
+  MEMORY_AID_MAX,
   MemoryAidDto,
   SearchLanguageEnum,
+  SearchVocabItemsDto,
   VocabItemDetailedDto,
 } from "@/definitions/definitions";
 
@@ -13,7 +14,7 @@ const searchVocabItemsSchema = z.object({
   query: z.string().min(1),
   searchLanguage: SearchLanguageEnum,
   page: z.number().int().positive().optional().default(1),
-  pageSize: z.number().int().positive().max(10000).optional().default(20),
+  pageSize: z.number().int().positive().max(100).optional().default(20),
 });
 
 export const vocabRouter = {
@@ -26,34 +27,27 @@ export const vocabRouter = {
           .number()
           .int()
           .positive()
-          .max(10000)
+          .max(100)
           .optional()
           .default(20),
       }),
     )
     .output(VocabItemDetailedDto)
     .handler(async ({ input, context }) => {
-      try {
-        // Public endpoint: include the viewer's own private memory aids when
-        // they happen to be signed in, but never anyone else's.
-        const session = await context.cradle.auth.api.getSession({
-          headers: context.headers,
-        });
-        return await context.cradle.vocabService.getVocabItemDetailed({
-          ...input,
-          viewerId: session?.user?.id,
-        });
-      } catch (error) {
-        throw new ORPCError("NOT_FOUND", {
-          message:
-            error instanceof Error ? error.message : "Vocab item not found",
-          cause: error,
-        });
-      }
+      // Public endpoint: include the viewer's own private memory aids when
+      // they happen to be signed in, but never anyone else's.
+      const session = await context.cradle.auth.api.getSession({
+        headers: context.headers,
+      });
+      return await context.cradle.vocabService.getVocabItemDetailed({
+        ...input,
+        viewerId: session?.user?.id,
+      });
     }),
 
   search: commonProcedure
     .input(searchVocabItemsSchema)
+    .output(SearchVocabItemsDto)
     .handler(async ({ input, context }) => {
       return await context.cradle.vocabService.searchVocabItems(input);
     }),
@@ -69,42 +63,24 @@ export const vocabRouter = {
     .input(z.object({ vocabItem: z.string().min(1) }))
     .output(DecompositionGraphDto)
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.vocabService.getDecompositionGraph(
-          input.vocabItem,
-        );
-      } catch (error) {
-        throw new ORPCError("NOT_FOUND", {
-          message:
-            error instanceof Error ? error.message : "Vocab item not found",
-          cause: error,
-        });
-      }
+      return await context.cradle.vocabService.getDecompositionGraph(
+        input.vocabItem,
+      );
     }),
 
   createMemoryAid: authProcedure
     .input(
       z.object({
         vocabItemId: z.string(),
-        memoryAid: z.string().min(1),
+        memoryAid: z.string().trim().min(1).max(MEMORY_AID_MAX),
       }),
     )
     .output(MemoryAidDto)
     .handler(async ({ input, context }) => {
-      try {
-        return await context.cradle.vocabService.createMemoryAid({
-          vocabItemId: input.vocabItemId,
-          userId: context.user.id,
-          memoryAid: input.memoryAid,
-        });
-      } catch (error) {
-        throw new ORPCError("INTERNAL_SERVER_ERROR", {
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to create memory aid",
-          cause: error,
-        });
-      }
+      return await context.cradle.vocabService.createMemoryAid({
+        vocabItemId: input.vocabItemId,
+        userId: context.user.id,
+        memoryAid: input.memoryAid,
+      });
     }),
 };

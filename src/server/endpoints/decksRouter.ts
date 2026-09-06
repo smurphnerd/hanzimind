@@ -1,12 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { ORPCError } from "@orpc/client";
 
 import { authProcedure } from "@/server/endpoints/procedure";
-import { schema } from "@/server/database/schema";
 import {
-  DeckDto,
+  DECK_DESCRIPTION_MAX,
+  DECK_ITEMS_MAX,
+  DECK_NAME_MAX,
   DeckDetailedDto,
+  DeckDto,
   DeckGraphDto,
 } from "@/definitions/definitions";
 
@@ -40,110 +40,15 @@ export const decksRouter = {
   create: authProcedure
     .input(
       z.object({
-        deckName: z.string(),
-        description: z.string(),
-        vocabList: z.array(z.string()),
+        deckName: z.string().trim().min(1).max(DECK_NAME_MAX),
+        description: z.string().trim().max(DECK_DESCRIPTION_MAX),
+        vocabList: z.array(z.string()).max(DECK_ITEMS_MAX),
       }),
     )
-    .output(z.object({ id: z.string() }))
-    .handler(async ({ input, context }) => {
-      const { deckName, description, vocabList } = input;
-      const userId = context.user.id;
-
-      // A disabled glyph is meant to behave as if deleted, so drop it from the
-      // request rather than treating it as missing — it exists, it just cannot
-      // be taught, and trying to "create" a single character throws.
-      const usableVocabItems =
-        await context.cradle.vocabService.getExistingVocabItems(vocabList);
-      const storedVocabItems =
-        await context.cradle.vocabService.getStoredVocabItems(vocabList);
-
-      const requestedVocabList = vocabList.filter(
-        (item) =>
-          !storedVocabItems.includes(item) || usableVocabItems.includes(item),
-      );
-
-      // Find missing vocab items
-      const missingVocabItems = requestedVocabList.filter(
-        (item) => !usableVocabItems.includes(item),
-      );
-
-      // Create missing vocab items with their components
-      for (const vocabItem of missingVocabItems) {
-        try {
-          await context.cradle.vocabService.addVocabItem(vocabItem);
-        } catch (error) {
-          throw new ORPCError("INTERNAL_SERVER_ERROR", {
-            message: `Failed to create vocab item: ${vocabItem}`,
-            cause: error,
-          });
-        }
-      }
-
-      const vocabSet = new Set(requestedVocabList);
-      for (const vocabItem of requestedVocabList) {
-        const components =
-          await context.cradle.vocabService.getVocabItemPartsDeep(vocabItem);
-        components.forEach((component) => {
-          vocabSet.add(component);
-        });
-      }
-
-      // Create the deck
-      const deckId = await context.cradle.database.transaction(async (tx) => {
-        const [deck] = await tx
-          .insert(schema.decks)
-          .values({
-            deckName,
-            description,
-            createdById: userId,
-          })
-          .returning({ id: schema.decks.id });
-
-        if (!deck) {
-          throw new ORPCError("INTERNAL_SERVER_ERROR", {
-            message: "Failed to create deck",
-          });
-        }
-
-        const originalVocabSet = new Set(vocabList);
-
-        if (vocabSet.size > 0) {
-          const vocabItems = await tx
-            .select({
-              id: schema.vocabItems.id,
-              vocabItem: schema.vocabItems.vocabItem,
-            })
-            .from(schema.vocabItems)
-            .where(
-              and(
-                inArray(schema.vocabItems.vocabItem, Array.from(vocabSet)),
-                // Keep disabled items out of deck membership entirely, so nothing
-                // downstream has to filter them back out again.
-                eq(schema.vocabItems.disabled, false),
-              ),
-            );
-
-          if (vocabItems.length > 0) {
-            await tx.insert(schema.deckVocabItems).values(
-              vocabItems.map((item) => {
-                const isConstituent = !originalVocabSet.has(item.vocabItem);
-
-                return {
-                  deckId: deck.id,
-                  vocabItemId: item.id,
-                  isConstituent,
-                };
-              }),
-            );
-          }
-        }
-
-        return deck.id;
-      });
-
-      return { id: deckId };
-    }),
+    .output(z.object({ id: z.string(), skipped: z.array(z.string()) }))
+    .handler(async ({ input, context }) =>
+      context.cradle.deckService.createDeck(context.user.id, input),
+    ),
 
   browse: authProcedure
     .input(browseDecksSchema)
@@ -174,14 +79,7 @@ export const decksRouter = {
     .handler(async ({ input, context }) => {
       const { deckId } = input;
 
-      try {
-        return await context.cradle.deckService.getDeckById({ deckId });
-      } catch (error) {
-        throw new ORPCError("NOT_FOUND", {
-          message: "Deck not found",
-          cause: error,
-        });
-      }
+      return await context.cradle.deckService.getDeckById({ deckId });
     }),
 
   /**

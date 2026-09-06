@@ -4,8 +4,10 @@ import { and, inArray, desc, count, eq, ilike, ne, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
 import { filterDecomposition } from "@/lib/decomposition";
+import { escapeLike } from "@/lib/sql";
 import { readingOf } from "@/server/study-rules";
-import type { Drizzle } from "@/server/database/database";
+import { pageRange } from "@/lib/pagination";
+import type { Drizzle, Executor } from "@/server/database/database";
 import {
   memoryAids,
   schema,
@@ -31,6 +33,11 @@ import {
   VocabItemDetailedDto,
   VocabItemDto,
 } from "@/definitions/definitions";
+import {
+  InvalidInputError,
+  isForeignKeyViolation,
+  NotFoundError,
+} from "@/server/endpoints/errors";
 
 /**
  * The corpus only changes when an admin edits vocabulary, so the index is built
@@ -76,6 +83,26 @@ export function toVocabItemDto(
     updatedAt: row.updatedAt,
   };
 }
+
+/**
+ * A dictionary row a create needs but the dictionary does not hold yet: fully
+ * resolved — translated, transcribed, its audio already uploaded — and written
+ * nowhere.
+ *
+ * The whole point of it being a value rather than a side effect. Resolving one
+ * costs a DeepL call and a speech-synthesis upload, so it cannot happen inside a
+ * transaction; writing one has to happen inside the caller's transaction, or a
+ * create that fails afterwards leaves the learner's words in the shared
+ * dictionary with no deck to reach them from. The type is the seam between
+ * those two halves.
+ */
+export type PreparedVocabItem = {
+  vocabItem: string;
+  translation: string;
+  pinyin: string;
+  vocabType: VocabType;
+  audioUrl: string;
+};
 
 /**
  * ORDER BY terms for a memory-aid list: the starred aid first, then most-used.
@@ -124,7 +151,7 @@ export class VocabService {
     });
 
     if (!vocabItemRes) {
-      throw new Error(`Vocab item not found: ${vocabItem}`);
+      throw new NotFoundError(`Vocab item not found: ${vocabItem}`);
     }
 
     return vocabItemRes;
@@ -262,7 +289,13 @@ export class VocabService {
         memoryAid: args.memoryAid,
         public: args.public ?? false,
       })
-      .returning();
+      .returning()
+      .catch((error: unknown) => {
+        if (isForeignKeyViolation(error)) {
+          throw new NotFoundError("Vocab item not found");
+        }
+        throw error;
+      });
 
     if (!memoryAidRow) {
       throw new Error("Failed to create memory aid");
@@ -296,7 +329,7 @@ export class VocabService {
     });
 
     if (!item) {
-      throw new Error(`Vocab item not found: ${vocabItemId}`);
+      throw new NotFoundError("Vocab item not found");
     }
 
     const defaultMemoryAidId = item.defaultMemoryAidId;
@@ -350,7 +383,9 @@ export class VocabService {
       });
 
       if (!aid) {
-        throw new Error("That memory aid does not belong to this glyph");
+        throw new InvalidInputError(
+          "That memory aid does not belong to this glyph",
+        );
       }
     }
 
@@ -363,120 +398,182 @@ export class VocabService {
   }
 
   /**
-   * Which of these are usable — present and not disabled.
-   *
-   * This is a read-path question. To ask whether a row is physically there
-   * (before inserting, say) use getStoredVocabItems: `vocabItem` is unique, so a
-   * disabled row still occupies its glyph.
+   * A disabled row still occupies its unique glyph, so a write path must not read
+   * it as absent and go off to create it: there is nothing to build a single
+   * character from but the dictionary seed, and resolveNewVocabItem throws.
    */
-  async getExistingVocabItems(vocabList: string[]): Promise<string[]> {
+  async getStoredVocabItems(
+    vocabList: string[],
+  ): Promise<{ vocabItem: string; disabled: boolean }[]> {
     if (vocabList.length === 0) {
       return [];
     }
 
-    const results = await this.deps.database
-      .select({ vocabItem: schema.vocabItems.vocabItem })
+    return this.deps.database
+      .select({
+        vocabItem: schema.vocabItems.vocabItem,
+        disabled: schema.vocabItems.disabled,
+      })
       .from(schema.vocabItems)
-      .where(
-        and(
-          inArray(schema.vocabItems.vocabItem, vocabList),
-          eq(schema.vocabItems.disabled, false),
-        ),
-      );
-
-    return results.map((r) => r.vocabItem);
+      .where(inArray(schema.vocabItems.vocabItem, vocabList));
   }
 
   /**
-   * Which of these rows physically exist, disabled or not.
+   * Resolve every glyph in `vocabList` the dictionary does not already hold,
+   * plus everything those glyphs are written with, and return the rows —
+   * without writing any of them.
    *
-   * Write paths must use this. Treating a disabled row as absent would send a
-   * caller off to create it, and for a single character there is nothing to
-   * create from — the dictionary seed is the only source — so it would throw.
+   * Nothing here writes, so the caller can insert the result inside its own
+   * transaction and have a later failure discard it. That is also what makes the
+   * discarding safe without a "was this ours" filter: a glyph the dictionary
+   * already holds is never prepared, so it is never inserted, so a rollback has
+   * nothing of it to undo. Another learner's word is not spared by a check — it
+   * is out of reach of an operation that never wrote it.
+   *
+   * One membership query per level of the hierarchy, batched across the whole
+   * frontier, rather than one per glyph. Same shape as
+   * resolveConstituentClosure, and for the same reason.
    */
-  async getStoredVocabItems(vocabList: string[]): Promise<string[]> {
-    if (vocabList.length === 0) {
-      return [];
+  async prepareVocabItems(vocabList: string[]): Promise<PreparedVocabItem[]> {
+    const prepared: PreparedVocabItem[] = [];
+    // Every glyph that has reached a frontier, which deduplicates within a level
+    // as well as across them. Two words sharing a part used to be reconciled by
+    // the first one's INSERT being visible to the second one's lookup, and there
+    // are no inserts here to see.
+    const seen = new Set(vocabList);
+    let frontier = Array.from(seen);
+
+    while (frontier.length > 0) {
+      const stored = new Set(
+        (await this.getStoredVocabItems(frontier)).map((row) => row.vocabItem),
+      );
+
+      const next: string[] = [];
+      for (const vocabItem of frontier) {
+        // Already stored — including as a disabled row, which still owns the glyph.
+        if (stored.has(vocabItem)) {
+          continue;
+        }
+
+        const { row, parts } = await this.resolveNewVocabItem(vocabItem);
+        prepared.push(row);
+
+        for (const part of parts) {
+          if (!seen.has(part)) {
+            seen.add(part);
+            next.push(part);
+          }
+        }
+      }
+
+      frontier = next;
     }
 
-    const results = await this.deps.database
-      .select({ vocabItem: schema.vocabItems.vocabItem })
-      .from(schema.vocabItems)
-      .where(inArray(schema.vocabItems.vocabItem, vocabList));
-
-    return results.map((r) => r.vocabItem);
+    return prepared;
   }
 
-  async addVocabItem(vocabItem: string): Promise<void> {
-    try {
-      // Already stored — including as a disabled row, which still owns the glyph.
-      const existing = await this.getStoredVocabItems([vocabItem]);
-      if (existing.length > 0) {
-        return;
-      }
+  /**
+   * Everything the dictionary needs in order to hold a glyph it has never seen,
+   * and the parts that have to be resolved after it.
+   *
+   * Every call that can fail slowly lives here and nowhere else: DeepL for the
+   * gloss, Edge TTS and the S3 upload for the audio. Keeping them out of
+   * insertVocabItems is what lets the insert run on a caller's transaction
+   * without holding one open across a network round trip.
+   */
+  private async resolveNewVocabItem(
+    vocabItem: string,
+  ): Promise<{ row: PreparedVocabItem; parts: string[] }> {
+    // Check if it's a sentence by cutting it
+    const parts = this.deps.translator.cutSentence(vocabItem);
 
-      // Check if it's a sentence by cutting it
-      const parts = this.deps.translator.cutSentence(vocabItem);
+    let componentsToAdd: string[];
+    let translation: string;
+    let vocabType: VocabType;
 
-      let componentsToAdd: string[];
-      let translation: string;
-      let vocabType: VocabType;
-
-      // Is a sentence (multiple parts)
-      if (parts.length > 1) {
-        translation = await this.deps.translator.translateSentence(vocabItem);
-        componentsToAdd = parts;
-        vocabType = VocabTypeEnum.enum.sentence;
-      } else if (vocabItem.length > 1) {
-        // Is a compound word
-        translation = await this.deps.translator.translateSentence(vocabItem);
-        componentsToAdd = vocabItem.split("");
-        vocabType = VocabTypeEnum.enum.compound;
-      } else {
-        // Is a single character should be in the dictionary
-        throw new Error(
-          `Cannot add vocab item with single character: ${vocabItem}`,
-        );
-      }
-
-      const pinyinParts: string[] = [];
-      for (const part of parts) {
-        pinyinParts.push(this.deps.translator.getPinyin(part));
-      }
-      const pinyin = pinyinParts.join(" ");
-
-      if (!pinyin) {
-        throw new Error(`No pinyin found for vocab item: ${vocabItem}`);
-      }
-
-      // Generate audio and get URL
-      const audioUrl = await this.deps.tts.getVocabAudio(vocabItem);
-
-      // Recursively create components
-      for (const component of componentsToAdd) {
-        await this.addVocabItem(component);
-      }
-
-      // Create the vocab item
-      await this.deps.database
-        .insert(schema.vocabItems)
-        .values({
-          vocabItem,
-          translation,
-          pinyin,
-          vocabType,
-          audioUrl,
-        })
-        .returning({ id: schema.vocabItems.id });
-    } catch (error) {
-      this.deps.logger.error(
-        { error, vocabItem },
-        "Error adding vocab item with components",
+    // Is a sentence (multiple parts)
+    if (parts.length > 1) {
+      translation = await this.deps.translator.translateSentence(vocabItem);
+      componentsToAdd = parts;
+      vocabType = VocabTypeEnum.enum.sentence;
+    } else if (vocabItem.length > 1) {
+      // Is a compound word
+      translation = await this.deps.translator.translateSentence(vocabItem);
+      componentsToAdd = vocabItem.split("");
+      vocabType = VocabTypeEnum.enum.compound;
+    } else {
+      // Is a single character should be in the dictionary
+      throw new InvalidInputError(
+        `Cannot add vocab item with single character: ${vocabItem}`,
       );
-      throw error instanceof Error
-        ? error
-        : new Error("Failed to add vocab item with components");
     }
+
+    const pinyinParts: string[] = [];
+    for (const part of parts) {
+      pinyinParts.push(this.deps.translator.getPinyin(part));
+    }
+    const pinyin = pinyinParts.join(" ");
+
+    if (!pinyin) {
+      throw new Error(`No pinyin found for vocab item: ${vocabItem}`);
+    }
+
+    // Generate audio and get URL
+    const audioUrl = await this.deps.tts.getVocabAudio(vocabItem);
+
+    return {
+      row: { vocabItem, translation, pinyin, vocabType, audioUrl },
+      parts: componentsToAdd,
+    };
+  }
+
+  /**
+   * Write prepared rows on the caller's executor, so that when it is a
+   * transaction they live or die with everything else it writes.
+   *
+   * ON CONFLICT DO NOTHING against the unique glyph is the whole of the
+   * concurrency story, and it is deliberately not a retry and not a re-check.
+   * Two creates naming the same new word both prepare it, because neither saw
+   * the other's row when it looked. The first to reach this statement holds an
+   * uncommitted unique-index entry and the second blocks on it rather than
+   * failing. If the first commits, the second's insert resolves to DO NOTHING
+   * and its later read finds the committed row, so one row exists and both decks
+   * point at it. If the first rolls back, the second's insert simply succeeds.
+   * Neither outcome needs a second attempt and neither leaves a duplicate.
+   *
+   * The wait is bounded because this transaction issues no network call, and the
+   * read that follows is a separate statement, so READ COMMITTED — the default,
+   * which nothing here overrides — gives it a snapshot taken after the other
+   * transaction ended. Raising the isolation level would break this: under
+   * REPEATABLE READ the same conflict is a serialization failure instead.
+   *
+   * Deliberately not `.returning()`. That yields only the rows this statement
+   * actually inserted, so deck membership built from it would silently drop the
+   * word a concurrent create won the race for. Membership is resolved by reading
+   * back the glyphs, which finds the row whoever wrote it.
+   *
+   * Sorted by glyph, which is what keeps the waiting above from becoming a
+   * deadlock. A multi-row insert takes its index entries in the order of the
+   * VALUES list, so two creates sharing two new words in opposite orders would
+   * each hold what the other is waiting for and Postgres would kill one of them.
+   * Any order both agree on fixes that; the glyph is the one they both have.
+   */
+  async insertVocabItems(
+    executor: Executor,
+    prepared: PreparedVocabItem[],
+  ): Promise<void> {
+    if (prepared.length === 0) {
+      return;
+    }
+
+    const ordered = [...prepared].sort((a, b) =>
+      a.vocabItem < b.vocabItem ? -1 : a.vocabItem > b.vocabItem ? 1 : 0,
+    );
+
+    await executor
+      .insert(schema.vocabItems)
+      .values(ordered)
+      .onConflictDoNothing({ target: schema.vocabItems.vocabItem });
   }
 
   async searchVocabItems(args: {
@@ -492,13 +589,7 @@ export class VocabService {
     totalPages: number;
   }> {
     const offset = (args.page - 1) * args.pageSize;
-    // Trim stray whitespace and neutralise LIKE wildcards so a query of "%" or
-    // "_" is matched literally instead of matching every row. Backslash is the
-    // default LIKE escape character in Postgres, so it must be escaped first.
-    const escapedQuery = args.query
-      .trim()
-      .replace(/\\/g, "\\\\")
-      .replace(/[%_]/g, (char) => `\\${char}`);
+    const escapedQuery = escapeLike(args.query.trim());
     const searchPattern = `%${escapedQuery}%`;
 
     // Build where clause based on search language. Both the page and the count
@@ -530,7 +621,9 @@ export class VocabService {
     ]);
 
     const total = Number(totalResult);
-    const totalPages = Math.ceil(total / args.pageSize);
+    // Was a bare ceil, so an empty search reported 0 pages while the admin and
+    // suggestion lists reported 1 for the same situation.
+    const totalPages = pageRange(args.page, args.pageSize, total).totalPages;
 
     return {
       items: items.map(toVocabItemDto),
@@ -541,36 +634,62 @@ export class VocabService {
     };
   }
 
-  async getVocabItemPartsDeep(vocabItemStr: string): Promise<string[]> {
-    const partsSet = new Set<string>();
-    await this.getVocabItemPartsDeepRecursive(vocabItemStr, partsSet);
+  /**
+   * Every glyph a deck built from `vocabItems` has to contain: the items
+   * themselves plus their parts, their parts' parts, and so on to the
+   * components.
+   *
+   * One query per level of the hierarchy, batched across every item, rather than
+   * two per glyph visited — so the cost tracks the depth of the hierarchy, which
+   * is four, and not the size of the request.
+   *
+   * Disabled and absent glyphs drop out because the level query selects neither.
+   * Dropping an absent one is a deliberate change: it is a part no learner could
+   * be taught, and it is not reported in `skipped`, which names refused requests.
+   *
+   * Takes an executor because a deck create runs it on the transaction that has
+   * just inserted the words it invented. Those rows are not committed yet, so a
+   * pooled connection would not see them and the deck would be built without the
+   * very glyphs the learner typed.
+   */
+  async resolveConstituentClosure(
+    vocabItems: string[],
+    executor: Executor = this.deps.database,
+  ): Promise<string[]> {
+    const resolved = new Set<string>();
+    let frontier = Array.from(new Set(vocabItems));
 
-    return Array.from(partsSet);
-  }
+    while (frontier.length > 0) {
+      const rows = await executor
+        .select({
+          vocabItem: schema.vocabItems.vocabItem,
+          vocabType: schema.vocabItems.vocabType,
+          decomposition: schema.vocabItems.decomposition,
+        })
+        .from(schema.vocabItems)
+        .where(
+          and(
+            inArray(schema.vocabItems.vocabItem, frontier),
+            eq(schema.vocabItems.disabled, false),
+          ),
+        );
 
-  async getVocabItemPartsDeepRecursive(
-    vocabItemStr: string,
-    partsSet: Set<string>,
-  ) {
-    if (partsSet.has(vocabItemStr)) {
-      return;
+      const next = new Set<string>();
+      for (const row of rows) {
+        resolved.add(row.vocabItem);
+        for (const part of this.rawParts(row)) {
+          next.add(part);
+        }
+      }
+
+      // The only thing standing between this and an infinite walk. Filtering here
+      // rather than as parts are collected is what makes it sufficient on its own:
+      // the whole level is resolved by now, so it also drops a glyph that a later
+      // sibling in this same level turned out to resolve.
+      frontier = Array.from(next).filter((glyph) => !resolved.has(glyph));
     }
-    partsSet.add(vocabItemStr);
 
-    const vocabItem = await this.getVocabItem(vocabItemStr);
-    const parts = await this.getVocabItemParts({
-      vocabItem: vocabItem.vocabItem,
-      vocabType: vocabItem.vocabType,
-      decomposition: vocabItem.decomposition,
-    });
-
-    if (parts.length === 0) {
-      return;
-    }
-
-    for (const part of parts) {
-      await this.getVocabItemPartsDeepRecursive(part, partsSet);
-    }
+    return Array.from(resolved);
   }
 
   async getVocabItemParts({
@@ -588,11 +707,31 @@ export class VocabService {
       decomposition = fullVocabItem.decomposition;
     }
 
+    return this.removeDisabled(
+      this.rawParts({ vocabItem, vocabType, decomposition }),
+    );
+  }
+
+  /**
+   * How a row splits, before anything is dropped for being disabled — the one
+   * place that answers it. getVocabItemParts filters the result with a query;
+   * resolveConstituentClosure gets the same filtering free from the level query
+   * it already ran.
+   */
+  private rawParts({
+    vocabItem,
+    vocabType,
+    decomposition,
+  }: {
+    vocabItem: string;
+    vocabType: VocabType;
+    decomposition?: string | null;
+  }): string[] {
     switch (vocabType) {
       case "sentence":
-        return this.removeDisabled(this.deps.translator.cutSentence(vocabItem));
+        return this.deps.translator.cutSentence(vocabItem);
       case "compound":
-        return this.removeDisabled(vocabItem.split(""));
+        return vocabItem.split("");
       case "character":
         if (!decomposition) {
           this.deps.logger.warn(
@@ -601,7 +740,7 @@ export class VocabService {
           );
           return [];
         }
-        return this.removeDisabled(filterDecomposition(decomposition));
+        return filterDecomposition(decomposition);
       // A component is a bound radical form — the floor of the hierarchy. Whatever
       // strokes it is drawn from are more basic than a radical, so we don't teach
       // them and don't decompose any further.
@@ -637,6 +776,19 @@ export class VocabService {
   }
 
   private indexCache?: { builtAt: number; index: Promise<DecompositionIndex> };
+
+  /**
+   * Drops the cached index so the next graph is built from current rows.
+   *
+   * The TTL exists because the corpus only changes when an admin edits
+   * vocabulary — but then it does change, and the admin is the one person
+   * looking at the result. Called by AdminService after a write, so a glyph
+   * disabled in /admin/vocab is gone from its parent's graph on the next look
+   * rather than up to five minutes later.
+   */
+  invalidateDecompositionIndex(): void {
+    this.indexCache = undefined;
+  }
 
   /**
    * One hop of the decomposition graph around a glyph, uncapped.

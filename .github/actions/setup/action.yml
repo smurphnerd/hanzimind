@@ -1,0 +1,12 @@
+name: Setup
+description: Install the Node in .nvmrc, the pnpm in package.json, and the dependencies in pnpm-lock.yaml
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

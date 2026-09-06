@@ -9,7 +9,16 @@ export function AppToaster() {
 
   return (
     <Toaster
-      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      // Undefined until next-themes resolves, and forcing "light" in that gap
+      // paints a light toast over a dark page. "system" matches the media query
+      // the blocking script already used.
+      theme={
+        resolvedTheme === "dark"
+          ? "dark"
+          : resolvedTheme === "light"
+            ? "light"
+            : "system"
+      }
       className="toaster"
       style={
         {

@@ -57,4 +57,16 @@ class PinoDrizzleLogger implements DrizzleLogger {
 }
 
 export type Drizzle = ReturnType<typeof getDatabase>;
-export type Transaction = Parameters<Parameters<Drizzle["transaction"]>[0]>[0];
+
+/**
+ * Anything a query can be issued against: the pool-backed database, or a
+ * transaction open on it.
+ *
+ * Exists so a write can be handed the caller's transaction instead of quietly
+ * opening its own connection. A method that takes the pool directly commits the
+ * moment it returns, which is what left a failed deck create's words sitting in
+ * the shared dictionary forever.
+ */
+export type Executor =
+  | Drizzle
+  | Parameters<Parameters<Drizzle["transaction"]>[0]>[0];

@@ -9,9 +9,11 @@ import {
 } from "@orpc/tanstack-query";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { createContext, type ReactNode, use, useState } from "react";
+import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
+import { authClient } from "@/lib/authClient";
 import { makeQueryClient } from "@/lib/queryClient";
+import { createUserChangeReset } from "@/lib/query-reset";
 import type { appRouter } from "@/server/endpoints/router";
 
 let clientQueryClientSingleton: QueryClient | undefined;
@@ -50,10 +52,20 @@ export function ApiClientProvider(props: {
     ),
   );
   const [orpc] = useState(() => createTanstackQueryUtils(client));
+  const [resetOnUserChange] = useState(() =>
+    createUserChangeReset(queryClient),
+  );
+  const { data: session, isPending } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
+
+  useEffect(() => {
+    if (isPending) return;
+    resetOnUserChange(userId);
+  }, [isPending, userId, resetOnUserChange]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ReactQueryDevtools />
+      {process.env.NODE_ENV === "development" && <ReactQueryDevtools />}
       <ORPCContext.Provider value={orpc}>{props.children}</ORPCContext.Provider>
     </QueryClientProvider>
   );

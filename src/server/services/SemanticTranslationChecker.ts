@@ -63,6 +63,19 @@ export class SemanticTranslationChecker implements ITranslationChecker {
     }
   }
 
+  /**
+   * The model is ~90 MB and takes about five seconds to load, and the first
+   * answer that reaches this checker pays all of it. Warming at boot moves that
+   * cost off a learner's first wrong answer.
+   *
+   * Never throws: getExtractor already degrades to lexical-only grading when
+   * the model cannot be loaded, and a failed warm-up must not be louder than a
+   * failed check.
+   */
+  async warmUp(): Promise<void> {
+    await this.getExtractor();
+  }
+
   private async embed(text: string): Promise<Float32Array | null> {
     const extractor = (await this.getExtractor()) as
       | ((
@@ -137,6 +150,10 @@ export class CompositeTranslationChecker implements ITranslationChecker {
     private primary: ITranslationChecker,
     private fallback: ITranslationChecker,
   ) {}
+
+  async warmUp(): Promise<void> {
+    await Promise.all([this.primary.warmUp?.(), this.fallback.warmUp?.()]);
+  }
 
   async getSimilarityScore(
     userAnswer: string,

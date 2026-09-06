@@ -7,10 +7,10 @@ import {
   createContainer,
   InjectionMode,
 } from "awilix";
-import { type Logger, pino } from "pino";
-import pinoPretty from "pino-pretty";
+import { type Logger } from "pino";
 
 import { type Auth, getAuth } from "@/server/auth";
+import { createLogger } from "@/server/logger";
 import { type Drizzle, getDatabase } from "@/server/database/database";
 import {
   type EmailAdapter,
@@ -60,13 +60,10 @@ export const container = createContainer<Cradle>({
 
 if (process.env.NODE_ENV !== "test") {
   const env = await import("@/env").then((mod) => mod.env);
-  const logger = pino(
-    {
-      level: env.LOG_LEVEL ?? "info",
-    },
-    env.NODE_ENV === "development" ? pinoPretty() : undefined,
-  ).child({
-    GIT_SHA: env.GIT_SHA,
+  const logger = createLogger({
+    level: env.LOG_LEVEL,
+    pretty: env.NODE_ENV === "development",
+    gitSha: env.GIT_SHA,
   });
 
   container.register({
@@ -77,13 +74,15 @@ if (process.env.NODE_ENV !== "test") {
     database: asFunction((deps: Cradle) =>
       getDatabase(deps.logger, env.DATABASE_URL),
     ).singleton(),
+    // Must be a singleton: a fresh better-auth instance per resolution rebuilds
+    // its adapter and plugin chain on every request that reads a session.
     auth: asFunction((deps: Cradle) =>
       getAuth(deps, {
         authSecret: env.AUTH_SECRET,
         baseUrl: env.BASE_URL,
         systemEmailFrom: env.SYSTEM_EMAIL_FROM,
       }),
-    ),
+    ).singleton(),
     storage: asFunction(() => new S3StorageAdapter(env.S3_OPTIONS)).singleton(),
     email:
       env.EMAIL_CONNECTION_URL === "ses"

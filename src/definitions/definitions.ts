@@ -1,13 +1,48 @@
-import { z } from "zod/v4";
+import { z } from "@/lib/zod-jitless";
 
-export const studyTypeValues = [
+const studyTypeValues = [
   "reading",
   "listening",
   "understanding",
   "writing",
 ] as const;
+export type StudyType = (typeof studyTypeValues)[number];
 export const StudyTypeEnum = z.enum(studyTypeValues);
-export type StudyType = z.infer<typeof StudyTypeEnum>;
+export const STUDY_TYPES: readonly StudyType[] = studyTypeValues;
+
+/** Where one study type stands for one learner against one item. */
+export const StudyProgressEntryDto = z.object({
+  level: z.number().int().nonnegative(),
+  /** Null when the type has never been scheduled, which reads as due now. */
+  nextAt: z.date().nullable(),
+});
+export type StudyProgressEntryDto = z.infer<typeof StudyProgressEntryDto>;
+
+/**
+ * A learner's standing against one item, per study type.
+ *
+ * Total rather than partial: every type is always present, so a reader never
+ * has to remember what a missing key means. The storage underneath is sparse —
+ * `user_study_progress` holds a row only once a type has been answered — and
+ * `emptyStudyProgress` is the value that absence stands for.
+ */
+export const StudyProgressDto = z.object({
+  reading: StudyProgressEntryDto,
+  listening: StudyProgressEntryDto,
+  understanding: StudyProgressEntryDto,
+  writing: StudyProgressEntryDto,
+});
+export type StudyProgressDto = z.infer<typeof StudyProgressDto>;
+
+/** Never answered: level 0, due immediately. What a missing row means. */
+export function emptyStudyProgress(): StudyProgressDto {
+  return {
+    reading: { level: 0, nextAt: null },
+    listening: { level: 0, nextAt: null },
+    understanding: { level: 0, nextAt: null },
+    writing: { level: 0, nextAt: null },
+  };
+}
 
 // Ordered largest to smallest. `component` is a bound radical form (亻, 氵, ⺮) —
 // a graphical part of a character that is never typed as a word on its own.
@@ -33,13 +68,7 @@ const scriptValues = ["simplified", "traditional", "both"] as const;
 export const ScriptEnum = z.enum(scriptValues);
 export type Script = z.infer<typeof ScriptEnum>;
 
-const etymologyTypeValues = [
-  "ideographic",
-  "pictographic",
-  "pictophonetic",
-] as const;
-export const EtymologyTypeEnum = z.enum(etymologyTypeValues);
-export type EtymologyType = z.infer<typeof EtymologyTypeEnum>;
+export type EtymologyType = "ideographic" | "pictographic" | "pictophonetic";
 
 export const MemoryAidDto = z.object({
   id: z.string(),
@@ -135,6 +164,15 @@ export const AdminVocabCountDto = z.object({
   count: z.number().int().nonnegative(),
 });
 export type AdminVocabCountDto = z.infer<typeof AdminVocabCountDto>;
+
+export const SearchVocabItemsDto = z.object({
+  items: z.array(VocabItemDto),
+  total: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+  totalPages: z.number(),
+});
+export type SearchVocabItemsDto = z.infer<typeof SearchVocabItemsDto>;
 
 export const VocabItemDetailedDto = VocabItemDto.extend({
   memoryAids: z.array(MemoryAidDto).nullable(),
@@ -287,16 +325,11 @@ export const VocabItemStudyDto = z.discriminatedUnion("studyType", [
 ]);
 export type VocabItemStudyDto = z.infer<typeof VocabItemStudyDto>;
 
-export const StudyAnswerDto = z
-  .object({
-    vocabItemId: z.string(),
-  })
-  .extend({
-    userId: z.string(),
-    deckId: z.string(),
-    studyType: z.enum([...studyTypeValues, "new"]),
-    answer: z.string(),
-  });
+export const StudyAnswerDto = z.object({
+  vocabItemId: z.string(),
+  studyType: z.enum([...studyTypeValues, "new"]),
+  answer: z.string(),
+});
 export type StudyAnswerDto = z.infer<typeof StudyAnswerDto>;
 
 /** How many non-disabled items a deck holds, split by type. */
@@ -349,34 +382,13 @@ export const DeckDetailedDto = DeckDto.extend({
 });
 export type DeckDetailedDto = z.infer<typeof DeckDetailedDto>;
 
-// User deck relationship schema
-export const UserDeckDto = z.object({
-  userId: z.string(),
-  deckId: z.string(),
-  includeConstituents: z.boolean(),
-  readingEnabled: z.boolean(),
-  listeningEnabled: z.boolean(),
-  understandingEnabled: z.boolean(),
-  writingEnabled: z.boolean(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-export type UserDeckDto = z.infer<typeof UserDeckDto>;
-
 export const UserVocabItemDto = VocabItemDto.extend({
   userId: z.string(),
   username: z.string(),
   seen: z.boolean(),
-  readingLevel: z.number(),
-  listeningLevel: z.number(),
-  understandingLevel: z.number(),
-  writingLevel: z.number(),
+  progress: StudyProgressDto,
   memoryAidId: z.string().nullable(),
   memoryAid: z.string().nullable(),
-  readingNextAt: z.date().nullable(),
-  listeningNextAt: z.date().nullable(),
-  understandingNextAt: z.date().nullable(),
-  writingNextAt: z.date().nullable(),
   /** See VocabItemStudyNewDto.constituents — resolved server-side, disabled parts removed. */
   constituents: z.array(z.string()),
 });
@@ -412,7 +424,7 @@ export type DeckProgressDto = z.infer<typeof DeckProgressDto>;
 // Suggestions (learner-reported corrections, reviewed in the admin screen)
 // ---------------------------------------------------------------------------
 
-export const suggestionKindValues = [
+const suggestionKindValues = [
   "translation",
   "pinyin",
   "decomposition",
@@ -423,12 +435,29 @@ export const suggestionKindValues = [
 export const SuggestionKindEnum = z.enum(suggestionKindValues);
 export type SuggestionKind = z.infer<typeof SuggestionKindEnum>;
 
-export const suggestionStatusValues = ["open", "resolved", "rejected"] as const;
+const suggestionStatusValues = ["open", "resolved", "rejected"] as const;
 export const SuggestionStatusEnum = z.enum(suggestionStatusValues);
 export type SuggestionStatus = z.infer<typeof SuggestionStatusEnum>;
 
 /** Free text a learner types when reporting a problem. */
 export const SUGGESTION_BODY_MAX = 1000;
+
+export const MEMORY_AID_MAX = 1000;
+
+export const DECK_NAME_MAX = 80;
+export const DECK_DESCRIPTION_MAX = 500;
+/**
+ * How many glyphs one deck create may name.
+ *
+ * Also, at present, what keeps the create under Postgres's 65,535 bound
+ * parameters per statement. `VocabService.insertVocabItems` sends every word a
+ * create invented as ONE multi-row INSERT at 7 parameters a row, so it fails
+ * above about 9,362 new rows in a single create — unreachable from 200 words,
+ * whose parts are already in the dictionary, and unreachable in practice
+ * because resolving that many new words would take over an hour of DeepL and
+ * speech synthesis first. Raising this materially means chunking that insert.
+ */
+export const DECK_ITEMS_MAX = 200;
 
 /**
  * How many suggestions one account may file per hour. Enforced by counting the

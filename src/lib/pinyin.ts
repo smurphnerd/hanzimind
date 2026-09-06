@@ -12,6 +12,8 @@
  * happens there. `nǚ` and `nv3` both become `nv3`.
  */
 
+import pinyinTone from "pinyin-tone";
+
 /** Combining tone marks (NFD) → tone number. */
 const TONE_MARKS: Record<string, string> = {
   "̄": "1", // macron   ā
@@ -69,13 +71,13 @@ function split(input: string): { letters: string; tones: string } {
   return { letters, tones };
 }
 
-export function canonicalPinyin(input: string): string {
+function canonicalPinyin(input: string): string {
   const { letters, tones } = split(input);
   return tones ? `${letters}|${tones}` : letters;
 }
 
 /** Canonical form with tone information removed. */
-export function canonicalPinyinToneless(input: string): string {
+function canonicalPinyinToneless(input: string): string {
   return split(input).letters;
 }
 
@@ -101,4 +103,17 @@ export function pinyinMatches(
   }
 
   return false;
+}
+
+/**
+ * Fold one keystroke of typed pinyin into the accented form the learner sees.
+ *
+ * Called on every change of the answer field, so it has to survive a
+ * half-typed syllable. `pinyin-tone` turns "hao3" into "hǎo", but it converts
+ * "v" to "ü" as soon as it is typed — before the tone digit arrives — and it
+ * cannot then put a tone mark on a "ü". Folding ü back to v first is what
+ * makes "nv3" land as "nǚ" rather than sticking at "ü3".
+ */
+export function foldPinyinInput(typed: string): string {
+  return pinyinTone(typed.replace(/ü/g, "v")) as string;
 }

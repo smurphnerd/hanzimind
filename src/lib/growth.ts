@@ -1,4 +1,4 @@
-export type GrowthStageKey =
+type GrowthStageKey =
   | "none"
   | "seedling"
   | "sprout"
@@ -6,7 +6,7 @@ export type GrowthStageKey =
   | "blooming"
   | "evergreen";
 
-export interface GrowthStage {
+interface GrowthStage {
   key: GrowthStageKey;
   index: number; // 0..5
   label: string;

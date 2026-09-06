@@ -6,15 +6,13 @@
  */
 import fs, { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pino } from "pino";
 
-import { getDatabase } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import { TranslatorService } from "@/server/services/TranslatorService";
 import { TTSService } from "@/server/services/TTSService";
 import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
-import { envSchema } from "@/env-utils";
+import { bootstrap } from "./bootstrap";
 import type { EtymologyType } from "@/definitions/definitions";
 
 // Common HSK1-level characters worth studying.
@@ -116,12 +114,7 @@ interface GraphicsEntry {
 }
 
 async function main() {
-  const env = envSchema.parse({
-    ...process.env,
-    NODE_ENV: process.env.NODE_ENV,
-  });
-  const logger = pino({ level: "warn" });
-  const database = getDatabase(logger, env.DATABASE_URL);
+  const { env, logger, database } = bootstrap({ level: "warn" });
   const storage = new S3StorageAdapter(env.S3_OPTIONS);
   const translator = new TranslatorService(
     { logger },

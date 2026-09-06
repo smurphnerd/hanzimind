@@ -127,17 +127,19 @@ export function Mika({ pose = "wave", size = 96, ...props }: MikaProps) {
         strokeLinecap="round"
       />
 
+      {/* Drawn rather than set as <text>. The svg carries role="img" and a
+          label, so a screen reader always announced "Mika the red panda" and
+          never the letter, but a text node still lands in the page's extracted
+          text, which put a stray "z" in every empty state. */}
       {sleeping && (
-        <text
-          x="96"
-          y="30"
-          fontSize="14"
-          fontWeight="700"
-          fill={furDark}
-          fontFamily="var(--font-display), sans-serif"
-        >
-          z
-        </text>
+        <path
+          d="M90 20h11l-11 12h11"
+          stroke={furDark}
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
       )}
     </svg>
   );

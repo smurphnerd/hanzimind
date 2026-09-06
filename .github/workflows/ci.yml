@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main, hygiene]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm test:ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-junit
+          path: test-results/vitest/junit.xml
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GIT_SHA: ${{ github.sha }}
+      BASE_URL: http://localhost:3000
+      DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+      S3_OPTIONS: '{"endpoint":"http://localhost:9090","region":"us-east-1","bucketName":"ci","forcePathStyle":true}'
+      EMAIL_CONNECTION_URL: smtp://localhost:1025
+      AUTH_SECRET: ci
+      SYSTEM_EMAIL_FROM: ci@example.com
+      DEEPL_API_KEY: ci
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "1"
+      E2E_AUDIO: "0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Make Google TTS unreachable
+        run: echo "127.0.0.1 translate.google.com" | sudo tee -a /etc/hosts
+      - name: Run the suite on lane 0
+        run: pnpm test-e2e
+      # The lane's own logs, which are where an e2e failure is usually explained:
+      # dev.log, db-push.log and seed.log. Without them a red run offers a
+      # browser screenshot for a fault that happened at boot.
+      #
+      # `.env.lane` carries a generated AUTH_SECRET and is excluded twice over.
+      # The negation is the exclusion that does the work; `include-hidden-files`
+      # defaulting to false is the second layer, since the file is a dotfile.
+      # Checked against @actions/glob 0.5.0 and 0.5.1, the range
+      # `actions/upload-artifact@v4` pins: with hidden files forced back on, the
+      # negation alone still drops every lane's `.env.lane` and keeps the logs.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: |
+            test-results/playwright
+            !test-results/playwright/learner-state.json
+            development/lanes
+            !development/lanes/*/.env.lane
+      - name: Tear the lane down
+        if: always()
+        run: .claude/skills/verify-hanzimind/scripts/lane-down.sh 0

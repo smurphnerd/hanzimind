@@ -1,8 +1,10 @@
 import "server-only";
 
-import { and, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, eq, ilike, or, sql } from "drizzle-orm";
 import type { Logger } from "pino";
 
+import { escapeLike } from "@/lib/sql";
+import { pageRange } from "@/lib/pagination";
 import type { Drizzle } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import {
@@ -10,6 +12,8 @@ import {
   type Script,
   type VocabType,
 } from "@/definitions/definitions";
+import { InvalidInputError, NotFoundError } from "@/server/endpoints/errors";
+import type { VocabService } from "@/server/services/VocabService";
 
 /**
  * Reads and writes the vocabulary classification for the admin screen.
@@ -24,6 +28,7 @@ export class AdminService {
     private deps: {
       logger: Logger;
       database: Drizzle;
+      vocabService: VocabService;
     },
   ) {}
 
@@ -80,11 +85,7 @@ export class AdminService {
 
     const search = args.search?.trim();
     if (search) {
-      // Neutralise LIKE wildcards so a query of "%" matches literally rather
-      // than every row. Backslash is Postgres's default escape, so it goes first.
-      const pattern = `%${search
-        .replace(/\\/g, "\\\\")
-        .replace(/[%_]/g, (char) => `\\${char}`)}%`;
+      const pattern = `%${escapeLike(search)}%`;
 
       filters.push(
         or(
@@ -132,7 +133,7 @@ export class AdminService {
       total,
       page: args.page,
       pageSize: args.pageSize,
-      totalPages: Math.max(1, Math.ceil(total / args.pageSize)),
+      totalPages: pageRange(args.page, args.pageSize, total).totalPages,
     };
   }
 
@@ -167,7 +168,7 @@ export class AdminService {
     });
 
     if (!existing) {
-      throw new Error(`Vocab item not found: ${args.id}`);
+      throw new NotFoundError("Vocab item not found");
     }
 
     const update: {
@@ -188,7 +189,7 @@ export class AdminService {
     if (args.translation !== undefined) {
       const translation = args.translation.trim();
       if (translation.length === 0) {
-        throw new Error(
+        throw new InvalidInputError(
           `Refusing to clear the definition of ${existing.vocabItem}: every component is quizzed on its meaning`,
         );
       }
@@ -244,36 +245,16 @@ export class AdminService {
         radical: schema.vocabItems.radical,
       });
 
+    // Every column this can write is one the decomposition index carries, and
+    // the index is cached for five minutes. The admin who just made the edit is
+    // the person about to look at the graph, so invalidate rather than let them
+    // watch a stale one and conclude the edit did not take.
+    this.deps.vocabService.invalidateDecompositionIndex();
+
     this.deps.logger.info(
       { vocabItem: existing.vocabItem, update },
       "Admin updated a vocab item",
     );
-
-    return updated;
-  }
-
-  /** Bulk reclassification, for fixing a batch of glyphs in one go. */
-  async setVocabType(args: {
-    ids: string[];
-    vocabType: VocabType;
-  }): Promise<number> {
-    if (args.ids.length === 0) return 0;
-
-    const rows = await this.deps.database
-      .select({
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        vocabType: schema.vocabItems.vocabType,
-      })
-      .from(schema.vocabItems)
-      .where(inArray(schema.vocabItems.id, args.ids));
-
-    let updated = 0;
-    for (const row of rows) {
-      if (row.vocabType === args.vocabType) continue;
-      await this.updateVocabItem({ id: row.id, vocabType: args.vocabType });
-      updated++;
-    }
 
     return updated;
   }

@@ -1,17 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { MemoryAidForm } from "@/components/memory-aid-form";
 import { useORPC } from "@/lib/orpc.client";
 
 interface CreateMemoryAidDialogProps {
@@ -29,29 +26,20 @@ export function CreateMemoryAidDialog({
 }: CreateMemoryAidDialogProps) {
   const orpc = useORPC();
   const queryClient = useQueryClient();
-  const [memoryAidText, setMemoryAidText] = useState("");
 
   const createMemoryAidMutation = useMutation(
     orpc.vocab.createMemoryAid.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({
+        // Not awaited: the dialog used to stay open until the entry had
+        // refetched, which made a slow read look like a slow write and a failed
+        // one look like the aid had not saved.
+        void queryClient.invalidateQueries({
           queryKey: orpc.vocab.get.queryKey({ input: { vocabItem } }),
         });
-        setMemoryAidText("");
         onOpenChange(false);
       },
     }),
   );
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (memoryAidText.trim()) {
-      createMemoryAidMutation.mutate({
-        vocabItemId,
-        memoryAid: memoryAidText.trim(),
-      });
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,39 +51,16 @@ export function CreateMemoryAidDialog({
             personal use.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <Textarea
-              placeholder="Enter your memory aid..."
-              value={memoryAidText}
-              onChange={(e) => setMemoryAidText(e.target.value)}
-              rows={5}
-              className="resize-none"
-            />
-          </div>
-          {createMemoryAidMutation.error && (
-            <div className="mb-4 text-sm text-destructive">
-              {createMemoryAidMutation.error.message}
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                !memoryAidText.trim() || createMemoryAidMutation.isPending
-              }
-            >
-              {createMemoryAidMutation.isPending ? "Creating..." : "Create"}
-            </Button>
-          </DialogFooter>
-        </form>
+        <MemoryAidForm
+          onSubmit={(memoryAid) =>
+            createMemoryAidMutation.mutate({ vocabItemId, memoryAid })
+          }
+          isPending={createMemoryAidMutation.isPending}
+          error={createMemoryAidMutation.error}
+          submitLabel="Create"
+          placeholder="Enter your memory aid..."
+          onCancel={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );

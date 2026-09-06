@@ -1,0 +1,226 @@
+1|丶|dot
+2|一|one
+3|丨|down
+4|丿|left
+5|乛|“back-turned stroke”
+6|𠃌|“top of 刁”
+7|乙|twist
+8|冫|ice
+9|亠|lid
+10|讠|side-words
+11|二|two
+12|十|ten
+13|厂|slope
+14|𠂇|“top of 左”
+15|匚|basket
+16|卜|divine
+17|刂|side-knife
+18|冖|crown
+19|冂|borders
+20|𠂉|“top of 每”
+21|亻|side-man
+22|厂|“top of 盾”
+23|人|(入) person (enter)
+24|八|() eight
+25|乂|“bottom of 义”
+26|勹|wrap
+27|刀|(夕) knife (--)
+28|力|strength
+29|儿|son
+30|几|table
+31|龴|“top of 予”
+32|卩|seal
+33|阝|(on the left of characters) mound (“left ear”)
+34|阝|(on the right of characters) city (“right ear”)
+35|又|right hand
+36|廴|march
+37|厶|nose
+38|凵|bowl
+39|匕|ladle
+40|氵|“three-dots water”
+41|忄|side-heart
+42|丬|bed
+43|亡|to flee
+44|广|lean-to
+45|宀|roof
+46|门|gate
+47|辶|halt
+48|工|work
+49|土|(士) earth (knight)
+50|艹|grass
+51|廾|clasp
+52|大|big
+53|尢|lame
+54|寸|thumb
+55|扌|side-hand
+56|弋|dart
+57|巾|cloth
+58|口|mouth
+59|囗|surround
+60|山|mountain
+61|屮|sprout
+62|彳|step
+63|彡|streaks
+64|夕|dusk
+65|夂|follow, slow
+66|丸|bullet
+67|尸|corpse
+68|饣|side-food
+69|犭|(side-) dog
+70|彐|pig’s head
+71|弓|bow
+72|己|(巳) self (--)
+73|女|woman
+74|子|(孑) child (--)
+75|马|horse
+76|幺|coil
+77|纟|silk
+78|巛|river
+79|小|small
+80|灬|“fire-dots”
+81|心|heart
+82|斗|peck
+83|火|fire
+84|文|pattern
+85|方|square
+86|户|door
+87|礻|side-sign
+88|王|king
+89|龶|“top of 青”
+90|天|(夭) heaven (tender)
+91|韦|walk off
+92|耂|“top of 老”
+93|廿|twenty
+94|木|tree
+95|不|not
+96|犬|dog
+97|歹|chip
+98|瓦|tile
+99|牙|tooth
+100|车|car
+101|戈|lance
+102|止|toe
+103|日|sun
+104|曰|say
+105|中|middle
+106|贝|cowrie
+107|见|see
+108|父|father
+109|气|breath
+110|牛|cow
+111|手|hand
+112|毛|fur
+113|攵|knock
+114|片|slice
+115|斤|ax
+116|爪|claws
+117|尺|foot (length)
+118|月|moon/meat
+119|殳|club
+120|欠|yawn
+121|风|wind
+122|氏|clan
+123|比|compare
+124|肀|“top of 聿”
+125|水|water
+126|立|stand
+127|疒|sick
+128|穴|cave
+129|衤|side-gown
+130|𡗗|“top of 春”
+131|玉|jade
+132|示|sign
+133|去|go
+134|龸|“top of 劳”
+135|甘|sweet
+136|石|rock
+137|龙|dragon
+138|戊|halberd
+139|⺌|“top of 常”
+140|业|business
+141|目|eye
+142|田|field
+143|由|from
+144|申|stretch
+145|罒|net
+146|皿|dish
+147|钅|side-gold
+148|矢|arrow
+149|禾|grain
+150|白|white
+151|瓜|melon
+152|鸟|bird
+153|皮|skin
+154|癶|back
+155|矛|spear
+156|疋|bolt
+157|羊|sheep
+158|龹|roll
+159|米|rice
+160|齐|line-up
+161|衣|gown
+162|亦|(亦) also
+163|耳|ear
+164|臣|bureaucrat
+165|𢌗|“top of 栽”
+166|襾|(西) cover (west)
+167|朿|thorn
+168|亚|inferior
+169|而|beard
+170|页|head
+171|至|reach
+172|光|light
+173|虍|tiger
+174|虫|bug
+175|缶|crock
+176|耒|plow
+177|舌|tongue
+178|竹|bamboo
+179|臼|mortar
+180|自|small nose
+181|血|blood
+182|舟|boat
+183|羽|wings
+184|艮|stubborn
+185|言|words
+186|辛|bitter
+187|辰|early
+188|麦|wheat
+189|走|walk
+190|赤|red
+191|豆|flask
+192|束|bundle
+193|酉|wine
+194|豕|pig
+195|里|village
+196|足|foot
+197|采|cull
+198|豸|snake
+199|谷|valley
+200|身|torso
+201|角|horn
+202|青|green
+203|龺|“side of 朝”
+204|雨|rain
+205|非|wrong
+206|齿|teeth
+207|黾|toad
+208|隹|dove
+209|金|gold
+210|鱼|fish
+211|音|tone
+212|革|hide
+213|是|be
+214|骨|bone
+215|香|scent
+216|鬼|ghost
+217|食|food
+218|高|tall
+219|鬲|cauldron
+220|髟|hair
+221|麻|hemp
+222|鹿|deer
+223|黑|black
+224|鼓|drum
+225|鼠|mouse
+226|鼻|big nose

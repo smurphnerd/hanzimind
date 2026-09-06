@@ -44,8 +44,6 @@ ttsProvider: asFunction(
 ## Current Providers
 
 - **GoogleTTSAPIProvider** - Uses google-tts-api package (free, reliable, no auth required) - **DEFAULT**
-- **GoogleTTSProvider** - Uses node-gtts package (free, alternative Google TTS implementation)
-- **MsEdgeTTSProvider** - Uses Microsoft Edge's TTS API (free, but can have connection issues)
 
 ## Future Provider Ideas
 

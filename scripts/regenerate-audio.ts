@@ -17,15 +17,13 @@
  *   --force    regenerate even if the object already exists
  */
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
-import { pino } from "pino";
 import { and, eq, ne, or } from "drizzle-orm";
 
-import { getDatabase } from "@/server/database/database";
 import { schema } from "@/server/database/schema";
 import { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import { TTSService } from "@/server/services/TTSService";
 import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
-import { envSchema } from "@/env-utils";
+import { bootstrap } from "./bootstrap";
 
 /** Concurrent TTS+upload operations. Audio generation is ~325ms each. */
 const BATCH_SIZE = 12;
@@ -34,12 +32,7 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const force = process.argv.includes("--force");
 
-  const env = envSchema
-    .pick({ DATABASE_URL: true, S3_OPTIONS: true })
-    .parse(process.env);
-
-  const logger = pino({ level: "warn" });
-  const database = getDatabase(logger, env.DATABASE_URL);
+  const { env, logger, database } = bootstrap({ level: "warn" });
   const storage = new S3StorageAdapter(env.S3_OPTIONS);
 
   const publicUrl =

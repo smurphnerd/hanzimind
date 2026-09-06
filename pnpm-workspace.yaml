@@ -9,14 +9,19 @@
 # true if a package turns out to need its native build step on your platform.
 allowBuilds:
   "@parcel/watcher": false
+  # Only fetches the sentry-cli binary, which uploads source maps through
+  # withSentryConfig. This app initialises the SDK directly and never calls it.
+  "@sentry/cli": false
   "@swc/core": false
   bufferutil: false
-  cpu-features: false
   esbuild: false
-  msedge-tts: false
   onnxruntime-node: false
   protobufjs: false
   sharp: false
-  ssh2: false
   unrs-resolver: false
   utf-8-validate: false
+
+overrides:
+  "google-tts-api>axios": "^1.20.0"
+  "onnxruntime-node>adm-zip": ">=0.6.0"
+  "@huggingface/transformers>sharp": ">=0.35.0"

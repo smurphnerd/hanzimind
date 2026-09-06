@@ -1,40 +1,18 @@
-import { pino } from "pino";
-import pinoPretty from "pino-pretty";
+import { seedDataMigrations } from "./seed-data-migrations";
 import { seedDictionary } from "./seed-dictionary";
-import { getDatabase } from "../database";
+import { seedTestUsers } from "./seed-test-users";
 import { TranslatorService } from "../../services/TranslatorService";
 import { TTSService } from "../../services/TTSService";
 import { S3StorageAdapter } from "../../services/S3StorageAdapter";
-import { envSchema } from "@/env-utils";
+import { bootstrap } from "../../../../scripts/bootstrap";
 
 async function main() {
-  // Use environment variables directly
-  console.log("Loading environment variables...");
-  const env = envSchema.parse({
-    ...process.env,
-    NODE_ENV: process.env.NODE_ENV,
-  });
-
-  console.log("Creating logger...");
-  // Create logger
-  const logger = pino(
-    {
-      // LOG_LEVEL is optional in the env schema and pino rejects undefined.
-      level: env.LOG_LEVEL ?? "info",
-    },
-    env.NODE_ENV === "development" ? pinoPretty() : undefined,
-  ).child({
-    GIT_SHA: env.GIT_SHA,
-  });
-  console.log("Logger created");
+  const { env, logger, database } = bootstrap();
 
   try {
     logger.info("Starting database seeding");
 
     // Manually create dependencies for seeding
-    logger.info("Creating database connection...");
-    const database = getDatabase(logger, env.DATABASE_URL);
-
     logger.info("Creating S3 storage adapter...");
     const storage = new S3StorageAdapter(env.S3_OPTIONS);
 
@@ -66,8 +44,30 @@ async function main() {
       tts,
     };
 
+    // FIRST, before anything else writes. The claim is "this database never had
+    // the old shape and so never needed the copy", and at this instant that is
+    // decidable: nothing in this run has touched the database yet.
+    //
+    // It used to run last, and that was wrong in a way only a kill proved.
+    // `seedDictionary` commits in batches, so a first seed interrupted partway
+    // leaves a populated dictionary and no marker. A learner could then answer a
+    // card, which shuts the window for good, and a database that never had a
+    // legacy column would be told to restore a snapshot of a migration it never
+    // ran. Running first makes the ordering irrelevant: an interrupted seed
+    // leaves a marker and a partial dictionary, and the marker is still true.
+    const dataMigrations = await seedDataMigrations(database);
+    logger.info(
+      { dataMigrations },
+      "Recorded the data moves this database was born past",
+    );
+
     logger.info("Starting dictionary seeding...");
     await seedDictionary(seedCradle);
+    const testUsers = await seedTestUsers(database, {
+      SEED_TEST_USER: process.env.SEED_TEST_USER,
+      NODE_ENV: env.NODE_ENV,
+    });
+    logger.info({ testUsers }, "Seeded test users");
     logger.info("Database seeding completed successfully");
     process.exit(0);
   } catch (error) {

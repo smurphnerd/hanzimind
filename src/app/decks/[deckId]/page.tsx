@@ -1,12 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   BookOpen,
   ChevronDown,
-  ChevronLeft,
   Layers,
   List,
   Network,
@@ -17,10 +16,14 @@ import {
 import {
   useSuspenseQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { CompositionBar } from "@/components/composition-bar";
+import { COMPOSITION_ORDER } from "@/lib/deck-composition";
+import { BackLink } from "@/components/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -28,18 +31,27 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useORPC } from "@/lib/orpc.client";
 import {
+  DEFAULT_DECK_SETTINGS,
   DeckSettingsDialog,
+  SAVED_DECKS_INPUT,
   type DeckSettings,
 } from "@/components/deck-settings-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { authClient } from "@/lib/authClient";
+import { useHydrated } from "@/lib/use-hydrated";
 import { DeckDetailLoading } from "@/components/deck-detail-loading";
 import { DeckGraphPanel } from "@/components/deck-graph-panel";
-import {
-  SegmentedToggle,
-  type SegmentedOption,
-} from "@/components/segmented-toggle";
+import { SegmentedTabsList } from "@/components/segmented-tabs";
+import type { SegmentedOption } from "@/components/segmented-control";
 import { EmptyState } from "@/components/empty-state";
 import { InlineStat } from "@/components/stat-tile";
 import { PageHeader } from "@/components/page-header";
@@ -47,7 +59,6 @@ import { canPlayAudio, playAudio } from "@/lib/audio";
 import { vocabTypeMeta } from "@/lib/vocab-type";
 import { cn } from "@/lib/utils";
 import type {
-  DeckTypeCountsDto,
   DeckVocabItemSummaryDto,
   VocabType,
 } from "@/definitions/definitions";
@@ -60,13 +71,22 @@ import type {
  * hundred characters still scan as a block, while eight sentences already fill a
  * screen.
  */
-const GROUPS: Array<{ type: VocabType; label: string; previewLimit: number }> =
-  [
-    { type: "component", label: "Components", previewLimit: 60 },
-    { type: "character", label: "Characters", previewLimit: 60 },
-    { type: "compound", label: "Words", previewLimit: 48 },
-    { type: "sentence", label: "Sentences", previewLimit: 8 },
-  ];
+const GROUP_META: Record<VocabType, { label: string; previewLimit: number }> = {
+  component: { label: "Components", previewLimit: 60 },
+  character: { label: "Characters", previewLimit: 60 },
+  compound: { label: "Words", previewLimit: 48 },
+  sentence: { label: "Sentences", previewLimit: 8 },
+};
+
+/**
+ * Ordered by the same list the composition bar uses, so the strip's segments and
+ * the headings below it cannot fall out of step — which is the whole reason the
+ * two share a colour.
+ */
+const GROUPS = COMPOSITION_ORDER.map((type) => ({
+  type,
+  ...GROUP_META[type],
+}));
 
 /** List / graph switch for the deck's contents. */
 type DeckView = "standard" | "graph";
@@ -110,18 +130,27 @@ function GlyphChip({ item }: { item: DeckVocabItemSummaryDto }) {
         meta.softClass,
       )}
     >
-      <Link
-        href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
-        title={translationOf(item)}
-        className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
-      >
-        <span className="hanzi text-xl leading-tight break-words text-foreground">
-          {item.vocabItem}
-        </span>
-        <span className="truncate text-xs text-muted-foreground">
-          {subtitle}
-        </span>
-      </Link>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href={`/dictionary/${encodeURIComponent(item.vocabItem)}`}
+              className="flex min-w-0 flex-col gap-1 rounded-2xl px-3 py-2"
+            >
+              <span className="hanzi text-xl leading-tight break-words text-foreground">
+                {item.vocabItem}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
+                {subtitle}
+              </span>
+            </Link>
+          </TooltipTrigger>
+          {/* The chip already shows the pinyin where there is one, so the meaning
+            is the half that gets truncated away — which is exactly what the
+            hint was for. */}
+          <TooltipContent>{translationOf(item)}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       {canPlayAudio(item.audioUrl) && (
         <Button
           variant="ghost"
@@ -203,43 +232,20 @@ function GlyphGroup({
   );
 }
 
-/**
- * The deck's type mix as one strip. The colours match the group headings below,
- * so the proportions and the sections read as the same thing.
- */
-function CompositionBar({
-  typeCounts,
-  className,
-}: {
-  typeCounts: DeckTypeCountsDto;
-  className?: string;
-}) {
-  const total = GROUPS.reduce((sum, group) => sum + typeCounts[group.type], 0);
-
-  if (total === 0) return null;
-
-  const present = GROUPS.filter((group) => typeCounts[group.type] > 0);
-
+function ContentsHeading({ showingGraph }: { showingGraph: boolean }) {
   return (
-    <div
-      className={cn(
-        "flex h-2.5 w-full overflow-hidden rounded-full bg-muted",
-        className,
-      )}
-      role="img"
-      aria-label={present
-        .map(
-          (group) => `${typeCounts[group.type]} ${group.label.toLowerCase()}`,
-        )
-        .join(", ")}
-    >
-      {present.map((group) => (
-        <span
-          key={group.type}
-          className={vocabTypeMeta(group.type).fillClass}
-          style={{ width: `${(typeCounts[group.type] / total) * 100}%` }}
-        />
-      ))}
+    <div>
+      <h2 className="font-display text-2xl font-bold tracking-tight">
+        What&apos;s inside
+      </h2>
+      {/* Constituents are always part of a deck, so say so: the counts here are
+          larger than the word list the deck was created from, and that is the
+          deck the learner actually gets. */}
+      <p className="text-sm text-muted-foreground">
+        {showingGraph
+          ? "How the deck is built: every part points at what it helps build."
+          : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
+      </p>
     </div>
   );
 }
@@ -251,16 +257,34 @@ function DeckOverviewContent() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<DeckView>("standard");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [saveSettings, setSaveSettings] = useState<DeckSettings>({
-    readingEnabled: true,
-    listeningEnabled: true,
-    understandingEnabled: true,
-    writingEnabled: true,
-  });
+  const [saveSettings, setSaveSettings] = useState<DeckSettings>(
+    DEFAULT_DECK_SETTINGS,
+  );
 
   const { data: deck } = useSuspenseQuery(
     orpc.decks.getById.queryOptions({ input: { deckId } }),
   );
+
+  const {
+    data: savedDecks,
+    isPending: isSavedPending,
+    isError: isSavedError,
+  } = useQuery(
+    orpc.decks.getUserDecks.queryOptions({ input: SAVED_DECKS_INPUT }),
+  );
+  const savedSettings = useMemo(() => {
+    const saved = savedDecks?.decks.find(
+      (candidate: { id: string }) => candidate.id === deckId,
+    );
+    if (!saved) return undefined;
+    return {
+      readingEnabled: saved.readingEnabled,
+      listeningEnabled: saved.listeningEnabled,
+      understandingEnabled: saved.understandingEnabled,
+      writingEnabled: saved.writingEnabled,
+    };
+  }, [savedDecks, deckId]);
+  const isSaved = savedSettings !== undefined;
 
   const saveDeckMutation = useMutation(
     orpc.study.addDeck.mutationOptions({
@@ -308,22 +332,29 @@ function DeckOverviewContent() {
         showingGraph ? "max-w-7xl" : "max-w-4xl",
       )}
     >
-      <Link
-        href="/decks"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
-      >
-        <ChevronLeft className="size-4" />
-        Back to Decks
-      </Link>
+      <BackLink href="/decks">Back to Decks</BackLink>
 
       <PageHeader
         className="mb-4"
-        title={deck.deckName}
+        heading={deck.deckName}
         description={deck.description.trim() || "No description yet."}
         action={
-          <Button size="lg" onClick={() => setShowSaveDialog(true)}>
+          <Button
+            size="lg"
+            variant={isSaved ? "secondary" : "default"}
+            // Until the stored row arrives this cannot tell a saved deck from a
+            // new one, and study.addDeck upserts all four mode columns, so a
+            // click before then writes the defaults over the learner's choices.
+            // isPending is false once a query has failed, so a 500 has to be
+            // held too, not just the wait.
+            disabled={isSavedPending || isSavedError}
+            onClick={() => {
+              setSaveSettings(savedSettings ?? DEFAULT_DECK_SETTINGS);
+              setShowSaveDialog(true);
+            }}
+          >
             <BookOpen className="size-5" />
-            Save Deck
+            {isSaved ? "Study Settings" : "Save Deck"}
           </Button>
         }
       />
@@ -342,54 +373,55 @@ function DeckOverviewContent() {
 
       <CompositionBar typeCounts={deck.typeCounts} className="mb-8" />
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">
-            What&apos;s inside
-          </h2>
-          {/* Constituents are always part of a deck, so say so: the counts here are
-              larger than the word list the deck was created from, and that is the
-              deck the learner actually gets. */}
-          <p className="text-sm text-muted-foreground">
-            {showingGraph
-              ? "How the deck is built: every part points at what it helps build."
-              : "Smallest pieces first, the way you'll learn them. Every part a character is built from is included."}
-          </p>
-        </div>
-        {groups.length > 0 && (
-          <SegmentedToggle
-            options={DECK_VIEWS}
-            value={view}
-            onChange={setView}
-            label="Deck view"
-          />
-        )}
-      </div>
-
+      {/* An empty deck has nothing to switch between, so it gets the heading
+          without a Tabs root — a tab panel with no tab to select it is as wrong
+          as the other way round. */}
       {groups.length === 0 ? (
-        <EmptyState
-          title="This deck is empty"
-          description="Nothing has been added to it yet. Try another deck, or create your own."
-          action={
-            <Button asChild variant="outline">
-              <Link href="/decks">Browse decks</Link>
-            </Button>
-          }
-        />
-      ) : showingGraph ? (
-        <DeckGraphPanel deckId={deckId} />
+        <>
+          {/* mb-4 because the flex row that carried it went with the toggle. */}
+          <div className="mb-4">
+            <ContentsHeading showingGraph={false} />
+          </div>
+          <EmptyState
+            heading="This deck is empty"
+            description="Nothing has been added to it yet. Try another deck, or create your own."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/decks">Browse decks</Link>
+              </Button>
+            }
+          />
+        </>
       ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <GlyphGroup
-              key={group.type}
-              type={group.type}
-              label={group.label}
-              previewLimit={group.previewLimit}
-              items={group.items}
-            />
-          ))}
-        </div>
+        <Tabs
+          value={view}
+          onValueChange={(next) => setView(next as DeckView)}
+          // The children carry their own margins; the root is here to hold the
+          // selected value, not to lay anything out.
+          className="gap-0"
+        >
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <ContentsHeading showingGraph={showingGraph} />
+            <SegmentedTabsList options={DECK_VIEWS} label="Deck view" />
+          </div>
+
+          {/* flex-none over TabsContent's own flex-1: these panels size to their
+              content inside a page column, not to a share of it. */}
+          <TabsContent value="graph" className="flex-none">
+            <DeckGraphPanel deckId={deckId} />
+          </TabsContent>
+          <TabsContent value="standard" className="flex-none space-y-6">
+            {groups.map((group) => (
+              <GlyphGroup
+                key={group.type}
+                type={group.type}
+                label={group.label}
+                previewLimit={group.previewLimit}
+                items={group.items}
+              />
+            ))}
+          </TabsContent>
+        </Tabs>
       )}
 
       <DeckSettingsDialog
@@ -399,15 +431,43 @@ function DeckOverviewContent() {
         onSettingsChange={setSaveSettings}
         onSave={handleSaveDeck}
         isPending={saveDeckMutation.isPending}
-        title="Add Deck to Study List"
-        description="Configure your study settings for this deck."
-        saveButtonText="Add to Study List"
+        heading={isSaved ? "Study Settings" : "Add Deck to Study List"}
+        description={
+          isSaved
+            ? `Change how you study “${deck.deckName}”.`
+            : "Configure your study settings for this deck."
+        }
+        saveButtonText={isSaved ? "Save Settings" : "Add to Study List"}
       />
     </div>
   );
 }
 
 export default function DeckOverviewPage() {
+  const params = useParams();
+  const deckId = params.deckId as string;
+  const hydrated = useHydrated();
+  const { data: session, isPending } = authClient.useSession();
+
+  if (!hydrated || isPending) return <DeckDetailLoading />;
+
+  if (!session) {
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <EmptyState
+          pose="peek"
+          heading="Sign in to see this deck"
+          description="Decks and your study settings live with your account."
+          action={
+            <Button asChild>
+              <Link href={`/signin?redirectUrl=decks/${deckId}`}>Sign in</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<DeckDetailLoading />}>

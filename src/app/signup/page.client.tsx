@@ -5,17 +5,25 @@ import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { MailCheck } from "lucide-react";
-import * as z from "zod/v4";
 
 import { Mika } from "@/components/mika";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/authClient";
+import { z } from "@/lib/zod-jitless";
 
 const SignUpFormSchema = z.object({
   username: z
@@ -29,7 +37,7 @@ const SignUpFormSchema = z.object({
   email: z.email(),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(10, "Password must be at least 10 characters")
     .max(128, "Password must be at most 128 characters"),
 });
 type SignUpFormSchema = z.infer<typeof SignUpFormSchema>;
@@ -41,6 +49,24 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     : "/verified";
   const [sentTo, setSentTo] = useState<string | null>(null);
 
+  // The sign-up endpoint answers 200 even when the send fails, so the learner
+  // cannot be told at that moment. This is the way back: ask for another one,
+  // and this call does report a failure.
+  const resend = useMutation({
+    mutationFn: async (email: string) => {
+      const result = await authClient.sendVerificationEmail({
+        email,
+        callbackURL,
+      });
+      if (result.error) {
+        throw new Error(result.error.message ?? "Could not send the email");
+      }
+    },
+    onSuccess: () => toast.success("Sent. Check your inbox again."),
+    onError: () =>
+      toast.error("Couldn't send it. Please try again in a minute."),
+  });
+
   const form = useForm({
     resolver: zodResolver(SignUpFormSchema, {
       error: (iss) => {
@@ -48,7 +74,7 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
           return "Please enter a valid email";
         }
         if (iss.path?.[0] === "password") {
-          return iss.message ?? "Password must be at least 8 characters";
+          return iss.message ?? "Password must be at least 10 characters";
         }
         if (iss.path?.[0] === "username") {
           return iss.message ?? "Username must be at least 3 characters";
@@ -78,16 +104,10 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
     onSuccess: (_data, variables) => {
       setSentTo(variables.email);
       form.reset();
-      toast.success("Account created! Check your email to verify it.");
+      toast.success("Check your email to finish signing up.");
     },
-    onError: (error) => {
-      if (error.message.includes("already exists")) {
-        toast.error(
-          "An account with this email already exists. Please sign in instead.",
-        );
-      } else {
-        toast.error("Failed to create account. Please try again.");
-      }
+    onError: () => {
+      toast.error("Failed to create account. Please try again.");
     },
   });
 
@@ -106,12 +126,29 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground">
               Almost there!
             </h1>
+            {/* Sign-up answers the same way whether or not the address is
+                taken, because better-auth will not confirm an account exists
+                and sign-in is careful not to either: an unknown address and a
+                wrong password get byte-identical 401s. So this cannot promise a
+                link was sent. Saying it was, when the address already belongs
+                to someone, is what finding 19 was. */}
             <p className="text-sm text-muted-foreground">
-              We sent a verification link to{" "}
-              <span className="font-semibold text-foreground">{sentTo}</span>.
-              Click it to activate your account.
+              If <span className="font-semibold text-foreground">{sentTo}</span>{" "}
+              is new here, a verification link is on its way. Click it to
+              activate your account. If it already has an account, sign in
+              instead.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Nothing after a minute? Send it again.
             </p>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                isPending={resend.isPending}
+                onClick={() => resend.mutate(sentTo)}
+              >
+                Resend email
+              </Button>
               <Button variant="outline" onClick={() => setSentTo(null)}>
                 Use a different email
               </Button>
@@ -140,81 +177,70 @@ export default function SignUpClientPage(props: { baseUrl: string }) {
             Begin your Chinese learning journey
           </p>
 
-          <form
-            onSubmit={(event) => {
-              void form.handleSubmit((data) => {
-                signUpMutation.mutate(data);
-              })(event);
-            }}
-            className="flex flex-col gap-4"
-          >
-            <Controller
-              name="username"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="username">Username</FieldLabel>
-                  <Input
-                    {...field}
-                    id="username"
-                    type="text"
-                    aria-invalid={fieldState.invalid}
-                    placeholder="johndoe"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="email"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    {...field}
-                    id="email"
-                    type="email"
-                    aria-invalid={fieldState.invalid}
-                    placeholder="john@example.com"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="password"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <Input
-                    {...field}
-                    id="password"
-                    type="password"
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-            <Button
-              type="submit"
-              isPending={signUpMutation.isPending}
-              className="mt-2"
-              size="lg"
+          <Form {...form}>
+            <form
+              onSubmit={(event) => {
+                void form.handleSubmit((data) => {
+                  signUpMutation.mutate(data);
+                })(event);
+              }}
+              className="flex flex-col gap-4"
             >
-              Create Account
-            </Button>
-          </form>
+              <FormField
+                name="username"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="text" placeholder="johndoe" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="email"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type="email"
+                        placeholder="john@example.com"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                name="password"
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                isPending={signUpMutation.isPending}
+                className="mt-2"
+                size="lg"
+              >
+                Create Account
+              </Button>
+            </form>
+          </Form>
 
-          <div className="my-2 border-t border-border" />
+          <Separator className="my-2" />
 
           <div className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
