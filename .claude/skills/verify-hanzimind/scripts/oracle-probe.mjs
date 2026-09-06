@@ -70,12 +70,14 @@ const sweep = args.has("sweep")
   : 0;
 const concurrent = Number(args.get("concurrent") ?? 1);
 const sameIp = args.has("same-ip");
+const settle = Number(args.get("settle") ?? 0);
 const json = args.has("json");
 if (!port || !n) {
   console.error(
     "usage: oracle-probe.mjs --port <p> [--endpoint sign-up|password-reset|send-verification|sign-in]\n" +
       "                       [--n 50] [--taken <email>] [--pad <chars>] [--quantum 750]\n" +
-      "                       [--concurrent <k>] [--content] [--sweep <maxK>] [--same-ip] [--control] [--json]",
+      "                       [--concurrent <k>] [--content] [--sweep <maxK>] [--settle <ms>]\n" +
+      "                       [--same-ip] [--control] [--json]",
   );
   process.exit(2);
 }
@@ -346,13 +348,31 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
     }
   };
 
+  /**
+   * Wait for work the last observation started but did not wait for.
+   *
+   * Sign-up now answers before it creates the account and finishes the job in
+   * `after()`, so a burst leaves a queue of inserts and mail sends running
+   * behind it. Firing the next observation immediately measures that queue as
+   * much as the request, and it showed: a 13-wide burst reported free 334 ms
+   * against taken 59 ms, a 466% gap that the control reproduced in full. A
+   * control that large is doing its job, but it means the run cannot RESOLVE a
+   * signal rather than showing there is none, and those are different claims.
+   */
+  const drain = async () => {
+    if (settle > 0) await new Promise((resolve) => setTimeout(resolve, settle));
+  };
+
   for (let i = 0; i < runs; i++) {
+    await drain();
     // Alternate which kind leads, so a per-pair ordering cost lands on both.
     if (i % 2 === 0) {
       record("free", await call(freeAddress(), leverValue, k));
+      await drain();
       record("taken", await call(secondArm(asControl), leverValue, k));
     } else {
       record("taken", await call(secondArm(asControl), leverValue, k));
+      await drain();
       record("free", await call(freeAddress(), leverValue, k));
     }
   }
@@ -591,6 +611,7 @@ const reportDefault = (r) => {
     `endpoint ${endpoint}  ${spec.path}` +
       (pad ? `  ${spec.lever} padded to ${pad} chars` : "") +
       (concurrent > 1 ? `  bursts of ${concurrent}` : "") +
+      (settle ? `  ${settle} ms settle between observations` : "") +
       (sameIp ? "  one IP, rate limiter live" : "") +
       (control ? "  CONTROL: both arms are free addresses" : ""),
   );
@@ -732,7 +753,8 @@ const sweepWidths = (max) => [1, 2, 3, 5, 8, 13, 20, 32].filter((k) => k <= max)
 const runWidthSweep = async () => {
   const widths = sweepWidths(sweep);
   console.log(
-    `width sweep  ${endpoint}  ${spec.path}  k = ${widths.join(" ")}  ${n} bursts per width, each with its own control`,
+    `width sweep  ${endpoint}  ${spec.path}  k = ${widths.join(" ")}  ${n} bursts per width, each with its own control` +
+      (settle ? `, ${settle} ms settle between observations` : ""),
   );
   console.log(
     `${"k".padStart(3)}  ${"free p50".padStart(9)}  ${"taken p50".padStart(9)}  ${"gap".padStart(7)}  ${"buckets".padEnd(11)} verdict`,
