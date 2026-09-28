@@ -32,6 +32,7 @@ seed_cache_key() {
 			src/server/database/seed/graphics.txt src/server/database/seed/vocab-classification.tsv \
 			src/server/database/seed/script-classification.tsv src/server/database/seed/seed-dictionary.ts \
 			src/server/database/seed/vocab-classification.ts src/server/database/seed/script-classification.ts \
+			src/server/database/seed/vocab-overrides.tsv src/server/database/seed/vocab-overrides.ts \
 			scripts/seed-hsk1-deck.ts scripts/data/hsk1-vocabulary.txt) |
 		shasum -a 256 | cut -c1-16
 }
@@ -143,8 +144,14 @@ if [ "$vocab_rows" = "0" ] && cache_complete "$cache_dir"; then
 	"${COMPOSE[@]}" stop s3 >/dev/null 2>&1
 	docker run --rm -v "$s3_volume:/data" -v "$cache_dir:/cache:ro" alpine tar xf /cache/s3.tar -C /data
 	"${COMPOSE[@]}" up -d --wait s3 >/dev/null 2>&1
-	sed "s#localhost:__S3_PORT__/#localhost:$S3_PORT/#g" "$cache_dir/vocab_items.sql" |
-		"${COMPOSE[@]}" exec -T postgres psql -U postgres -q -v ON_ERROR_STOP=1 postgres >/dev/null
+	# The cache holds vocab_items alone, but a seeded row can point at its starred
+	# memory aid, which is not in the cache. Restore with FK triggers off, then
+	# drop those pointers; the seed below re-imports the aids and re-stars them.
+	{ echo 'SET session_replication_role = replica;'
+		sed "s#localhost:__S3_PORT__/#localhost:$S3_PORT/#g" "$cache_dir/vocab_items.sql"
+		echo 'SET session_replication_role = DEFAULT;'
+		echo 'UPDATE vocab_items SET default_memory_aid_id = NULL;'
+	} | "${COMPOSE[@]}" exec -T postgres psql -U postgres -q -v ON_ERROR_STOP=1 postgres >/dev/null
 	printf 'restored seed cache %s\n' "$cache_key"
 	build_cache=0
 else
@@ -169,7 +176,7 @@ if [ ! -f "$model_dir/$MODEL_CACHE_SENTINEL" ] && [ -f "$model_cache/$MODEL_CACH
 fi
 if [ ! -f "$model_dir/$MODEL_CACHE_SENTINEL" ]; then
 	model_started_at=$(date +%s)
-	(cd "$REPO" && pnpm exec tsx "$REPO/.claude/skills/verify-hanzimind/scripts/prefetch-model.ts") ||
+	(cd "$REPO" && pnpm exec tsx "$REPO/.agents/skills/verify-hanzimind/scripts/prefetch-model.ts") ||
 		{ printf 'lane %s: semantic model download failed\n' "$LANE" >&2; exit 1; }
 	printf 'downloaded the semantic model in %ss\n' "$(( $(date +%s) - model_started_at ))"
 fi

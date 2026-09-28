@@ -43,8 +43,18 @@ next-env.d.ts
 # test output — vitest.config.ts writes junit.xml here on every run
 /test-results
 
-# agent worktrees — separate checkouts of this repo, never part of a commit here
-/.claude/worktrees
+# Agent-harness mirrors. The source of truth is AGENTS.md and .agents/, which are
+# committed; agentlink (.agents/agentlink.json) links each harness's own path to
+# them locally, and none of those paths — nor worktrees under them — belong in a
+# commit.
+/.claude/
+/.omp/
+/.opencode/
+/.cursor/
+/.codex/
+/.gemini/
+/CLAUDE.md
+/GEMINI.md
 
 # verification lanes — per-lane env, pid and logs written by lane-up.sh
 /development/lanes
@@ -52,9 +62,8 @@ next-env.d.ts
 # Copyrighted book sources and derived verbatim extracts (do not commit)
 books/
 
-# Mirrors of .claude/ written by other agent tooling. Never the source of
-# truth: the copy committed in ef3c2be was already stale against
-# .claude/skills/verify-hanzimind, so two versions of the lane scripts would
-# have shipped, one of them wrong.
-.agents/
-AGENTS.md
+# agentlink:begin
+.claude/skills/
+.omp/skills/
+.opencode/skills/
+# agentlink:end

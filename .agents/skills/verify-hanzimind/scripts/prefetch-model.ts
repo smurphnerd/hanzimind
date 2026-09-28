@@ -6,7 +6,11 @@ import { pipeline } from "@huggingface/transformers";
 const modelId = "Xenova/all-MiniLM-L6-v2";
 const lastPercent = new Map<string, number>();
 await pipeline("feature-extraction", modelId, {
-  progress_callback: (event: { status: string; file?: string; progress?: number }) => {
+  progress_callback: (event: {
+    status: string;
+    file?: string;
+    progress?: number;
+  }) => {
     if (event.status !== "progress" || event.progress === undefined) return;
     const file = event.file ?? modelId;
     const percent = Math.floor(event.progress / 10) * 10;

@@ -4,5 +4,5 @@
 set -euo pipefail
 lane="${E2E_LANE:-0}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-"$root/.claude/skills/verify-hanzimind/scripts/lane-up.sh" "$lane"
+"$root/.agents/skills/verify-hanzimind/scripts/lane-up.sh" "$lane"
 exec tail -n 0 -f "$root/development/lanes/$lane/dev.log"

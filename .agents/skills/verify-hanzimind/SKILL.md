@@ -12,7 +12,7 @@ Read `features/README.md` before driving anything. It holds the accounts, the ha
 ## Launch
 
 ```sh
-.claude/skills/verify-hanzimind/scripts/lane-up.sh 3
+.agents/skills/verify-hanzimind/scripts/lane-up.sh 3
 ```
 
 What it does, in order. Refuses if any of the lane's five ports is held by another process and names the holder. Starts compose project `hanzimind-lane-3` with `development/docker-compose.yaml` on the lane's ports. Writes `development/lanes/3/.env.lane`. Runs `drizzle-kit push --force`. Seeds the database with `SEED_TEST_USER=1`, then runs `scripts/seed-hsk1-deck.ts` and hands the `HSK 1` deck (`deck-hsk1`, 150 words plus their parts) to the learner account, so a fresh lane has one public deck to browse, save and study. Starts `next dev -p 3003` in the background with its pid in `development/lanes/3/dev.pid` and its output in `development/lanes/3/dev.log`. Prints `ready on 3003` once `POST /api/rpc/ping` answers 200, then one line with the Mailpit, Postgres and s3mock addresses and the elapsed seconds.
@@ -21,13 +21,13 @@ Production mode. `LANE_MODE=prod lane-up.sh 3` runs `next build` (about a minute
 
 Ports for lane `<n>`:
 
-| Service | Port | Env var in `.env.lane` |
-| --- | --- | --- |
-| dev server | `LANE_PORT_BASE + n`, default `3000 + n` | `BASE_URL` |
-| Postgres | `15432 + n` | `DATABASE_URL` |
-| s3mock | `19090 + n` | `S3_OPTIONS.endpoint` |
-| Mailpit SMTP | `11025 + n` | `EMAIL_CONNECTION_URL` |
-| Mailpit web UI | `18025 + n` | printed on ready |
+| Service        | Port                                     | Env var in `.env.lane` |
+| -------------- | ---------------------------------------- | ---------------------- |
+| dev server     | `LANE_PORT_BASE + n`, default `3000 + n` | `BASE_URL`             |
+| Postgres       | `15432 + n`                              | `DATABASE_URL`         |
+| s3mock         | `19090 + n`                              | `S3_OPTIONS.endpoint`  |
+| Mailpit SMTP   | `11025 + n`                              | `EMAIL_CONNECTION_URL` |
+| Mailpit web UI | `18025 + n`                              | printed on ready       |
 
 Set `LANE_PORT_BASE` when `3000 + n` is taken by something else on the machine (`LANE_PORT_BASE=4300 lane-up.sh 1` serves on 4301). `doctor.sh`, `lane-down.sh` and `playwright.config.ts` read the port back from the lane's `.env.lane`, so the export is needed only for `lane-up.sh`; an explicit export still wins. The container ports never sit on 5432, 9090, 8025 or 1025, so a developer's own `pnpm dev-containers` and a lane coexist.
 
@@ -47,7 +47,7 @@ One lane per checkout. `next dev` holds `.next/dev/lock` in the project director
 ## Doctor
 
 ```sh
-.claude/skills/verify-hanzimind/scripts/doctor.sh 3
+.agents/skills/verify-hanzimind/scripts/doctor.sh 3
 ```
 
 Read-only. Refuses with exit 3 before any check when the lane's `DATABASE_URL` host is not `localhost` or `127.0.0.1`, so a lane can never drive a shared database. Then prints one line per check and exits 1 if any is `not ok`:
@@ -111,7 +111,7 @@ Column names are snake_case (`vocab_item`, `deck_name`, `user_id`).
 Perf. `perf-probe.mjs` signs in as the learner and times one procedure:
 
 ```sh
-.claude/skills/verify-hanzimind/scripts/perf-probe.mjs --port 3003 --rpc vocab/search \
+.agents/skills/verify-hanzimind/scripts/perf-probe.mjs --port 3003 --rpc vocab/search \
   --body '{"query":"人","searchLanguage":"chinese","page":1,"pageSize":20}' --n 30
 ```
 
@@ -126,7 +126,7 @@ Proof standards. Drive the real user path, never an internal setter or a test-on
 ## Cleanup
 
 ```sh
-.claude/skills/verify-hanzimind/scripts/lane-down.sh 3
+.agents/skills/verify-hanzimind/scripts/lane-down.sh 3
 ```
 
 Kills the dev server named in `development/lanes/3/dev.pid` and its children, nothing else. If the lane's port is still held afterwards by a process this lane did not start, it says so and leaves that process alone. Then runs `docker compose -p hanzimind-lane-3 down -v`, which removes the lane's containers, network and volumes. The lane's `.env.lane` and logs stay in `development/lanes/3/` for reading. Nothing under the evidence root is touched. Run it after every lane, including failed attempts.
@@ -135,16 +135,16 @@ Before committing from a checkout that ran a lane, check `git status`. Next 16.3
 
 ## Helpers
 
-All under `.claude/skills/verify-hanzimind/scripts/`. The four commands are executable. `lane-lib.sh` is mode 644 because it is sourced, never run.
+All under `.agents/skills/verify-hanzimind/scripts/`. The four commands are executable. `lane-lib.sh` is mode 644 because it is sourced, never run.
 
-| Script | Invocation | Purpose |
-| --- | --- | --- |
-| `lane-up.sh` | `lane-up.sh <n>` | Start lane `<n>` and print `ready on <port>`. `LANE_PORT_BASE` moves the dev port, `LANE_MODE=prod` builds and starts a production server. `DEEPL_API_KEY` in the shell is passed through. |
-| `doctor.sh` | `doctor.sh <n>` | Four read-only checks, exit 0 only when all print `ok`. Exit 3 on a non-local database. |
-| `lane-down.sh` | `lane-down.sh <n>` | Stop the dev server by pid file and remove the compose project with its volumes. |
-| `perf-probe.mjs` | `perf-probe.mjs --port <p> --rpc <router/procedure> --body <json> --n <count>` | Sign in and print p50 and p95 in ms for one procedure. |
-| `e2e/lane.sh` (repo root) | Playwright `webServer` command, `E2E_LANE=<n>` | `lane-up.sh <n>` then `tail -f` its dev log. |
-| `prefetch-model.ts` | `pnpm exec tsx .claude/skills/verify-hanzimind/scripts/prefetch-model.ts` | Download the semantic model into the app's cache; `lane-up.sh` runs it when the model is missing. |
-| `lane-lib.sh` | sourced by the three shell scripts | Port arithmetic and paths. Not a command. |
+| Script                    | Invocation                                                                     | Purpose                                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lane-up.sh`              | `lane-up.sh <n>`                                                               | Start lane `<n>` and print `ready on <port>`. `LANE_PORT_BASE` moves the dev port, `LANE_MODE=prod` builds and starts a production server. `DEEPL_API_KEY` in the shell is passed through. |
+| `doctor.sh`               | `doctor.sh <n>`                                                                | Four read-only checks, exit 0 only when all print `ok`. Exit 3 on a non-local database.                                                                                                    |
+| `lane-down.sh`            | `lane-down.sh <n>`                                                             | Stop the dev server by pid file and remove the compose project with its volumes.                                                                                                           |
+| `perf-probe.mjs`          | `perf-probe.mjs --port <p> --rpc <router/procedure> --body <json> --n <count>` | Sign in and print p50 and p95 in ms for one procedure.                                                                                                                                     |
+| `e2e/lane.sh` (repo root) | Playwright `webServer` command, `E2E_LANE=<n>`                                 | `lane-up.sh <n>` then `tail -f` its dev log.                                                                                                                                               |
+| `prefetch-model.ts`       | `pnpm exec tsx .agents/skills/verify-hanzimind/scripts/prefetch-model.ts`      | Download the semantic model into the app's cache; `lane-up.sh` runs it when the model is missing.                                                                                          |
+| `lane-lib.sh`             | sourced by the three shell scripts                                             | Port arithmetic and paths. Not a command.                                                                                                                                                  |
 
 Keep the feature map honest with `/maintain-verification-skill` when routes or components change.

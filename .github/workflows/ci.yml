@@ -113,4 +113,4 @@ jobs:
             !development/lanes/*/.env.lane
       - name: Tear the lane down
         if: always()
-        run: .claude/skills/verify-hanzimind/scripts/lane-down.sh 0
+        run: .agents/skills/verify-hanzimind/scripts/lane-down.sh 0

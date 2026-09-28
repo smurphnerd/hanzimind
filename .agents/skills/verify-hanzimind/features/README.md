@@ -58,21 +58,21 @@ Keep implementation details out of the map. Name only user paths, stable handles
 
 Every `page.tsx` under `src/app` and the feature file that covers it. Regenerate the left column with `find src/app -name page.tsx | sort`.
 
-| Route | Feature file |
-| --- | --- |
-| `/` | profile-and-signout.md (signed-in dashboard) and sign-in.md (signed-out landing) |
-| `/admin/suggestions` | admin-suggestions.md |
-| `/admin/vocab` | admin-vocab.md |
-| `/decks` | deck-browse-and-save.md |
-| `/decks/[deckId]` | deck-browse-and-save.md |
-| `/decks/new` | deck-create.md |
-| `/dictionary` | dictionary.md |
-| `/dictionary/[word]` | dictionary.md and memory-aids.md |
-| `/privacy` | profile-and-signout.md (static footer page) |
-| `/profile` | profile-and-signout.md |
-| `/resources` | profile-and-signout.md (static footer page) |
-| `/signin` | sign-in.md |
-| `/signup` | sign-in.md |
-| `/study` | study-session.md |
-| `/study/[deckId]` | study-session.md |
-| `/verified` | sign-in.md |
+| Route                | Feature file                                                                     |
+| -------------------- | -------------------------------------------------------------------------------- |
+| `/`                  | profile-and-signout.md (signed-in dashboard) and sign-in.md (signed-out landing) |
+| `/admin/suggestions` | admin-suggestions.md                                                             |
+| `/admin/vocab`       | admin-vocab.md                                                                   |
+| `/decks`             | deck-browse-and-save.md                                                          |
+| `/decks/[deckId]`    | deck-browse-and-save.md                                                          |
+| `/decks/new`         | deck-create.md                                                                   |
+| `/dictionary`        | dictionary.md                                                                    |
+| `/dictionary/[word]` | dictionary.md and memory-aids.md                                                 |
+| `/privacy`           | profile-and-signout.md (static footer page)                                      |
+| `/profile`           | profile-and-signout.md                                                           |
+| `/resources`         | profile-and-signout.md (static footer page)                                      |
+| `/signin`            | sign-in.md                                                                       |
+| `/signup`            | sign-in.md                                                                       |
+| `/study`             | study-session.md                                                                 |
+| `/study/[deckId]`    | study-session.md                                                                 |
+| `/verified`          | sign-in.md                                                                       |
