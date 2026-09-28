@@ -317,7 +317,12 @@ const percentile = (sorted, p) =>
  * lets a sweep drive this — over content classes, or over burst widths —
  * instead of the script asking one question per invocation.
  */
-const measure = async (leverValue, runs, k = concurrent, asControl = control) => {
+const measure = async (
+  leverValue,
+  runs,
+  k = concurrent,
+  asControl = control,
+) => {
   const kinds = {
     free: {
       ms: [],
@@ -380,21 +385,21 @@ const measure = async (leverValue, runs, k = concurrent, asControl = control) =>
   const summary = (kind) => {
     const sorted = [...kinds[kind].ms].sort((a, b) => a - b);
     return {
-    kind,
-    n: sorted.length,
-    statuses: Object.fromEntries(kinds[kind].statuses),
-    p50: Math.round(percentile(sorted, 50)),
-    p95: Math.round(percentile(sorted, 95)),
-    // The whole point of a levelled endpoint is that no call escapes its
-    // bucket, and one that did would hide behind a p95.
-    max: Math.round(sorted[sorted.length - 1]),
-    // Which multiple of the quantum each call landed on. This is the assumption
-    // the whole scheme rests on, so it is reported rather than inferred: two
-    // paths in one bucket are indistinguishable, two paths in different buckets
-    // are a one-request oracle however close the medians look on a graph.
-    buckets: [...new Set(sorted.map((ms) => Math.ceil(ms / quantum)))].sort(
-      (a, b) => a - b,
-    ),
+      kind,
+      n: sorted.length,
+      statuses: Object.fromEntries(kinds[kind].statuses),
+      p50: Math.round(percentile(sorted, 50)),
+      p95: Math.round(percentile(sorted, 95)),
+      // The whole point of a levelled endpoint is that no call escapes its
+      // bucket, and one that did would hide behind a p95.
+      max: Math.round(sorted[sorted.length - 1]),
+      // Which multiple of the quantum each call landed on. This is the assumption
+      // the whole scheme rests on, so it is reported rather than inferred: two
+      // paths in one bucket are indistinguishable, two paths in different buckets
+      // are a one-request oracle however close the medians look on a graph.
+      buckets: [...new Set(sorted.map((ms) => Math.ceil(ms / quantum)))].sort(
+        (a, b) => a - b,
+      ),
       bodies: [...kinds[kind].bodies],
       headers: [...kinds[kind].headers],
       raw: kinds[kind].stamps,
@@ -627,10 +632,7 @@ const reportDefault = (r) => {
     `buckets  ${r.sameBuckets ? "identical" : "DIFFERENT"} (quantum ${quantum} ms)`,
   );
   const stampFields = [
-    ...new Set([
-      ...Object.keys(r.free.stamps),
-      ...Object.keys(r.taken.stamps),
-    ]),
+    ...new Set([...Object.keys(r.free.stamps), ...Object.keys(r.taken.stamps)]),
   ];
   for (const field of stampFields) {
     const f = r.free.stamps[field];
@@ -748,7 +750,8 @@ await call(secondArm(control), lever);
  * losers, and on this branch every loser replays a whole sign-up. That cost IS
  * the channel, so the sweep has to be willing to pay it to see it.
  */
-const sweepWidths = (max) => [1, 2, 3, 5, 8, 13, 20, 32].filter((k) => k <= max);
+const sweepWidths = (max) =>
+  [1, 2, 3, 5, 8, 13, 20, 32].filter((k) => k <= max);
 
 const runWidthSweep = async () => {
   const widths = sweepWidths(sweep);
@@ -815,27 +818,27 @@ const failed = sweep
   ? await runWidthSweep()
   : content
     ? await runContentSweep()
-  : await (async () => {
-      const r = await measure(lever, n);
-      if (json) {
-        console.log(
-          JSON.stringify({ endpoint, pad, quantum, ...r }, null, 2),
-        );
-      } else {
-        reportDefault(r);
-      }
-      // Exit 1 on anything that distinguishes the two, so a lane can assert on
-      // it. Buckets are checked separately from the median gap because they
-      // catch a different failure: two runs 194% apart show up in both, but a
-      // run that straddles a boundary can hold its medians close while a single
-      // request still sorts the two kinds.
-      return r.sameBody &&
-        r.sameHeaders &&
-        r.sameStatus &&
-        r.sameBuckets &&
-        r.gapPercent <= 10
-        ? 0
-        : 1;
-    })();
+    : await (async () => {
+        const r = await measure(lever, n);
+        if (json) {
+          console.log(
+            JSON.stringify({ endpoint, pad, quantum, ...r }, null, 2),
+          );
+        } else {
+          reportDefault(r);
+        }
+        // Exit 1 on anything that distinguishes the two, so a lane can assert on
+        // it. Buckets are checked separately from the median gap because they
+        // catch a different failure: two runs 194% apart show up in both, but a
+        // run that straddles a boundary can hold its medians close while a single
+        // request still sorts the two kinds.
+        return r.sameBody &&
+          r.sameHeaders &&
+          r.sameStatus &&
+          r.sameBuckets &&
+          r.gapPercent <= 10
+          ? 0
+          : 1;
+      })();
 
 process.exit(failed);

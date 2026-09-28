@@ -158,12 +158,12 @@ enumeration work alone: a control that could not disagree, a statistic that
 found fewer leaks the longer it looked, and one that manufactured leaks from a
 degenerate control. Each was caught by evidence contradicting itself, never by
 re-reading the code. The probe at
-`.claude/skills/verify-hanzimind/scripts/oracle-probe.mjs` now refuses to print
+`.agents/skills/verify-hanzimind/scripts/oracle-probe.mjs` now refuses to print
 an accuracy with no control floor.
 
 ## The verification skill
 
-`.claude/skills/verify-hanzimind/` drives the app the way a user does. It boots
+`.agents/skills/verify-hanzimind/` drives the app the way a user does. It boots
 an isolated Docker compose project per lane — Postgres, S3 mock, Mailpit, a dev
 or production server — so several agents can work at once without touching the
 developer's own containers. Every docker command must be scoped

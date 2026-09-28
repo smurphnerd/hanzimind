@@ -50,8 +50,17 @@ for (let i = 0; i < n; i++) {
 
 durations.sort((a, b) => a - b);
 const percentile = (p) =>
-  Math.round(durations[Math.min(durations.length - 1, Math.ceil((p / 100) * durations.length) - 1)]);
-console.log(`rpc ${rpc} n ${n} statuses ${[...statuses].map(([s, c]) => `${s}x${c}`).join(" ")}`);
+  Math.round(
+    durations[
+      Math.min(
+        durations.length - 1,
+        Math.ceil((p / 100) * durations.length) - 1,
+      )
+    ],
+  );
+console.log(
+  `rpc ${rpc} n ${n} statuses ${[...statuses].map(([s, c]) => `${s}x${c}`).join(" ")}`,
+);
 console.log(`p50 ${percentile(50)} ms`);
 console.log(`p95 ${percentile(95)} ms`);
 process.exit([...statuses.keys()].every((s) => s < 300) ? 0 : 1);

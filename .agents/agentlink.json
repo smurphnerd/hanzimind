@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "scope": "project",
+  "harnesses": [
+    "claude",
+    "codex",
+    "pi",
+    "omp",
+    "opencode"
+  ],
+  "ignore": "skills",
+  "links": [
+    {
+      "path": ".claude/skills/verify-hanzimind",
+      "source": ".agents/skills/verify-hanzimind"
+    },
+    {
+      "path": ".omp/skills/verify-hanzimind",
+      "source": ".agents/skills/verify-hanzimind"
+    },
+    {
+      "path": ".opencode/skills/verify-hanzimind",
+      "source": ".agents/skills/verify-hanzimind"
+    },
+    {
+      "path": "CLAUDE.md",
+      "source": "AGENTS.md"
+    }
+  ]
+}

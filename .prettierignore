@@ -10,3 +10,8 @@ test-results
 # Other agents' git worktrees are separate checkouts of this same repo —
 # formatting them from here rewrites files a different session is editing.
 .claude
+
+# agentlink writes these (the JSON, and a marked block of AGENTS.md); formatting
+# them only churns against the next `agentlink sync`.
+.agents/agentlink.json
+AGENTS.md
