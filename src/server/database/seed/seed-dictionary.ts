@@ -14,6 +14,10 @@ import {
   classifyScript,
   loadScriptClassification,
 } from "@/server/database/seed/script-classification";
+import {
+  applyOverride,
+  loadVocabOverrides,
+} from "@/server/database/seed/vocab-overrides";
 import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
 
 interface SeedCradle {
@@ -126,6 +130,9 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
   // Same reasoning for the script: derived from a reviewable file rather than the
   // column default, so a fresh seed and the backfill agree on all three values.
   const scriptClassification = loadScriptClassification();
+  // Curated corrections to dictionary.txt's reading and meaning, applied last so
+  // a fresh seed lands where backfill-overrides.ts takes a live database.
+  const overrides = loadVocabOverrides();
 
   const buildRow = async (entry: DictionaryEntry) => {
     const graphics = graphicsMap.get(entry.character);
@@ -154,11 +161,14 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       }
     }
 
-    const stored = applyClassification(classified, {
-      pinyin: rawPinyin || "",
-      audioUrl,
-      translation: entry.definition ?? null,
-    });
+    const stored = applyOverride(
+      applyClassification(classified, {
+        pinyin: rawPinyin || "",
+        audioUrl,
+        translation: entry.definition ?? null,
+      }),
+      overrides.get(entry.character),
+    );
 
     return {
       vocabItem: entry.character,

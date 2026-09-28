@@ -1,0 +1,236 @@
+# Curated corrections to the upstream readings and meanings.
+#
+# Characters take their pinyin and translation from makemeahanzi (dictionary.txt)
+# and HSK 1 words from scripts/data/hsk1-vocabulary.txt. Both are wrong in places
+# that decide grading: the reading card accepts ONLY `pinyin`, and the meaning
+# card accepts ANY one comma/semicolon alternative of `translation`, which is also
+# the writing card's prompt. See docs/data-audit.md for how each row was found.
+#
+# An empty field keeps the upstream value. seed-dictionary.ts and
+# seed-hsk1-deck.ts apply this file on insert; scripts/backfill-overrides.ts
+# applies it to a live database, only where the row still holds the upstream
+# value, so an admin's later edit survives.
+#
+# Reasons:
+#   hsk1-sense       an HSK 1 word whose translation missed or buried the HSK 1 sense
+#   deck-part-sense  a part in the HSK 1 deck (it is quizzed too) with the same problem
+#   reading          the stored reading is not the standard one (erhua, neutral tone,
+#                    a reading that belongs to another sense)
+#   surname          a stray "surname" alternative on a character whose everyday use is
+#                    something else, which let "surname" pass as an answer
+#   <a>+reading      a sense fix and a reading fix on the same row
+#
+# glyph	pinyin	translation	reason
+一		one; 1; a, an; single; whole	hsk1-sense
+下		down; below; under; next; to go down; to get off	hsk1-sense
+个		measure word for people or things; individual; general classifier	hsk1-sense
+买		to buy; to purchase	hsk1-sense
+了		particle of completed action; particle of change of state	hsk1-sense
+二		two; 2; second	hsk1-sense
+五		five; 5	hsk1-sense
+些		some; a few; several; a little	hsk1-sense
+什么		what; something; anything	hsk1-sense
+他		he; him	hsk1-sense
+会		can; to know how to; will; to meet; meeting	hsk1-sense
+住		to live; to reside; to stay; to dwell	hsk1-sense
+做		to do; to make; to cook; to act as	hsk1-sense
+八		eight; 8	hsk1-sense
+写		to write; to compose	hsk1-sense
+冷		cold; chilly	hsk1-sense
+几		how many; several; a few	hsk1-sense
+十		ten; 10	hsk1-sense
+去		to go; to go to (a place); to leave	hsk1-sense
+叫		to be called; to call; to shout; to ask (someone to do something)	hsk1-sense
+号		number; day of the month; date; size; sign	hsk1-sense
+吃		to eat; to have a meal	hsk1-sense
+听		to listen; to hear; to obey	hsk1-sense
+呢	ne	question particle; what about...?; particle for ongoing action	hsk1-sense+reading
+和		and; with; together with; harmony; peace	hsk1-sense
+哪		which; where	hsk1-sense
+喂		hello (on the phone); hey; to feed	hsk1-sense
+喝		to drink	hsk1-sense
+坐		to sit; to take a seat; to take (a bus, plane, etc.); to travel by	hsk1-sense
+大		big; large; great; huge; major	hsk1-sense
+太		too (much); very; extremely	hsk1-sense
+岁		years old; age; year (of age)	hsk1-sense
+工作		work; job; to work; task	hsk1-sense
+开		to open; to turn on; to drive; to start	hsk1-sense
+想		to want to; to think; would like to; to miss	hsk1-sense
+我		I; me; my	hsk1-sense
+有		to have; there is; there are; to exist; to own	hsk1-sense
+本		measure word for books; volume; root; origin; basis	hsk1-sense
+来		to come; to arrive; next; coming	hsk1-sense
+水		water; liquid	hsk1-sense
+点		o'clock; a little; a bit; dot; point; to order (food)	hsk1-sense
+热		hot; heat; to heat up; fever	hsk1-sense
+的		possessive particle; of; structural particle	hsk1-sense
+能		can; to be able to; capable; ability; may	hsk1-sense
+菜		dish (of food); vegetables; food; cuisine	hsk1-sense
+读		to read; to read aloud; to study; to pronounce	hsk1-sense
+谁	shéi	who; whom; whose; anyone	hsk1-sense+reading
+这		this; these	hsk1-sense
+都		all; both; each; entirely; already	hsk1-sense
+里		inside; in; interior; li (unit of distance)	hsk1-sense
+一点儿	yì diǎnr		reading
+卜	bǔ		reading
+只	zhǐ		reading
+哪儿	nǎr		reading
+多少	duō shao		reading
+丁		adult man; fourth (in a series); small cube (of food)	deck-part-sense
+且		moreover; and also; for the time being; even	deck-part-sense
+丨		vertical line; vertical stroke	deck-part-sense
+中		middle; center; in; China; Chinese	deck-part-sense
+主		main; primary; master; host; owner	deck-part-sense
+乚		hook; hook stroke	deck-part-sense
+乛		horizontal hook stroke; hook	deck-part-sense
+云		cloud	deck-part-sense
+什		what	deck-part-sense
+令		to cause; order; command; decree	deck-part-sense
+候		to wait; time; season; to inquire after	deck-part-sense
+元		yuan (unit of money); dollar; first; primary	deck-part-sense
+兑		to exchange; to convert (currency); to cash (a check)	deck-part-sense
+关		to close; to shut; to turn off; relation; pass	deck-part-sense
+兴		interest; mood; excitement	deck-part-sense
+冉		slowly; gradually	deck-part-sense
+冏		bright	deck-part-sense
+凶		fierce; ferocious; inauspicious; violent	deck-part-sense
+出		to go out; to come out; to send out; to produce	deck-part-sense
+刀		knife; blade; sword	deck-part-sense
+分		minute; to divide; point (score); cent; fraction	deck-part-sense
+卓	zhuó	outstanding; eminent; lofty	deck-part-sense+reading
+占		to occupy; to take up; to account for	deck-part-sense
+厂		factory; workshop; plant	deck-part-sense
+句		sentence; clause; phrase; measure word for sentences	deck-part-sense
+吾		I; my; we	deck-part-sense
+夕		evening; dusk; night	deck-part-sense
+天		day; sky; weather; heaven	deck-part-sense
+夬		decisive; resolute	deck-part-sense
+子	zǐ	child; son; seed; noun suffix	deck-part-sense+reading
+巴		to long for; to cling to; noun suffix	deck-part-sense
+干		to do; to work	deck-part-sense
+广		wide; broad; vast; extensive	deck-part-sense
+执		to hold; to grasp; to carry out; to persist in	deck-part-sense
+攵		to tap; to rap; to strike	deck-part-sense
+故		reason; cause; incident; old, former; therefore	deck-part-sense
+斤		catty (half a kilogram); jin; axe	deck-part-sense
+机		machine; airplane; opportunity	deck-part-sense
+欠		to owe; to lack; to yawn	deck-part-sense
+没		not; have not; did not; without	deck-part-sense
+漂		pretty; good-looking	deck-part-sense
+目		eye; item; list; category	deck-part-sense
+相		each other; mutual; reciprocal	deck-part-sense
+示		to show; to indicate; to demonstrate	deck-part-sense
+苹		apple	deck-part-sense
+覀		cover; covering	deck-part-sense
+走		to walk; to go; to leave	deck-part-sense
+身		body; torso; oneself; personally	deck-part-sense
+车		vehicle; car	deck-part-sense
+青		green; blue-green; blue; young	deck-part-sense
+飞		to fly; to flutter; swift	deck-part-sense
+马		horse	deck-part-sense
+丘		mound, hill	surname
+仲		middle brother; go between, mediator	surname
+佉		the name of a divine being	surname
+佗		other, he; a load	surname
+余		surplus, remainder	surname
+侬		I; you	surname
+偻		humpback	surname
+僂		humpback	surname
+僖		joy, gladness, delight	surname
+儂		I; you	surname
+匙		spoon	surname
+区		area, district, region, ward	surname
+區		area, district, region, ward	surname
+厓		precipice; river bank, shore	surname
+叶		leaf, page	surname
+噔		for (a recipient of pity or sympathy)	surname
+塗		to smear, to scribble, to daub	surname
+壶		jar, pot, jug, vase	surname
+壺		jar, pot, jug, vase	surname
+姜		ginger	surname
+娄		a constellation; to wear	surname
+娥		beautiful, pretty; good	surname
+婁		a constellation; to wear	surname
+季		a quarter-year, a season	surname
+宣		to proclaim, to declare, to announce	surname
+宫		palace	surname
+宮		palace	surname
+宾		guest, visitor; submit	surname
+岳		mountain peak	surname
+幸		favor, fortune, luck	surname
+延		to defer, to delay, to postpone; to extend, to prolong	surname
+慄		chestnut tree; chestnuts	surname
+戴		to support; to respect; to put on, to wear	surname
+挚		sincere, warm, cordial	surname
+揭		to lift off a cover; to reveal, to divulge	surname
+摯		sincere, warm, cordial	surname
+施		to grant, to bestow; to act	surname
+昀		sunlight	surname
+杜		to prevent, to restrict, to stop	surname
+林		forest, grove	surname
+枣		date tree; dates, jujubes	surname
+柳		willow tree; pleasure	surname
+柴		firewood, faggots, fuel	surname
+栗		chestnut tree; chestnuts	surname
+桃		peach; marriage	surname
+桑		mulberry tree	surname
+桓		variety of tree	surname
+梁		bridge; beam, rafter	surname
+梅		plum; prune	surname
+棗		date tree; dates, jujubes	surname
+楚		clear, distinct; pain, suffering	surname
+樸		plain, simple; sincere	surname
+檀		sandalwood, hardwood	surname
+毋		not; do not	surname
+江		large river; the Yangtze	surname
+浦		beach, shore, river bank	surname
+涂		to smear, to scribble, to daub	surname
+源		spring; source, root, head	surname
+瀋		to sink, to submerge; addicted	surname
+熊		a bear; brilliant	surname
+狄		barbarians; a tribe from northern China	surname
+王		king, ruler; royal	surname
+男		man, boy; male; baron	surname
+祖		ancestor, forefather; grandfather	surname
+祝		to pray; to wish well	surname
+禽		birds, fowl; to capture	surname
+範		pattern, model, example	surname
+紫		purple, violet; amethyst	surname
+繒		silk; to tie, to bind	surname
+缯		silk; to tie, to bind	surname
+范		pattern, model, example	surname
+茅		rushes, reeds, grass	surname
+荆		thorns, brambles	surname
+荊		thorns, brambles	surname
+葉		leaf, page	surname
+葛		an edible bean; vine	surname
+蓝		blue; indigo plant	surname
+蓟		cirsium, thistle	surname
+蔌		vegetables	surname
+薊		cirsium, thistle	surname
+藍		blue; indigo plant	surname
+虎		tiger; brave, fierce	surname
+裘		fur coat	surname
+談		to talk, to chat; conversation	surname
+諸		all, many, various	surname
+诸		all, many, various	surname
+谈		to talk, to chat; conversation	surname
+豹		leopard, panther	surname
+賓		guest, visitor; submit	surname
+賚		to bestow, to confer	surname
+轅		axle; magistrate's office	surname
+遴		to select, to choose	surname
+郓		an ancient town	surname
+郴		a county in Hunan province	surname
+鄆		an ancient town	surname
+鈬		bell	surname
+铎		bell	surname
+雷		thunder	surname
+馬		horse	surname
+駒		colt; fleet, swift	surname
+驹		colt; fleet, swift	surname
+鹿		deer	surname
+麋		elk	surname
+麴		yeast; to leaven	surname
+黃		yellow	surname
+黄		yellow	surname

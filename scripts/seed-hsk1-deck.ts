@@ -24,6 +24,10 @@ import { S3StorageAdapter } from "@/server/services/S3StorageAdapter";
 import { TTSService } from "@/server/services/TTSService";
 import { GoogleTTSAPIProvider } from "@/server/services/tts/GoogleTTSAPIProvider";
 import { bootstrap } from "./bootstrap";
+import {
+  applyOverride,
+  loadVocabOverrides,
+} from "@/server/database/seed/vocab-overrides";
 
 const DECK_ID = "deck-hsk1";
 const DECK_NAME = "HSK 1";
@@ -129,7 +133,15 @@ async function main() {
   const missingWords = words.filter((w) => !idByItem.has(w.word));
   console.log(`Words to create (not in dictionary): ${missingWords.length}`);
 
-  for (const { word, pinyin, translation } of missingWords) {
+  // The list's own readings and glosses are wrong in places (哪儿 "nǎ er");
+  // vocab-overrides.tsv corrects them the same way it corrects the dictionary.
+  const overrides = loadVocabOverrides();
+  for (const listed of missingWords) {
+    const { word } = listed;
+    const { pinyin, translation } = applyOverride(
+      { pinyin: listed.pinyin, translation: listed.translation },
+      overrides.get(word),
+    );
     let audioUrl = "";
     try {
       audioUrl = await tts.getVocabAudio(word);
