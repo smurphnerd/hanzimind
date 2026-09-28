@@ -194,6 +194,11 @@ export function ResultCard({ deckId, graded, onNext }: ResultCardProps) {
                 <p className="text-foreground">
                   &ldquo;{item.memoryAid}&rdquo;
                 </p>
+                {item.memoryAidSource && (
+                  <p className="mt-1 text-xs text-muted-foreground italic">
+                    {item.memoryAidSource}
+                  </p>
+                )}
               </div>
             )}
 

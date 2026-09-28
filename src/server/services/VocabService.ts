@@ -247,6 +247,7 @@ export class VocabService {
         createdAt: memoryAids.createdAt,
         createdByUsername: users.name,
         usageCount: count(userVocabItems.userId).as("usage_count"),
+        source: memoryAids.source,
       })
       .from(memoryAids)
       .leftJoin(users, eq(memoryAids.createdById, users.id))
@@ -271,6 +272,7 @@ export class VocabService {
       createdById: row.createdById,
       createdByUsername: row.createdByUsername ?? "Anonymous",
       usageCount: row.usageCount,
+      source: row.source,
     }));
   }
 
@@ -311,6 +313,7 @@ export class VocabService {
       createdById: memoryAidRow.createdById,
       createdByUsername: user?.name ?? "Anonymous",
       usageCount: 0,
+      source: memoryAidRow.source,
     };
   }
 
@@ -341,6 +344,7 @@ export class VocabService {
         isPublic: memoryAids.public,
         createdByUsername: users.name,
         usageCount: count(userVocabItems.userId).as("usage_count"),
+        source: memoryAids.source,
       })
       .from(memoryAids)
       .leftJoin(users, eq(memoryAids.createdById, users.id))
@@ -356,6 +360,7 @@ export class VocabService {
       usageCount: row.usageCount,
       isPublic: row.isPublic,
       isDefault: row.id === defaultMemoryAidId,
+      source: row.source,
     }));
 
     return { items, defaultMemoryAidId };
@@ -366,7 +371,8 @@ export class VocabService {
    *
    * The aid must belong to the glyph — otherwise a stray id would set a default
    * that the dictionary query could never surface, leaving a glyph that claims a
-   * default it never shows.
+   * default it never shows. It must also be public: the default is shown to
+   * every learner, so starring someone's private note would publish it.
    */
   async setDefaultMemoryAid(args: {
     vocabItemId: string;
@@ -374,7 +380,7 @@ export class VocabService {
   }): Promise<{ defaultMemoryAidId: string | null }> {
     if (args.memoryAidId !== null) {
       const aid = await this.deps.database.query.memoryAids.findFirst({
-        columns: { id: true },
+        columns: { id: true, public: true },
         where: (memoryAids, { and, eq }) =>
           and(
             eq(memoryAids.id, args.memoryAidId!),
@@ -385,6 +391,11 @@ export class VocabService {
       if (!aid) {
         throw new InvalidInputError(
           "That memory aid does not belong to this glyph",
+        );
+      }
+      if (!aid.public) {
+        throw new InvalidInputError(
+          "Only a public memory aid can be the default",
         );
       }
     }

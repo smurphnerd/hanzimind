@@ -120,11 +120,14 @@ function ManageBody({ vocabItemId }: { vocabItemId: string }) {
             <MemoryAidCard
               key={aid.id}
               highlighted={aid.isDefault}
+              source={aid.source}
               marker={
                 <Button
                   variant="ghost"
                   size="icon"
-                  disabled={busy}
+                  // A private aid cannot be starred (the server refuses), but a
+                  // stale private default can still be cleared.
+                  disabled={busy || (!aid.isPublic && !aid.isDefault)}
                   onClick={toggleDefault}
                   aria-label={
                     aid.isDefault

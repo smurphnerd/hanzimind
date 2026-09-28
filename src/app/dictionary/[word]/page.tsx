@@ -96,6 +96,7 @@ function DictionaryWordContent() {
                     <MemoryAidCard
                       key={mnemonic.id}
                       highlighted={isDefault}
+                      source={mnemonic.source}
                       marker={
                         isDefault ? (
                           <span className="inline-flex text-primary">

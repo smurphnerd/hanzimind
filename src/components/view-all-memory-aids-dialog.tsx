@@ -75,6 +75,7 @@ export function ViewAllMemoryAidsDialog({
               {memoryAids.map((mnemonic, index) => (
                 <MemoryAidCard
                   key={mnemonic.id}
+                  source={mnemonic.source}
                   marker={
                     <span className="font-display font-bold text-primary tabular-nums">
                       {(page - 1) * pageSize + index + 1}.

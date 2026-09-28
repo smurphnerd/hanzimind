@@ -76,6 +76,8 @@ export const MemoryAidDto = z.object({
   createdById: z.string(),
   createdByUsername: z.string(),
   usageCount: z.number().int().nonnegative(),
+  /** Credit line for an aid adapted from a published work; null when original. */
+  source: z.string().nullable(),
 });
 export type MemoryAidDto = z.infer<typeof MemoryAidDto>;
 
@@ -91,6 +93,7 @@ export const AdminMemoryAidDto = z.object({
   usageCount: z.number().int().nonnegative(),
   isDefault: z.boolean(),
   isPublic: z.boolean(),
+  source: z.string().nullable(),
 });
 export type AdminMemoryAidDto = z.infer<typeof AdminMemoryAidDto>;
 
@@ -389,6 +392,8 @@ export const UserVocabItemDto = VocabItemDto.extend({
   progress: StudyProgressDto,
   memoryAidId: z.string().nullable(),
   memoryAid: z.string().nullable(),
+  /** The credit line of `memoryAid`, shown under it. See MemoryAidDto.source. */
+  memoryAidSource: z.string().nullable(),
   /** See VocabItemStudyNewDto.constituents — resolved server-side, disabled parts removed. */
   constituents: z.array(z.string()),
 });

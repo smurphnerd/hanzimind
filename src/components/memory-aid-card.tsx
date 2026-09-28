@@ -19,6 +19,7 @@ export function MemoryAidCard({
   marker,
   children,
   meta,
+  source,
   action,
   highlighted = false,
   className,
@@ -29,6 +30,11 @@ export function MemoryAidCard({
   children: ReactNode;
   /** The line under it: who wrote it, how many learners saved it. */
   meta?: ReactNode;
+  /**
+   * The credit line of an aid adapted from a published work, or null. Required,
+   * not optional, so a new list cannot render adapted text and forget the credit.
+   */
+  source: string | null;
   /** Shown to the right, such as the report button. */
   action?: ReactNode;
   /** The official pick, which the entry page and the admin both tint. */
@@ -51,6 +57,9 @@ export function MemoryAidCard({
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {meta}
           </div>
+        )}
+        {source && (
+          <p className="mt-1 text-xs text-muted-foreground italic">{source}</p>
         )}
       </div>
 

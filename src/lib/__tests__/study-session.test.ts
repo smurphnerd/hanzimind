@@ -62,6 +62,7 @@ function answeredItem(id = "card-1"): UserVocabItemDto {
     },
     memoryAidId: null,
     memoryAid: null,
+    memoryAidSource: null,
     constituents: [],
   };
 }
