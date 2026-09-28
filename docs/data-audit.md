@@ -10,14 +10,14 @@ Evidence files, beside this one:
 
 ## Status
 
-| Finding                    | State                                                                                                                                                                                                                                         |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Readings                | **Fixed.** `vocab-overrides.tsv` sets 呢 ne, 哪儿 nǎr, 一点儿 yì diǎnr, 多少 duō shao, 谁 shéi, 子 zǐ, 卜 bǔ, 只 zhǐ and 卓 zhuó. The grader needed no change: `split()` keeps letters and tones apart, so `nar3` now matches "nǎr".          |
-| 2. HSK 1 senses            | **Fixed** for all 108 flagged deck rows except 觉 (finding 7). I reviewed every proposal by hand before it went into the file.                                                                                                                |
-| 3. `r2.dev` audio          | Open. This is an operator step: bind a custom domain, then rewrite `audio_url`.                                                                                                                                                               |
-| 4. 53 live disabled glyphs | **Fixed** by `scripts/apply-disabled.ts`.                                                                                                                                                                                                     |
-| 5. Stray alternatives      | **Partly fixed.** "Surname" was dropped from 106 characters whose everyday use is something else; it stays on about 135 where the surname is the main use (刘, 陈, 曹). The other-reading and wrong-sense cases are fixed for deck rows only. |
-| 6–9                        | Open.                                                                                                                                                                                                                                         |
+| Finding                    | State                                                                                                                                                                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Readings                | **Fixed.** `vocab-overrides.tsv` sets 呢 ne, 哪儿 nǎr, 一点儿 yì diǎnr, 多少 duō shao, 谁 shéi, 子 zǐ, 卜 bǔ, 只 zhǐ and 卓 zhuó. The grader needed no change: `split()` keeps letters and tones apart, so `nar3` now matches "nǎr".                                               |
+| 2. HSK 1 senses            | **Fixed** for all 108 flagged deck rows except 觉 (finding 7). I reviewed every proposal by hand before it went into the file.                                                                                                                                                     |
+| 3. `r2.dev` audio          | Open. This is an operator step: bind a custom domain, then rewrite `audio_url`.                                                                                                                                                                                                    |
+| 4. 53 live disabled glyphs | **Fixed** by `scripts/apply-disabled.ts`.                                                                                                                                                                                                                                          |
+| 5. Stray alternatives      | **Partly fixed.** "Surname" was dropped from 106 characters whose everyday use is something else. It stays on 152: 17 whose only gloss is a surname, and 135 where the surname is the main use (刘, 陈, 曹). The other-reading and wrong-sense cases are fixed for deck rows only. |
+| 6–9                        | Open.                                                                                                                                                                                                                                                                              |
 
 ## Launch blockers
 
@@ -35,7 +35,7 @@ Evidence files, beside this one:
 
 These deck parts also teach the wrong reading when they stand alone: 子 `zi` (should be zǐ), 卜 `bo` (should be bǔ; bo is only the neutral tone in 萝卜), and 只 `zhī` with the meaning "only", which belongs to zhǐ.
 
-`src/lib/pinyin.ts` also has no notion of erhua. Any 儿 word needs its pinyin corrected, and the grader should accept `nar3` for "nǎr".
+Erhua needed no grader change. Once 哪儿 is stored as "nǎr", `nar3` and `na3r` both match, because `split()` compares letters and tones separately.
 
 ### 2. The meaning answer key lacks the HSK 1 sense of core words
 
@@ -58,7 +58,7 @@ Of the 150 HSK 1 words, 53 have a problem that would mislead a learner or grade 
 
 The RWC book's glosses are no fix: they are shorter still ("be big"). The HSK list's own glosses are CC-CEDICT senses and miss the point too (本 = "origin; source", with no "measure word for books").
 
-Fix: a curated `translation-overrides.tsv`, loaded by the seed and a backfill, which follows the `vocab-classification.tsv` pattern. Start from the `proposed_translation` column of `data-audit/hsk1-deck.tsv`.
+Fix (applied): `src/server/database/seed/vocab-overrides.tsv`, loaded by both seeds and by `scripts/backfill-overrides.ts`, following the `vocab-classification.tsv` pattern.
 
 ### 3. Audio is served from `r2.dev`, which Cloudflare rate-limits and says not to use in production
 
