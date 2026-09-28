@@ -1,0 +1,60 @@
+# RWC Part-1 headword glyphs, resolved by reading the headword image itself.
+#
+# The book prints every basic character's headword as an image. The prior
+# extraction (books/extracted/rwc-entries.jsonl) turned most of them into Unicode,
+# but left 33 as `char: null` and misread 11 more as a related character that
+# shares the sound or most of the shape (各 as 个, 级 as 及, 苹 as 平, 巳 as 己).
+# Two of the first hand resolutions of the nulls were also wrong (470, 482).
+# Every row here was checked against the actual headword image in the epub
+# (OEBPS/Images/<file>) — the glyph is unambiguous in the stroke-order box beside
+# it, and the image also prints the serial.
+#
+# This table WINS over the prior extraction: extract-rwc.mjs and
+# merge-rwc-shards.mjs take a serial's glyph from here first. The whole of Part 1
+# (1,067 images) was audited on 2026-09-28; anything absent here matched.
+#
+# serial	glyph	image	note
+21	乛	29b.jpg	radical 5, back-turned stroke
+56	吗	36b.jpg	ma, question particle
+60	谁	37a.jpg	shéi/shuí, who
+136	吩	52b.jpg	fēn (吩咐)
+153	龶	55d.jpg	radical 89, top of 青
+162	西	57c.jpg	radical 166, west; prior read the bound form 襾
+186	著	62b.jpg	zhù, to display/author
+211	戋	67b.jpg	jiān, thin (戋)
+216	这	68b.jpg	zhèi/zhè, this
+235	没	72a.jpg	mò/méi, negator
+271	弔	79b.jpg	diào, to pity; prior read 吊
+278	长	80d.jpg	cháng/zhǎng, long/grow
+299	巳	84e.jpg	sì, 6th earthly branch; prior read 己 (297)
+333	咳	91d.jpg	hāi/ké, cough
+383	夬	101d.jpg	juē (夬)
+388	得	102d.jpg	děi/dé, must/get
+398	厂	104d.jpg	radical, cliff/factory
+432	各	111c.jpg	gè, each; prior read 个
+434	𠂉	111e.jpg	radical 20, top of 每
+447	爫	114c.jpg	radical 116 top form; prior read 爪
+470	𢦏	119a.jpg	radical 165, top of 栽 (十 over 戈)
+480	趟	121a.jpg	tàng, measure for trips
+482	龸	121c.jpg	radical 139, top of 常 (⺌ over 冖, 5 strokes)
+491	勿	123b.jpg	wù, do not
+500	曷	125a.jpg	hé, what? why?; prior read 盍
+516	地	128b.jpg	dì, earth/place
+530	甫	131a.jpg	fǔ (甫)
+587	着	142c.jpg	zháo
+588	着	142d.jpg	zhuó
+616	呐	148b.jpg	ne/na, particle (呐)
+642	苹	153c.jpg	píng (苹果); prior read 平
+663	级	157d.jpg	jí, grade; prior read 及
+672	呀	159c.jpg	yā, exclamation; prior read 吖
+707	江	166c.jpg	jiāng, river
+774	龴	179e.jpg	radical 31, top of 予
+811	𡗗	187b.jpg	radical 130, top of 春
+844	量	193e.jpg	liáng, to measure; prior read 踉
+867	𠃌	198c.jpg	radical 6, top of 刁
+908	咐	206d.jpg	fù (吩咐); prior read 副
+911	壬	207b.jpg	rén (壬)
+959	弗	216e.jpg	fú (弗)
+961	佛	217b.jpg	fó/fú, Buddha
+988	乐	222d.jpg	yuè/lè, music/happy
+1019	乂	228e.jpg	yì (乂)

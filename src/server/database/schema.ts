@@ -333,6 +333,10 @@ export const memoryAids = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     public: boolean().notNull().default(false),
+    // The credit line for an aid adapted from a published work, shown under the
+    // aid wherever it is displayed ("Adapted from Reading and Writing Chinese
+    // …"). Null for an aid a learner or admin wrote themselves.
+    source: text(),
     ...timestampFields,
   },
   (table) => [

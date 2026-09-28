@@ -660,6 +660,7 @@ export class StudyService {
           seen: schema.userVocabItems.seen,
           memoryAidId: schema.userVocabItems.memoryAidId,
           memoryAid: schema.memoryAids.memoryAid,
+          memoryAidSource: schema.memoryAids.source,
         })
         .from(schema.vocabItems)
         .innerJoin(
@@ -703,18 +704,25 @@ export class StudyService {
 
     // Until a learner pins their own aid, they see the glyph's starred
     // default. The join above only carries their pick, so fall back to the
-    // default's text with one small lookup when they have none.
+    // default's text with one small lookup when they have none. Only a public
+    // aid is served this way: the dictionary never shows a private one, and a
+    // study card must not be the one place it leaks.
     let memoryAidId = item.memoryAidId;
     let memoryAid = item.memoryAid;
+    let memoryAidSource = item.memoryAidSource;
     if (!memoryAidId && item.item.defaultMemoryAidId) {
       const fallback = await this.deps.database.query.memoryAids.findFirst({
-        columns: { id: true, memoryAid: true },
-        where: (memoryAids, { eq }) =>
-          eq(memoryAids.id, item.item.defaultMemoryAidId!),
+        columns: { id: true, memoryAid: true, source: true },
+        where: (memoryAids, { and, eq }) =>
+          and(
+            eq(memoryAids.id, item.item.defaultMemoryAidId!),
+            eq(memoryAids.public, true),
+          ),
       });
       if (fallback) {
         memoryAidId = fallback.id;
         memoryAid = fallback.memoryAid;
+        memoryAidSource = fallback.source;
       }
     }
 
@@ -727,6 +735,7 @@ export class StudyService {
         progressByItem(progressRows).get(vocabItemId) ?? emptyStudyProgress(),
       memoryAidId,
       memoryAid,
+      memoryAidSource,
       constituents: await this.deps.vocabService.getVocabItemParts({
         vocabItem: item.item.vocabItem,
         vocabType: item.item.vocabType,

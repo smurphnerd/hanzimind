@@ -39,6 +39,7 @@ const userVocabItem: UserVocabItemDto = {
   },
   memoryAidId: null,
   memoryAid: null,
+  memoryAidSource: null,
   constituents: [],
 };
 
