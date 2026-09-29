@@ -102,7 +102,11 @@ describe("canStudy", () => {
     });
 
     it("should hide the borrowed reading on the way out", () => {
-      expect(readingOf(component())).toEqual({ pinyin: "", audioUrl: "" });
+      expect(readingOf({ ...component(), otherReadings: ["rén"] })).toEqual({
+        pinyin: "",
+        audioUrl: "",
+        otherReadings: [],
+      });
     });
 
     it("should reject writing, which a pinyin IME cannot produce", () => {
@@ -143,6 +147,7 @@ describe("canStudy", () => {
       expect(readingOf(phonetic())).toEqual({
         pinyin: "gěn",
         audioUrl: "audio/33390.mp3",
+        otherReadings: [],
       });
     });
   });

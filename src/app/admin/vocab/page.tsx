@@ -57,6 +57,14 @@ const SCRIPT_FILTERS: { label: string; value: Script | "all" }[] = [
   { label: "Same in both", value: "both" },
 ];
 
+type ReviewedFilter = "all" | "unreviewed" | "reviewed";
+
+const REVIEWED_FILTERS: { label: string; value: ReviewedFilter }[] = [
+  { label: "Any review", value: "all" },
+  { label: "Unreviewed", value: "unreviewed" },
+  { label: "Reviewed", value: "reviewed" },
+];
+
 function AdminVocabContent() {
   const orpc = useORPC();
   const queryClient = useQueryClient();
@@ -66,6 +74,7 @@ function AdminVocabContent() {
   const [typeFilter, setTypeFilter] = useState<VocabType | "all">("component");
   const [scriptFilter, setScriptFilter] = useState<Script | "all">("all");
   const [showDisabled, setShowDisabled] = useState(false);
+  const [reviewedFilter, setReviewedFilter] = useState<ReviewedFilter>("all");
   const [page, setPage] = useState(1);
   const [aidsItem, setAidsItem] = useState<{
     id: string;
@@ -82,6 +91,7 @@ function AdminVocabContent() {
         script: scriptFilter === "all" ? undefined : scriptFilter,
         // `undefined` means "both"; the toggle narrows to just the hidden ones.
         disabled: showDisabled ? true : undefined,
+        reviewed: reviewedFilter,
         page,
         pageSize: PAGE_SIZE,
       },
@@ -216,6 +226,21 @@ function AdminVocabContent() {
             </Button>
           ))}
         </div>
+        <div className="flex flex-wrap gap-1">
+          {REVIEWED_FILTERS.map((filter) => (
+            <Button
+              key={filter.value}
+              variant={reviewedFilter === filter.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setReviewedFilter(filter.value);
+                setPage(1);
+              }}
+            >
+              {filter.label}
+            </Button>
+          ))}
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <Switch
             checked={showDisabled}
@@ -241,18 +266,19 @@ function AdminVocabContent() {
                 <TableHead className="w-[9%]">Type</TableHead>
                 <TableHead className="w-[10%]">Script</TableHead>
                 <TableHead className="w-[9%]">Reading</TableHead>
-                <TableHead className="w-[25%]">Definition</TableHead>
+                <TableHead className="w-[23%]">Definition</TableHead>
                 <TableHead className="w-[8%]">Aids</TableHead>
-                <TableHead className="w-[11%]">Component</TableHead>
-                <TableHead className="w-[11%]">Phonetic</TableHead>
-                <TableHead className="w-[10%]">Hidden</TableHead>
+                <TableHead className="w-[9%]">Component</TableHead>
+                <TableHead className="w-[9%]">Phonetic</TableHead>
+                <TableHead className="w-[8%]">Reviewed</TableHead>
+                <TableHead className="w-[8%]">Hidden</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isPending &&
                 Array.from({ length: 8 }).map((_, index) => (
                   <TableRow key={index}>
-                    {Array.from({ length: 9 }).map((__, cell) => (
+                    {Array.from({ length: 10 }).map((__, cell) => (
                       <TableCell key={cell}>
                         <Skeleton className="h-6 w-full" />
                       </TableCell>
@@ -262,7 +288,7 @@ function AdminVocabContent() {
 
               {!isPending && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-12 text-center">
+                  <TableCell colSpan={10} className="py-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Mika pose="sleep" size={64} />
                       <p className="text-muted-foreground">
@@ -373,6 +399,16 @@ function AdminVocabContent() {
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={item.humanReviewed}
+                        disabled={isSaving}
+                        aria-label={`Mark ${item.vocabItem} as reviewed`}
+                        onCheckedChange={(checked) =>
+                          update({ id: item.id, humanReviewed: checked })
+                        }
+                      />
                     </TableCell>
                     <TableCell>
                       <Switch

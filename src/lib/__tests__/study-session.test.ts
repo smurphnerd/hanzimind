@@ -36,6 +36,7 @@ function answeredItem(id = "card-1"): UserVocabItemDto {
     vocabItem: "女",
     translation: "woman",
     pinyin: "nǚ",
+    otherReadings: [],
     vocabType: "character",
     script: "both",
     audioUrl: "audio/5973.mp3",

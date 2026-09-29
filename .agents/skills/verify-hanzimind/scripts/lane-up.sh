@@ -33,6 +33,7 @@ seed_cache_key() {
 			src/server/database/seed/script-classification.tsv src/server/database/seed/seed-dictionary.ts \
 			src/server/database/seed/vocab-classification.ts src/server/database/seed/script-classification.ts \
 			src/server/database/seed/vocab-overrides.tsv src/server/database/seed/vocab-overrides.ts \
+			src/server/database/seed/other-readings.tsv src/server/database/seed/other-readings.ts \
 			scripts/seed-hsk1-deck.ts scripts/data/hsk1-vocabulary.txt) |
 		shasum -a 256 | cut -c1-16
 }

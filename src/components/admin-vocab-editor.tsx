@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lightbulb, ShieldCheck } from "lucide-react";
 
@@ -17,8 +17,9 @@ import type { VocabItemDetailedDto } from "@/definitions/definitions";
 
 /**
  * Inline admin controls on a dictionary entry — the same edits the admin table
- * offers (reading, definition, component/phonetic/hidden flags and memory-aid
- * curation), so an admin never has to leave the page they are reading to fix it.
+ * offers (reading, definition, component/phonetic/reviewed/hidden flags and
+ * memory-aid curation), so an admin never has to leave the page they are
+ * reading to fix it.
  *
  * Rendered only for admins; the server re-checks every `admin.*` procedure, so
  * this decides what to show, never what is permitted.
@@ -27,12 +28,19 @@ import type { VocabItemDetailedDto } from "@/definitions/definitions";
  * `disabled` is always false here — the Hidden switch is therefore an off→on
  * action that makes the entry vanish, and on success we route back to the
  * dictionary rather than refetch it into a NOT_FOUND.
+ *
+ * `humanReviewed` is admin-only, so it is read from `admin.getVocabItem` rather
+ * than the learner-facing entry.
  */
 export function AdminVocabEditor({ entry }: { entry: VocabItemDetailedDto }) {
   const orpc = useORPC();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [aidsOpen, setAidsOpen] = useState(false);
+  const adminItemOptions = orpc.admin.getVocabItem.queryOptions({
+    input: { id: entry.id },
+  });
+  const { data: adminItem } = useQuery(adminItemOptions);
 
   const updateMutation = useTrackedMutation(
     orpc.admin.updateVocabItem.mutationOptions({
@@ -46,6 +54,9 @@ export function AdminVocabEditor({ entry }: { entry: VocabItemDetailedDto }) {
         }
         toast.success(`Updated ${updated.vocabItem}`);
         void queryClient.invalidateQueries({ queryKey: orpc.vocab.get.key() });
+        void queryClient.invalidateQueries({
+          queryKey: adminItemOptions.queryKey,
+        });
       },
       onError: (error) =>
         toast.error(
@@ -139,6 +150,17 @@ export function AdminVocabEditor({ entry }: { entry: VocabItemDetailedDto }) {
               Phonetic
             </label>
           )}
+          <label className="flex items-center gap-2 text-sm">
+            <Switch
+              checked={adminItem?.humanReviewed ?? false}
+              disabled={isSaving || !adminItem}
+              aria-label={`Mark ${entry.vocabItem} as reviewed`}
+              onCheckedChange={(checked) =>
+                update({ id: entry.id, humanReviewed: checked })
+              }
+            />
+            Reviewed
+          </label>
           <label className="flex items-center gap-2 text-sm">
             <Switch
               checked={false}

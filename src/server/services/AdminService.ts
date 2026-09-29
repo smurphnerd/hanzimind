@@ -15,6 +15,21 @@ import {
 import { InvalidInputError, NotFoundError } from "@/server/endpoints/errors";
 import type { VocabService } from "@/server/services/VocabService";
 
+/** The columns of an AdminVocabItemDto, for every query that returns one. */
+const ADMIN_VOCAB_COLUMNS = {
+  id: schema.vocabItems.id,
+  vocabItem: schema.vocabItems.vocabItem,
+  translation: schema.vocabItems.translation,
+  pinyin: schema.vocabItems.pinyin,
+  vocabType: schema.vocabItems.vocabType,
+  script: schema.vocabItems.script,
+  disabled: schema.vocabItems.disabled,
+  phonetic: schema.vocabItems.phonetic,
+  humanReviewed: schema.vocabItems.humanReviewed,
+  decomposition: schema.vocabItems.decomposition,
+  radical: schema.vocabItems.radical,
+};
+
 /**
  * Reads and writes the vocabulary classification for the admin screen.
  *
@@ -62,6 +77,7 @@ export class AdminService {
     vocabType?: VocabType;
     script?: Script;
     disabled?: boolean;
+    reviewed?: "all" | "unreviewed" | "reviewed";
     search?: string;
   }): Promise<{
     items: AdminVocabItemDto[];
@@ -82,6 +98,11 @@ export class AdminService {
     if (args.disabled !== undefined) {
       filters.push(eq(schema.vocabItems.disabled, args.disabled));
     }
+    if (args.reviewed === "reviewed" || args.reviewed === "unreviewed") {
+      filters.push(
+        eq(schema.vocabItems.humanReviewed, args.reviewed === "reviewed"),
+      );
+    }
 
     const search = args.search?.trim();
     if (search) {
@@ -100,18 +121,7 @@ export class AdminService {
 
     const [items, total] = await Promise.all([
       this.deps.database
-        .select({
-          id: schema.vocabItems.id,
-          vocabItem: schema.vocabItems.vocabItem,
-          translation: schema.vocabItems.translation,
-          pinyin: schema.vocabItems.pinyin,
-          vocabType: schema.vocabItems.vocabType,
-          script: schema.vocabItems.script,
-          disabled: schema.vocabItems.disabled,
-          phonetic: schema.vocabItems.phonetic,
-          decomposition: schema.vocabItems.decomposition,
-          radical: schema.vocabItems.radical,
-        })
+        .select(ADMIN_VOCAB_COLUMNS)
         .from(schema.vocabItems)
         .where(where)
         // Shortest first, then by glyph, so the ordering is stable across pages.
@@ -135,6 +145,23 @@ export class AdminService {
       pageSize: args.pageSize,
       totalPages: pageRange(args.page, args.pageSize, total).totalPages,
     };
+  }
+
+  /**
+   * One row as the admin screen sees it, disabled or not. Feeds the admin
+   * editor on a dictionary entry, whose learner DTO omits the admin flags.
+   */
+  async getVocabItem(id: string): Promise<AdminVocabItemDto> {
+    const [item] = await this.deps.database
+      .select(ADMIN_VOCAB_COLUMNS)
+      .from(schema.vocabItems)
+      .where(eq(schema.vocabItems.id, id));
+
+    if (!item) {
+      throw new NotFoundError("Vocab item not found");
+    }
+
+    return item;
   }
 
   /**
@@ -162,6 +189,7 @@ export class AdminService {
     translation?: string;
     pinyin?: string;
     phonetic?: boolean;
+    humanReviewed?: boolean;
   }): Promise<AdminVocabItemDto> {
     const existing = await this.deps.database.query.vocabItems.findFirst({
       where: (vocabItems, { eq }) => eq(vocabItems.id, args.id),
@@ -177,6 +205,7 @@ export class AdminService {
       translation?: string;
       pinyin?: string;
       phonetic?: boolean;
+      humanReviewed?: boolean;
     } = {};
 
     if (args.disabled !== undefined) {
@@ -207,6 +236,10 @@ export class AdminService {
       update.phonetic = args.phonetic;
     }
 
+    if (args.humanReviewed !== undefined) {
+      update.humanReviewed = args.humanReviewed;
+    }
+
     if (args.vocabType && args.vocabType !== existing.vocabType) {
       update.vocabType = args.vocabType;
     }
@@ -223,6 +256,7 @@ export class AdminService {
         script: existing.script,
         disabled: existing.disabled,
         phonetic: existing.phonetic,
+        humanReviewed: existing.humanReviewed,
         decomposition: existing.decomposition,
         radical: existing.radical,
       };
@@ -232,18 +266,7 @@ export class AdminService {
       .update(schema.vocabItems)
       .set(update)
       .where(eq(schema.vocabItems.id, args.id))
-      .returning({
-        id: schema.vocabItems.id,
-        vocabItem: schema.vocabItems.vocabItem,
-        translation: schema.vocabItems.translation,
-        pinyin: schema.vocabItems.pinyin,
-        vocabType: schema.vocabItems.vocabType,
-        script: schema.vocabItems.script,
-        disabled: schema.vocabItems.disabled,
-        phonetic: schema.vocabItems.phonetic,
-        decomposition: schema.vocabItems.decomposition,
-        radical: schema.vocabItems.radical,
-      });
+      .returning(ADMIN_VOCAB_COLUMNS);
 
     // Every column this can write is one the decomposition index carries, and
     // the index is cached for five minutes. The admin who just made the edit is

@@ -66,6 +66,7 @@ export function toVocabItemDto(
     vocabItem: row.vocabItem,
     translation: row.translation,
     pinyin: reading.pinyin,
+    otherReadings: reading.otherReadings,
     vocabType: row.vocabType,
     script: row.script,
     audioUrl: reading.audioUrl,

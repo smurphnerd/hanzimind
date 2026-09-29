@@ -101,6 +101,8 @@ export interface VocabEntryData {
   vocabItem: string;
   vocabType: VocabType;
   pinyin: string;
+  /** Other standard readings, shown under the main one. Empty when there are none. */
+  otherReadings: string[];
   audioUrl: string;
   /**
    * Component only: whether its reading is its own and taught. `pinyin` and
@@ -286,6 +288,11 @@ export function VocabEntryDetail({
                 <div className={cn("hanzi text-3xl", meta.colorClass)}>
                   {entry.pinyin}
                 </div>
+                {entry.otherReadings.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Also read {entry.otherReadings.join(", ")}
+                  </p>
+                )}
                 {entry.vocabType === "component" && (
                   <p className="text-sm text-muted-foreground">
                     A part used to build other characters — its sound is a clue

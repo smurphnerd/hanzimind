@@ -248,6 +248,9 @@ effect.
 - `tsx scripts/backfill-overrides.ts` (`--dry-run`) — applies
   `vocab-overrides.tsv` (below). It writes a field only while the row still holds
   the upstream value, so an admin's hand edit survives and is reported.
+- `tsx scripts/backfill-other-readings.ts` (`--dry-run`) — sets
+  `other_readings` from `other-readings.tsv`. That file is generated and
+  nothing else writes the column, so the file wins outright.
 - `backfill-etymology-roles.ts` is gone. It filled `etymologyPhonetic` /
   `etymologySemantic` on rows seeded before those columns existed, and the seed
   now sets them.
@@ -291,6 +294,44 @@ readings accept the standard answers. How each row was found is in
 
 RWC's glosses are not a replacement for makemeahanzi's. They phrase adjectives
 as verbs ("be big", "be numerous") and are shorter still.
+
+The overrides also hold 297 `rwc-dictionary` rows. These are characters in the
+RWC book (the 2,338 a learner is most likely to meet) whose meaning or reading
+the audit flagged. Each fix was proposed and confirmed by two separate model
+passes, and none has been human-reviewed.
+
+**Characters with more than one reading**
+`vocab_items.pinyin` is the main reading, the one that is shown and spoken.
+`other_readings` lists the other standard readings (觉 jiào beside jué, 长 zhǎng
+beside cháng). Reading and listening cards accept any of them, because the card
+shows the character alone and every reading is correct for it. Listening
+accepts them too: the TTS clip may well say one of the others. `readingOf`
+blanks the list together with `pinyin`, so a meaning-only component never
+exposes one.
+
+The list comes from `other-readings.tsv`, which
+`scripts/build-other-readings.mjs` generates. It unions makemeahanzi's readings
+with RWC's, whose head lines list them together ("DE, DÌ"), keeps single
+syllables only, and drops a short deny-list of readings the overrides replaced
+because they are wrong on their own (呢 né, 子 zi). It needs the gitignored RWC
+extraction to run. The TSV it writes is committed.
+
+**Writing cards and identical meanings**
+A writing card shows one item's translation and needs the exact characters. It
+also accepts another item from the same deck when that item's translation
+matches word for word. `sameMeaning` compares the sets of alternatives,
+ignoring case, spacing and order. That is deliberately exact: sharing a single
+alternative is not enough, because 衣 contains "clothes" but 衣服's prompt asks
+for the whole word. With today's data only 苹 and 苹果 ("apple") qualify. The
+rule starts to work once reviewers give true synonyms the same translation.
+
+**Human review**
+`vocab_items.human_reviewed` is false until an admin flips the Reviewed switch,
+either in `/admin/vocab`, which has an unreviewed filter that serves as the
+queue, or on a dictionary entry. Nothing automated ever sets it, so every
+override above, including the model-confirmed ones, still shows as unreviewed.
+The flag is admin-only: it lives on `AdminVocabItemDto` and never on a learner
+DTO.
 
 What the book adds is the memory aids. `src/server/database/seed/rwc-memory-aids.jsonl`
 holds one aid per glyph (682 of them), each in our own words. They were

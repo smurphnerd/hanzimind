@@ -98,10 +98,25 @@ async function main() {
     );
   };
 
-  // Only include something teachable: a definition to quiz and a real reading.
+  // Only include something teachable, judged on the row as stored rather than
+  // on dictionary.txt: a component's gloss often comes from
+  // vocab-classification.tsv (⺊, ⺈, ⺼ have none upstream), a meaning-only
+  // component is taught without a reading, and a disabled glyph is never taught.
+  const existingRows = await database
+    .select({
+      id: schema.vocabItems.id,
+      vocabItem: schema.vocabItems.vocabItem,
+      vocabType: schema.vocabItems.vocabType,
+      translation: schema.vocabItems.translation,
+      pinyin: schema.vocabItems.pinyin,
+      disabled: schema.vocabItems.disabled,
+    })
+    .from(schema.vocabItems);
+  const rowByItem = new Map(existingRows.map((r) => [r.vocabItem, r]));
   const isTeachable = (char: string) => {
-    const entry = dict.get(char);
-    return !!entry?.definition && !!entry?.pinyin?.length;
+    const row = rowByItem.get(char);
+    if (!row || row.disabled || !row.translation?.trim()) return false;
+    return row.vocabType === "component" || !!row.pinyin;
   };
 
   const base = new Set(words.map((w) => w.word));
@@ -122,12 +137,6 @@ async function main() {
   console.log(`Constituents pulled in: ${constituents.size}`);
 
   // ---- Make sure every item exists in vocab_items -----------------------
-  const existingRows = await database
-    .select({
-      id: schema.vocabItems.id,
-      vocabItem: schema.vocabItems.vocabItem,
-    })
-    .from(schema.vocabItems);
   const idByItem = new Map(existingRows.map((r) => [r.vocabItem, r.id]));
 
   const missingWords = words.filter((w) => !idByItem.has(w.word));
