@@ -7,7 +7,12 @@ import {
   LEVEL_INTERVALS,
   MAX_LEVEL,
 } from "@/server/constants";
-import { NO_SYNONYMS, gradeAnswer, nextReviewAt } from "../study-scheduling";
+import {
+  NO_SYNONYMS,
+  gradeAnswer,
+  nextReviewAt,
+  sameMeaning,
+} from "../study-scheduling";
 
 const NOW = new Date("2026-01-01T00:00:00.000Z");
 const offset = (schedule: { nextAt: Date }) =>
@@ -17,6 +22,7 @@ const CARD = {
   id: "item-1",
   vocabItem: "人",
   pinyin: "rén",
+  otherReadings: [] as string[],
   translation: "man, person; people",
 };
 
@@ -80,6 +86,7 @@ describe("gradeAnswer", () => {
       studyType,
       answer,
       synonyms: NO_SYNONYMS,
+      equivalentWritings: NO_SYNONYMS,
       checker: checkerReturning(false),
       ...extra,
     });
@@ -103,6 +110,42 @@ describe("gradeAnswer", () => {
 
   it("should reject the wrong character on a writing card", async () => {
     expect(await grade("writing", "入")).toBe(false);
+  });
+
+  it("should accept another standard reading of the character", async () => {
+    const card = {
+      ...CARD,
+      vocabItem: "觉",
+      pinyin: "jué",
+      otherReadings: ["jiào"],
+    };
+    expect(await grade("reading", "jiao4", { card })).toBe(true);
+  });
+
+  it("should accept another reading on a listening card too", async () => {
+    const card = {
+      ...CARD,
+      vocabItem: "长",
+      pinyin: "cháng",
+      otherReadings: ["zhǎng"],
+    };
+    expect(await grade("listening", "zhang3", { card })).toBe(true);
+  });
+
+  it("should still reject a reading the character does not have", async () => {
+    const card = {
+      ...CARD,
+      vocabItem: "觉",
+      pinyin: "jué",
+      otherReadings: ["jiào"],
+    };
+    expect(await grade("reading", "jue4", { card })).toBe(false);
+  });
+
+  it("should accept a deck item with a word-for-word identical meaning on a writing card", async () => {
+    expect(
+      await grade("writing", "苹果", { equivalentWritings: new Set(["苹果"]) }),
+    ).toBe(true);
   });
 
   it("should accept a stored synonym", async () => {
@@ -145,5 +188,19 @@ describe("gradeAnswer", () => {
         card: { ...CARD, translation: null },
       }),
     ).rejects.toThrow(CARD.id);
+  });
+});
+
+describe("sameMeaning", () => {
+  it("should match the same alternatives in any order, case and spacing", () => {
+    expect(sameMeaning("Apple;  fruit", "fruit, apple")).toBe(true);
+  });
+
+  it("should not match when one meaning only shares an alternative", () => {
+    expect(sameMeaning("clothes", "clothes; dress")).toBe(false);
+  });
+
+  it("should not match an empty meaning", () => {
+    expect(sameMeaning("", "")).toBe(false);
   });
 });

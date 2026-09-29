@@ -18,6 +18,10 @@
 #                    a reading that belongs to another sense)
 #   surname          a stray "surname" alternative on a character whose everyday use is
 #                    something else, which let "surname" pass as an answer
+#   rwc-dictionary   a character from Reading and Writing Chinese (the 2,338 a learner is
+#                    likeliest to meet) whose meaning or reading the audit flagged; the
+#                    fix was proposed and independently confirmed by two model passes and
+#                    has NOT been human-reviewed (vocab_items.human_reviewed)
 #   <a>+reading      a sense fix and a reading fix on the same row
 #
 # glyph	pinyin	translation	reason
@@ -234,3 +238,300 @@
 麴		yeast; to leaven	surname
 黃		yellow	surname
 黄		yellow	surname
+丧		to lose; mourning; funeral	rwc-dictionary
+串		string (of things); measure word for strings or bunches; to string together; to go from place to place; to get mixed up	rwc-dictionary
+为		for; for the sake of; to do, to act; to be; to become	rwc-dictionary
+乐		happy; cheerful; to laugh; music	rwc-dictionary
+乱		messy; in disorder; chaos; random, arbitrary; turmoil, unrest	rwc-dictionary
+于		at; in; on; to; from; than	rwc-dictionary
+亭		pavilion; kiosk; booth	rwc-dictionary
+亲		relative; parent; close, intimate; in person, oneself; to kiss; relatives by marriage	rwc-dictionary
+仓		granary; warehouse; storehouse	rwc-dictionary
+仔		careful; meticulous; young animal; son; kid	rwc-dictionary
+仗		to rely on; battle; war; weapons	rwc-dictionary
+以		with; by means of; according to; so as to; because of	rwc-dictionary
+份		share, portion; part; measure word for portions, copies, newspapers, jobs	rwc-dictionary
+企		enterprise; to hope for; to expect; to stand on tiptoe	rwc-dictionary
+传		to pass on; to transmit; to spread; to propagate; biography	rwc-dictionary
+伯		father's elder brother; uncle; earl, count	rwc-dictionary
+估		to estimate; to guess; to appraise; to presume	rwc-dictionary
+伸		to stretch; to extend; to stretch out	rwc-dictionary
+伺		to serve; to wait upon; to attend; to watch for	rwc-dictionary
+似	sì	to resemble; similar to; to seem; as if	rwc-dictionary+reading
+但		but; however; yet; still; only	rwc-dictionary
+位		position, location; polite measure word for people; seat; rank, status; digit, place	rwc-dictionary
+使		to make, to cause; to use; to send (on a mission); envoy; ambassador	rwc-dictionary
+俄		Russia; Russian; suddenly, very soon	rwc-dictionary
+俏		pretty; smart, stylish; to sell well, in great demand	rwc-dictionary
+修		to repair; to build; to study; to cultivate; to trim; to decorate	rwc-dictionary
+倍		times; -fold; to double; to increase or multiply	rwc-dictionary
+倒		to pour; upside down, inverted; on the contrary, actually; to fall over	rwc-dictionary
+倾		to lean; to incline; to tilt; to collapse; to pour out; to overturn	rwc-dictionary
+停		to stop; to halt; to park; to stay; to pause	rwc-dictionary
+僚		colleague; official; bureaucracy; bureaucrat	rwc-dictionary
+克		gram; to overcome; to restrain; to subdue; can, to be able to	rwc-dictionary
+冒		to emit, to give off; to risk, to brave; to pretend to be, to impersonate; rashly	rwc-dictionary
+切	qiē	to cut; to slice; to chop; close to; eager; to be sure to	rwc-dictionary+reading
+划		to plan; to divide; to delimit; to row, to paddle; to scratch; to be worth it	rwc-dictionary
+则		then; in that case; rule; standard; regulation; measure word for news items and articles	rwc-dictionary
+创		to create; to establish; to begin; wound; trauma	rwc-dictionary
+削	xiāo	to peel, to pare; to whittle; to cut down, to reduce	rwc-dictionary+reading
+剩		to be left over; to remain; surplus; leftover	rwc-dictionary
+劲		strength; energy; enthusiasm, interest; strong, powerful	rwc-dictionary
+博		extensive; broad; rich, plentiful; learned; to win, to gain; to gamble	rwc-dictionary
+厉		strict; severe; harsh; fierce; stern	rwc-dictionary
+厕		toilet; washroom; lavatory	rwc-dictionary
+厚		thick; generous; substantial; deep (as a friendship)	rwc-dictionary
+参		to take part in; to refer to; to consult; ginseng	rwc-dictionary
+变		to change; to transform; to become; change; incident, upheaval	rwc-dictionary
+召		to summon; to call together; to convene; to beckon	rwc-dictionary
+吊		to hang; to suspend; to lift with a rope or crane; to mourn, to condole; to revoke	rwc-dictionary
+吐		to spit out; to vomit; to say, to utter; to cough up	rwc-dictionary
+吞		to swallow; to engulf; to annex; to absorb	rwc-dictionary
+吧	ba	sentence-final particle for suggestion or supposition; bar (drinking place)	rwc-dictionary+reading
+呆		to stay; stupid; dull; blank, dumbstruck	rwc-dictionary
+呐		to shout; to yell; to raise one's voice; sentence-final particle	rwc-dictionary
+周		week; circumference; circle, cycle; thorough; all around; Zhou dynasty	rwc-dictionary
+咳	ké	to cough; cough; oh (sigh of regret or surprise)	rwc-dictionary+reading
+咸		salty; salted; all	rwc-dictionary
+咽		to swallow; throat; pharynx	rwc-dictionary
+哇	wā	wow; sound of crying; sentence-final particle after u or ao sounds	rwc-dictionary+reading
+哗	huá	uproar; clamor; hubbub; noise; splash, gurgle (sound of water)	rwc-dictionary+reading
+哟		oh (expressing surprise); ouch; sentence-final particle of exhortation	rwc-dictionary
+哩	li	sentence-final particle; mile	rwc-dictionary+reading
+喽	lou	sentence-final particle marking a completed or impending action; lackey	rwc-dictionary+reading
+嗦	suō	long-winded; to tremble; to suck	rwc-dictionary+reading
+嗽		to cough; cough	rwc-dictionary
+嘿		hey; hi (interjection to call attention or express surprise); heh (laughter)	rwc-dictionary
+噢		oh (showing understanding); interjection of realization	rwc-dictionary
+固		firm; solid; to solidify; resolutely; originally	rwc-dictionary
+地	dì	ground; earth; land; place; soil; adverbial particle	rwc-dictionary+reading
+圾		garbage; rubbish; trash	rwc-dictionary
+均		equal; even; fair; uniform; all, without exception	rwc-dictionary
+坑		pit; hole; to cheat, to swindle; to trap; to bury alive	rwc-dictionary
+坟		grave; tomb; burial mound	rwc-dictionary
+城		city; town; city wall; castle	rwc-dictionary
+塞		to stuff, to squeeze in; to stop up, to block; stopper, plug; frontier pass; fortress	rwc-dictionary
+墟		ruins; wasteland; village market; fair	rwc-dictionary
+处		place, locale; department, office; to handle, to deal with; to get along with; to be located in	rwc-dictionary
+夫		husband; man; laborer	rwc-dictionary
+夸		to praise; to boast; to exaggerate	rwc-dictionary
+夹		to press from both sides; to squeeze; to pick up with chopsticks; to be wedged between; to carry under one's arm; clip	rwc-dictionary
+奉		to present respectfully; to receive (orders); to revere; to believe in; to serve, to wait on	rwc-dictionary
+套		set; suit; cover; case; to slip over, to put on; to harness	rwc-dictionary
+姑		aunt; father's sister; husband's sister; young woman; temporarily	rwc-dictionary
+婴		baby; infant	rwc-dictionary
+孔		hole; opening; orifice; Confucius	rwc-dictionary
+孙		grandson; grandchild; descendant	rwc-dictionary
+孤		alone; lonely; solitary; orphaned	rwc-dictionary
+宁		peaceful; calm; would rather; to prefer	rwc-dictionary
+它		it	rwc-dictionary
+宅		residence; house; home; to stay at home	rwc-dictionary
+宙		universe; infinite time; eternity	rwc-dictionary
+宿		to lodge, to stay overnight; night; constellation	rwc-dictionary
+寅		third earthly branch; year of the Tiger; 3 to 5 a.m.	rwc-dictionary
+寻		to look for; to search for; to seek	rwc-dictionary
+将		will, shall; about to; a general; to check (in chess)	rwc-dictionary
+尘		dust; dirt; the mortal world	rwc-dictionary
+就		then; at once, right away; just, simply; only; to approach, to go to; to go with (food)	rwc-dictionary
+尽	jìn	to exhaust, to use up; to the utmost; to do one's best; as much as possible; to finish	rwc-dictionary+reading
+届		measure word for sessions, terms, graduating classes, and recurring events; session; term; to fall due; to arrive at a time	rwc-dictionary
+差		poor, not good; to fall short, to lack; almost, nearly; difference, gap; errand; business trip	rwc-dictionary
+帘		curtain; screen; blind	rwc-dictionary
+帜		flag; banner; pennant	rwc-dictionary
+幢	zhuàng	measure word for buildings; banner; stone pillar with Buddhist inscriptions	rwc-dictionary+reading
+废		waste; useless; to abolish; to discard; disabled	rwc-dictionary
+度		degree; extent; to spend (time); manner	rwc-dictionary
+弃		to abandon; to discard; to throw away; to give up; to desert	rwc-dictionary
+弹		bullet; bomb, shell; to play (a stringed instrument or piano); to flick; to spring, to bounce; elastic	rwc-dictionary
+当		to serve as, to act as; when, at the time of; ought, should; appropriate, proper; to regard as, to treat as; to pawn	rwc-dictionary
+御		imperial; to resist, to defend against; to drive (a carriage); to manage, to control	rwc-dictionary
+忘		to forget; to overlook; to neglect	rwc-dictionary
+念		to read aloud; to study; to miss, to think of; to recall; idea, thought	rwc-dictionary
+怀		bosom; to cherish, to keep in mind; to miss, to think of; to be pregnant; mind, heart	rwc-dictionary
+怒		anger; rage; angry; furious	rwc-dictionary
+思		to think; to ponder; to consider; to miss, to long for; thought	rwc-dictionary
+性		nature; character; temperament; sex; gender; -ness, -ity (suffix)	rwc-dictionary
+总		always; total, overall; general, chief; altogether; to gather, to sum up; after all, surely	rwc-dictionary
+恶		evil, wicked; bad; fierce, ferocious; to hate, to loathe	rwc-dictionary
+悄		quiet; silent; quietly	rwc-dictionary
+愿		to wish; wish, desire; willing; to hope	rwc-dictionary
+戚		relative; relatives by marriage; sorrow, grief	rwc-dictionary
+扇		fan; measure word for doors and windows; to fan	rwc-dictionary
+扎		to prick; to pierce; to tie, to bind; to pitch (a tent); to plunge into	rwc-dictionary
+扑		to pounce on; to throw oneself at; to rush at; to flap; to pat, to dab	rwc-dictionary
+扒		to hold on to, to cling to; to dig up; to push aside; to strip off, to take off; to rake	rwc-dictionary
+折		to break, to snap; to fold; to bend; discount; to turn back; to lose money	rwc-dictionary
+抢		to grab; to snatch; to rob; to rush; to vie for	rwc-dictionary
+拒		to refuse; to reject; to resist; to ward off	rwc-dictionary
+拧		to wring; to pinch; to twist; to screw on	rwc-dictionary
+按		to press; to push; according to; to restrain; to check	rwc-dictionary
+挥		to wave; to wield; to wipe away; to command; to scatter; to squander	rwc-dictionary
+挨		to be next to; close to; one by one; to suffer; to endure; to drag out time	rwc-dictionary
+挫		setback; to frustrate; to defeat; to subdue; to lower (one's tone)	rwc-dictionary
+据		according to; evidence; to occupy; to rely on	rwc-dictionary
+排		row; to line up; to arrange; to eliminate, to remove	rwc-dictionary
+控		to control; to accuse, to charge; to sue; to hold upside down to drain	rwc-dictionary
+援		to aid; to assist; to rescue; to quote, to cite	rwc-dictionary
+搂		to embrace, to hug; to hold in one's arms; to rake together, to gather up	rwc-dictionary
+撕		to tear; to rip; to tear up	rwc-dictionary
+操		to hold, to grasp; to operate; to manage, to run; to drill, to exercise; exercise; conduct	rwc-dictionary
+攻		to attack; to assault; to study; to criticize	rwc-dictionary
+教	jiāo	to teach; education; religion	rwc-dictionary+reading
+斗		to fight; to struggle, to contend; peck (unit of dry measure)	rwc-dictionary
+方		square; direction; side; method; place, region; just, only then	rwc-dictionary
+易		easy; simple; to change; to exchange, to trade	rwc-dictionary
+春		spring; springtime; love, lust; vitality, life	rwc-dictionary
+晃	huàng	to shake; to sway; to dazzle; to flash past	rwc-dictionary+reading
+更		more; even more; further; to change; to replace	rwc-dictionary
+望		to look into the distance; to gaze; to hope; to expect; toward	rwc-dictionary
+朝		towards; to face; dynasty; morning	rwc-dictionary
+朱		vermilion; bright red; cinnabar	rwc-dictionary
+朴		plain; simple; sincere	rwc-dictionary
+朵		measure word for flowers and clouds; flower; blossom	rwc-dictionary
+李		plum; plum tree; surname	rwc-dictionary
+束		bundle; bunch; to bind, to tie; to restrain, to control	rwc-dictionary
+条		strip; classifier for long, narrow things; item, clause; stripe; twig; note	rwc-dictionary
+松		loose; to loosen, to relax; pine tree; soft, fluffy	rwc-dictionary
+枪		gun; rifle; pistol; spear; lance	rwc-dictionary
+柏		cypress; cypress tree	rwc-dictionary
+核		core, kernel; pit, stone of a fruit; nucleus, nuclear; to check, to examine	rwc-dictionary
+格		square; grid; check; compartment; pattern; standard	rwc-dictionary
+梨		pear	rwc-dictionary
+次		time (measure word for occurrences); second, next; order, sequence; inferior, second-rate	rwc-dictionary
+欧		Europe; European; ohm	rwc-dictionary
+歉		apology; to apologize; to be sorry; to regret; poor harvest	rwc-dictionary
+步		step; pace; to walk; on foot; stage	rwc-dictionary
+歹		bad; evil; wicked; vicious	rwc-dictionary
+毛		hair; fur; feathers; wool; ten cents, dime (unit of money); gross (not net)	rwc-dictionary
+氓		rogue; hooligan; hoodlum	rwc-dictionary
+汽		steam; vapor; gas	rwc-dictionary
+沈	shěn	surname; short for Shenyang	rwc-dictionary+reading
+治		to govern; to treat, to cure; to administer; to control; to punish	rwc-dictionary
+泡		to soak; to steep; bubble; blister; puffy, spongy	rwc-dictionary
+注		to pour into, to inject; to annotate; note, commentary; to concentrate on, to focus; to register, to record; bet, stake	rwc-dictionary
+消		to disappear; to vanish; to eliminate; to melt away; to consume; news	rwc-dictionary
+涉		to involve; to be concerned with; to wade through; to ford; to experience	rwc-dictionary
+涨		to rise; to go up in price; to swell	rwc-dictionary
+淋		to drench, to soak; to pour, to sprinkle; to drip; to filter	rwc-dictionary
+渔		fishing; to fish; fisherman; to seek unfairly, to grab	rwc-dictionary
+湿		wet; damp; moist; humid	rwc-dictionary
+灰		gray; ash; dust; lime, mortar; discouraged	rwc-dictionary
+炒		to stir-fry; to fry; to roast; to speculate (in stocks, property); to fire (an employee)	rwc-dictionary
+炸		to explode; to blow up; to bomb; to deep-fry	rwc-dictionary
+炼		to smelt; to refine; to temper, to forge; to polish (writing)	rwc-dictionary
+然		so; like this; right; correct; however	rwc-dictionary
+煤		coal	rwc-dictionary
+燕		swallow (the bird); Yan, ancient state in northern Hebei	rwc-dictionary
+猜		to guess; to conjecture; to suppose; to suspect	rwc-dictionary
+率		rate; ratio; proportion; to lead, to command	rwc-dictionary
+理		reason; logic; principle; to manage; to pay attention to; natural science	rwc-dictionary
+甚	shèn	very, extremely; even more; excessive	rwc-dictionary+reading
+甫		just, only just; to begin; honorific for a man	rwc-dictionary
+番		a time, a turn; measure word for kinds, times, or occasions; foreign; to take turns	rwc-dictionary
+疗		to treat; to cure; therapy	rwc-dictionary
+盏		measure word for lamps; small cup	rwc-dictionary
+盖		to cover; lid; to build; to affix (a seal); shell	rwc-dictionary
+盼		to hope for; to long for; to expect; to look, to gaze	rwc-dictionary
+眠		to sleep; sleep; hibernation	rwc-dictionary
+眯		to squint, to narrow the eyes; to get something in one's eye	rwc-dictionary
+眼		eye; small hole, opening; measure word for glances and wells	rwc-dictionary
+着		particle marking an ongoing action or state; to touch; to feel; to catch fire; to wear; to apply	rwc-dictionary
+瞒		to hide the truth from; to conceal; to deceive	rwc-dictionary
+碱		alkali; alkaline; soda; lye	rwc-dictionary
+离		to leave; to part from; away from; distance from	rwc-dictionary
+种		kind, sort; species, breed; race; seed; to plant, to grow	rwc-dictionary
+秒		second (of time); second of arc; instantly	rwc-dictionary
+称		to call; to say; to weigh; name; to suit, to match	rwc-dictionary
+突		sudden; abrupt; to stick out, to protrude; to break through; to dash forward	rwc-dictionary
+竟		unexpectedly; actually, to one's surprise; after all; in the end; to finish	rwc-dictionary
+等		to wait; etc.; rank, grade; equal	rwc-dictionary
+筑		to build; to construct; building	rwc-dictionary
+粗		thick; coarse; rough; rude; careless	rwc-dictionary
+粘		to stick; to paste; to glue; sticky; glutinous	rwc-dictionary
+累		tired; to tire, to wear out; to accumulate; to involve, to implicate	rwc-dictionary
+繁		numerous; complicated; busy; to multiply	rwc-dictionary
+约		approximately; to make an appointment; to invite; agreement; treaty; to restrict	rwc-dictionary
+纵		vertical; longitudinal; to indulge; to let loose; to leap; even if	rwc-dictionary
+组		group; to form, to organize; section, department; set, series	rwc-dictionary
+经		to pass through; to experience, to undergo; to manage, to run; scripture, the classics; longitude	rwc-dictionary
+绢		thin silk; silk fabric; handkerchief	rwc-dictionary
+续		to continue; to extend; to add to; continuous	rwc-dictionary
+综		to sum up; to synthesize; comprehensive	rwc-dictionary
+绿		green	rwc-dictionary
+缝	féng	to sew; to stitch; seam; crack	rwc-dictionary+reading
+罗	luó	net for catching birds; to collect; to display; silk gauze; sieve	rwc-dictionary+reading
+翘		to stick up; to tilt up; to raise; to become warped	rwc-dictionary
+翻		to turn over; to flip over; to capsize; to translate; to search through; to climb over	rwc-dictionary
+聊		to chat; merely; slightly	rwc-dictionary
+肃		solemn; serious; respectful; to eliminate, to purge	rwc-dictionary
+背		back; to recite from memory; to memorize; to carry on the back; to turn one's back on; to betray	rwc-dictionary
+胞		born of the same parents; fellow countryman; cell; placenta; womb	rwc-dictionary
+脏	zāng	dirty; filthy; internal organs; viscera	rwc-dictionary+reading
+脚		foot; base, foot of something	rwc-dictionary
+脾		spleen; temper; disposition	rwc-dictionary
+舍		to give up; to abandon; to be willing to part with; house, dwelling; hostel, dormitory	rwc-dictionary
+英		English; Britain, British; hero; brave, heroic; outstanding, talented; flower	rwc-dictionary
+荐		to recommend; to introduce	rwc-dictionary
+药		medicine; drug; chemical agent	rwc-dictionary
+萝		radish; trailing plant, vine	rwc-dictionary
+落		to fall, to drop; to go down; to lag behind; to leave out; to leave behind	rwc-dictionary
+著	zhù	to write, to author; famous; outstanding; to show, to make known; literary work	rwc-dictionary+reading
+蓬		disheveled; fluffy, puffy; fleabane; measure word for clumps	rwc-dictionary
+薄		thin; slight; meager; weak; ungenerous	rwc-dictionary
+虑		to consider; to think over; to worry; anxiety	rwc-dictionary
+蜡		wax; candle; polish	rwc-dictionary
+蠢		stupid; foolish; clumsy	rwc-dictionary
+行		to go, to walk; OK, all right; capable; to do, to perform; row, line; profession, business firm	rwc-dictionary
+表		to show, to express; table, form, list; watch; meter, gauge; surface, outside; cousin	rwc-dictionary
+袱		wrapping cloth; cloth bundle	rwc-dictionary
+要		to want; will, going to; to need; to ask for; important, essential; to demand	rwc-dictionary
+触		to touch; to come into contact with; to move (emotionally); to butt, to gore	rwc-dictionary
+讨		to ask for; to demand; to discuss; to provoke, to invite (dislike etc.); to marry (a wife); to send armed forces against	rwc-dictionary
+讽		to satirize; to mock; to ridicule; sarcastic	rwc-dictionary
+设		to set up; to establish; to arrange; to suppose, if	rwc-dictionary
+谊		friendship; friendly relations	rwc-dictionary
+谷		valley; grain; cereal; millet; gorge; ravine	rwc-dictionary
+豫		Henan (province); hesitant; pleased; comfortable	rwc-dictionary
+赞		to praise; to commend; to approve of; to support; like (on social media)	rwc-dictionary
+蹬		to step on; to pedal; to press down with the foot; to kick; to wear	rwc-dictionary
+转		to turn; to change, to shift; to transfer; to forward; to revolve, to rotate	rwc-dictionary
+辅		to assist; to supplement; auxiliary; to coach, to tutor	rwc-dictionary
+输		to lose; to be defeated; to transport; to input	rwc-dictionary
+辟		to open up; to develop; incisive; to refute	rwc-dictionary
+迈		to stride; to step; old, aged	rwc-dictionary
+迷		to be lost; confused; fan, enthusiast; to be infatuated with; to bewitch, to charm	rwc-dictionary
+迹	jì	trace; mark; footprint; sign; remains	rwc-dictionary+reading
+追		to chase; to pursue; to court; to trace back; to recall	rwc-dictionary
+递		to hand over; to pass; to deliver; successively	rwc-dictionary
+逗		to tease; to amuse; funny; to play with; to entice, to tempt	rwc-dictionary
+逮		to catch, to seize; to arrest	rwc-dictionary
+遍		time (measure word for actions done from start to finish); everywhere; all over; throughout	rwc-dictionary
+遗		to leave behind; to bequeath; to lose; to omit; a lost article; remains	rwc-dictionary
+酉		tenth Earthly Branch; 5-7 p.m.; wine vessel	rwc-dictionary
+酷		cool; cruel; ruthless; extremely; very	rwc-dictionary
+重		heavy, weighty; important; to repeat; again	rwc-dictionary
+野		wild; field, open country; wilderness; uncivilized, rude	rwc-dictionary
+钞		paper money; banknote	rwc-dictionary
+钥		key	rwc-dictionary
+钻		to drill; to bore; to go into, to squeeze through; to study intensively; a drill; diamond	rwc-dictionary
+铺	pū	to spread, to lay out; to pave; shop, store; bed, bunk	rwc-dictionary+reading
+键		key (on a keyboard or piano); button; bond (chemistry)	rwc-dictionary
+镇		town; to press down, to suppress; to guard, to garrison; calm, composed; to chill, to cool (with ice or cold water)	rwc-dictionary
+长	cháng	long; length; to grow; chief, head; elder, senior; to excel in	rwc-dictionary+reading
+闲		idle; not busy; leisure; free time; unoccupied	rwc-dictionary
+阵		spell, burst (measure word for rain, wind, etc.); a period of time; troop formation; battle array; position, front	rwc-dictionary
+陈		to display, to exhibit; to state, to explain; old, stale; surname	rwc-dictionary
+陕		Shaanxi province	rwc-dictionary
+险		dangerous; danger; risk; narrow pass, strategic point; nearly	rwc-dictionary
+雄		male (of animals); hero; powerful; grand, imposing; manly	rwc-dictionary
+靠		to lean on; to depend on; to rely on; to trust; to be near, to get close to	rwc-dictionary
+顺		along; smooth; to follow; to obey; in passing; favorable	rwc-dictionary
+顿		measure word for meals; measure word for beatings, scoldings, etc.; to pause; suddenly; to arrange; to stamp one's foot	rwc-dictionary
+题		topic; question, problem; title; subject; to inscribe	rwc-dictionary
+饱		full (from eating); to eat one's fill; satisfied; plump; to the full	rwc-dictionary
+饶		to spare; to forgive; to let off; to give extra; abundant; plentiful	rwc-dictionary
+驻		to be stationed at; to garrison; to halt, to stay	rwc-dictionary
+骤		sudden; abrupt; to gallop	rwc-dictionary
+黎		dawn; the common people; multitude; Li ethnic group	rwc-dictionary
+鼻		nose	rwc-dictionary

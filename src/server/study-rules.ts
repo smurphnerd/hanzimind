@@ -190,13 +190,20 @@ export function isUnlocked(
  * pinyin being present: the flag decides, and everything downstream sees a value
  * consistent with that decision.
  */
-export function readingOf(item: QuizzableItem): {
+export function readingOf(item: QuizzableItem & { otherReadings?: string[] }): {
   pinyin: string;
   audioUrl: string;
+  otherReadings: string[];
 } {
-  if (!hasOwnReading(item)) return { pinyin: "", audioUrl: "" };
+  if (!hasOwnReading(item)) {
+    return { pinyin: "", audioUrl: "", otherReadings: [] };
+  }
 
-  return { pinyin: item.pinyin, audioUrl: item.audioUrl };
+  return {
+    pinyin: item.pinyin,
+    audioUrl: item.audioUrl,
+    otherReadings: item.otherReadings ?? [],
+  };
 }
 
 /**

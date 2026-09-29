@@ -22,11 +22,40 @@ export interface GradableCard {
   id: string;
   vocabItem: string;
   pinyin: string;
+  /** Also accepted on reading and listening cards; see the schema column. */
+  otherReadings: string[];
   translation: string | null;
 }
 
 /** No stored synonyms, allocated once rather than per answer. */
 export const NO_SYNONYMS: ReadonlySet<string> = new Set();
+
+/**
+ * Whether two translations say exactly the same thing, word for word: the same
+ * set of comma/semicolon alternatives, ignoring case, spacing and their order.
+ *
+ * Deliberately exact. A writing card shows one item's whole translation, and
+ * another deck item is an equally right answer only when nothing in that prompt
+ * could tell the two apart — 苹 and 苹果 are both "apple". Sharing a single
+ * alternative is not enough: 衣 includes "clothes", but 衣服's prompt asks for
+ * the word, and accepting a part for the whole would teach the wrong answer.
+ */
+export function sameMeaning(a: string | null, b: string | null): boolean {
+  const alternatives = (text: string | null) =>
+    new Set(
+      (text ?? "")
+        .split(/[;,]/)
+        .map((part) => part.replace(/\s+/g, " ").trim().toLowerCase())
+        .filter(Boolean),
+    );
+  const left = alternatives(a);
+  const right = alternatives(b);
+  return (
+    left.size > 0 &&
+    left.size === right.size &&
+    [...left].every((part) => right.has(part))
+  );
+}
 
 /**
  * Where one answer leaves the item.
@@ -85,22 +114,28 @@ export async function gradeAnswer(args: {
   studyType: StudyType;
   answer: string;
   synonyms: ReadonlySet<string>;
+  /**
+   * Other items in the same deck whose translation is word for word this
+   * card's (see sameMeaning). A writing card is right for any of them, because
+   * its prompt cannot tell them apart.
+   */
+  equivalentWritings: ReadonlySet<string>;
   checker: ITranslationChecker;
 }): Promise<boolean> {
-  const { card, studyType, answer, synonyms, checker } = args;
+  const { card, studyType, answer, synonyms, equivalentWritings, checker } =
+    args;
+  // Any standard reading of the character is right: the card shows it alone.
+  const matchesAReading = () =>
+    [card.pinyin, ...card.otherReadings].some((reading) =>
+      pinyinMatches(answer, reading, { requireTones: REQUIRE_PINYIN_TONES }),
+    );
 
   switch (studyType) {
     case "reading":
-      return pinyinMatches(answer, card.pinyin, {
-        requireTones: REQUIRE_PINYIN_TONES,
-      });
+      return matchesAReading();
 
     case "listening":
-      return (
-        pinyinMatches(answer, card.pinyin, {
-          requireTones: REQUIRE_PINYIN_TONES,
-        }) || answer.trim() === card.vocabItem.trim()
-      );
+      return matchesAReading() || answer.trim() === card.vocabItem.trim();
 
     case "understanding": {
       // Only the answer is normalised. `addSynonym` already stores the trimmed
@@ -122,6 +157,9 @@ export async function gradeAnswer(args: {
     }
 
     case "writing":
-      return answer.trim() === card.vocabItem.trim();
+      return (
+        answer.trim() === card.vocabItem.trim() ||
+        equivalentWritings.has(answer.trim())
+      );
   }
 }

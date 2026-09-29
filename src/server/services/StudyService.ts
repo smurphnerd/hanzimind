@@ -21,6 +21,7 @@ import {
   NO_SYNONYMS,
   gradeAnswer,
   nextReviewAt,
+  sameMeaning,
 } from "@/server/study-scheduling";
 import {
   canStudy,
@@ -294,9 +295,46 @@ export class StudyService {
       });
   }
 
+  /**
+   * The other deck item a writing answer names, when its translation is word
+   * for word this card's, so the prompt could not have told them apart. At most
+   * one row: the answer is a single string. Only a writing card with an answer
+   * that is not already the item costs the query.
+   */
+  private async equivalentWritings(
+    deckId: string,
+    answer: StudyAnswerDto,
+    card: { vocabItem: string; translation: string | null },
+  ): Promise<ReadonlySet<string>> {
+    const typed = answer.answer.trim();
+    if (answer.studyType !== "writing") return NO_SYNONYMS;
+    if (!typed || typed === card.vocabItem.trim()) return NO_SYNONYMS;
+
+    const [other] = await this.deps.database
+      .select({ translation: schema.vocabItems.translation })
+      .from(schema.deckVocabItems)
+      .innerJoin(
+        schema.vocabItems,
+        eq(schema.vocabItems.id, schema.deckVocabItems.vocabItemId),
+      )
+      .where(
+        and(
+          eq(schema.deckVocabItems.deckId, deckId),
+          eq(schema.vocabItems.vocabItem, typed),
+          eq(schema.vocabItems.disabled, false),
+        ),
+      )
+      .limit(1);
+
+    return other && sameMeaning(other.translation, card.translation)
+      ? new Set([typed])
+      : NO_SYNONYMS;
+  }
+
   async processAnswer(
     answer: StudyAnswerDto,
     userId: string,
+    deckId: string,
   ): Promise<boolean> {
     // Fetch the item and the user's progress in parallel. Whether the deck
     // teaches this item is settled before the call, by the router's
@@ -382,6 +420,11 @@ export class StudyService {
       studyType: answer.studyType,
       answer: answer.answer,
       synonyms: await this.acceptedSynonyms(userId, answer),
+      equivalentWritings: await this.equivalentWritings(
+        deckId,
+        answer,
+        vocabItem,
+      ),
       checker: this.deps.translationChecker,
     });
 
@@ -481,7 +524,7 @@ export class StudyService {
   }> {
     const { userId, deckId, answer } = args;
 
-    const correct = await this.processAnswer(answer, userId);
+    const correct = await this.processAnswer(answer, userId, deckId);
     const [userVocabItem, nextVocabItem] = await Promise.all([
       this.getUserVocabItem(userId, answer.vocabItemId),
       this.getNextVocabItem(userId, deckId),

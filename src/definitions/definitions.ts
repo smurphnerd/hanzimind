@@ -102,6 +102,11 @@ export const VocabItemDto = z.object({
   vocabItem: z.string(),
   translation: z.string().nullable(),
   pinyin: z.string(),
+  /**
+   * The character's other standard readings (觉: ["jiào"] beside "jué"), all
+   * accepted on reading and listening cards. Empty wherever `pinyin` is blanked.
+   */
+  otherReadings: z.array(z.string()),
   vocabType: z.enum(vocabTypeValues),
   script: ScriptEnum,
   audioUrl: z.string(),
@@ -158,6 +163,8 @@ export const AdminVocabItemDto = VocabItemDto.pick({
    * character they abbreviate — so the admin screen edits the two separately.
    */
   phonetic: z.boolean(),
+  /** Whether a person has checked this row; admin-only bookkeeping. */
+  humanReviewed: z.boolean(),
 });
 export type AdminVocabItemDto = z.infer<typeof AdminVocabItemDto>;
 

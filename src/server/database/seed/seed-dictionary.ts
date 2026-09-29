@@ -18,6 +18,7 @@ import {
   applyOverride,
   loadVocabOverrides,
 } from "@/server/database/seed/vocab-overrides";
+import { loadOtherReadings } from "@/server/database/seed/other-readings";
 import { VocabTypeEnum, type EtymologyType } from "@/definitions/definitions";
 
 interface SeedCradle {
@@ -133,6 +134,7 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
   // Curated corrections to dictionary.txt's reading and meaning, applied last so
   // a fresh seed lands where backfill-overrides.ts takes a live database.
   const overrides = loadVocabOverrides();
+  const otherReadings = loadOtherReadings();
 
   const buildRow = async (entry: DictionaryEntry) => {
     const graphics = graphicsMap.get(entry.character);
@@ -174,6 +176,7 @@ export async function seedDictionary(cradle: SeedCradle): Promise<void> {
       vocabItem: entry.character,
       translation: stored.translation,
       pinyin: stored.pinyin,
+      otherReadings: otherReadings.get(entry.character) ?? [],
       vocabType:
         classified?.decision === "component"
           ? VocabTypeEnum.enum.component

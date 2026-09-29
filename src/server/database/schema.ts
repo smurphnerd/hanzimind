@@ -19,7 +19,7 @@ import {
   SuggestionStatus,
   VocabType,
 } from "@/definitions/definitions";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Users table
 export const users = pgTable("users", {
@@ -121,6 +121,14 @@ export const vocabItems = pgTable(
     vocabItem: text().notNull().unique(),
     translation: text(),
     pinyin: text().notNull(),
+    // The character's other standard readings, besides `pinyin` (the main one,
+    // which is shown and spoken). A reading card accepts any of them: 觉 is jué
+    // and jiào, 长 is cháng and zhǎng. From seed/other-readings.tsv, which
+    // scripts/build-other-readings.mjs generates from dictionary.txt and RWC.
+    otherReadings: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     vocabType: text().notNull().$type<VocabType>(),
     // Whether this component's own reading is worth teaching, because it is the
     // SOUND part of the characters it appears in (艮 gěn -> 很 跟 根 恨). False for
@@ -160,6 +168,10 @@ export const vocabItems = pgTable(
     // dictionary, search, and study selection — so they behave as if deleted.
     // Driven by seed/vocab-classification.tsv; see scripts/backfill-classification.ts.
     disabled: boolean().notNull().default(false),
+    // Whether a person has checked this row's reading, meaning, audio and parts.
+    // Nothing sets it but an admin in /admin/vocab or on the entry page, so the
+    // unreviewed filter there is the queue of rows still to check.
+    humanReviewed: boolean().notNull().default(false),
     // The curated memory aid an admin has starred for this glyph. Shown first on
     // the dictionary and used on a learner's study card until they pin their own.
     // Nullable, and the reference is a thunk because memoryAids is declared below

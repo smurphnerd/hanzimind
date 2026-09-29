@@ -26,6 +26,7 @@ const listVocabItemsSchema = z.object({
   vocabType: VocabTypeEnum.optional(),
   script: ScriptEnum.optional(),
   disabled: z.boolean().optional(),
+  reviewed: z.enum(["all", "unreviewed", "reviewed"]).optional().default("all"),
   page: z.number().int().positive().optional().default(1),
   pageSize: z.number().int().positive().max(200).optional().default(50),
 });
@@ -60,6 +61,14 @@ export const adminRouter = {
       return { items, pagingInfo: { page, pageSize, total, totalPages } };
     }),
 
+  /** A single row with its admin-only flags, for the dictionary-entry editor. */
+  getVocabItem: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .output(AdminVocabItemDto)
+    .handler(async ({ input, context }) => {
+      return await context.cradle.adminService.getVocabItem(input.id);
+    }),
+
   updateVocabItem: adminProcedure
     .input(
       z
@@ -75,6 +84,8 @@ export const adminRouter = {
           // borrowed from the character it abbreviates, so having one and
           // teaching one are different facts. See AdminService.updateVocabItem.
           phonetic: z.boolean().optional(),
+          // Admin bookkeeping only: marks the row as checked by a person.
+          humanReviewed: z.boolean().optional(),
         })
         // A request that changes nothing is a client bug, not a no-op worth
         // hiding — surface it rather than reporting success.
@@ -84,7 +95,8 @@ export const adminRouter = {
             input.disabled !== undefined ||
             input.translation !== undefined ||
             input.pinyin !== undefined ||
-            input.phonetic !== undefined,
+            input.phonetic !== undefined ||
+            input.humanReviewed !== undefined,
           { message: "Nothing to update" },
         ),
     )

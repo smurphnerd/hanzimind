@@ -13,6 +13,7 @@ const userVocabItem: UserVocabItemDto = {
   vocabItem: "人",
   translation: "man, person; people",
   pinyin: "rén",
+  otherReadings: [],
   vocabType: "character",
   script: "both",
   audioUrl: "",
